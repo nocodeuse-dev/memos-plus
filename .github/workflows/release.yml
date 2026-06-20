@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Check release version
+        run: npm run check:release-version -- "$GITHUB_REF_NAME"
+
+      - name: Build
+        run: npm run build
+
+      - name: Package release assets
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p release-assets
+          cp main.js manifest.json styles.css release-assets/
+          cd release-assets
+          zip -r "../memos-plus-${version}.zip" main.js manifest.json styles.css
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes_file="$(mktemp)"
+          cat > "$notes_file" <<EOF
+          Memos Plus ${version}
+
+          Install or update with BRAT by tracking:
+
+          nocodeuse-dev/memos-plus
+
+          Release assets:
+          - main.js
+          - manifest.json
+          - styles.css
+          - memos-plus-${version}.zip
+          EOF
+          gh release create "$GITHUB_REF_NAME" \
+            release-assets/main.js \
+            release-assets/manifest.json \
+            release-assets/styles.css \
+            "memos-plus-${version}.zip" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Memos Plus ${version}" \
+            --notes-file "$notes_file" \
+            --latest \
+            --verify-tag

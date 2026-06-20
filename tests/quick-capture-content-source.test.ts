@@ -1,0 +1,60 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const mainSource = readFileSync("main.ts", "utf8");
+const modalSource = readFileSync("src/modal.ts", "utf8");
+const quickInputSource = readFileSync("src/quickInputView.ts", "utf8");
+const composerSessionSource = readFileSync("src/composerSession.ts", "utf8");
+const settingsSource = readFileSync("src/settings.ts", "utf8");
+const i18nSource = readFileSync("src/i18n.ts", "utf8");
+
+describe("quick capture content sources", () => {
+  it("keeps quick capture auto mode and clipboard quick capture without a duplicate selection command", () => {
+    expect(mainSource).toContain("quick-capture");
+    expect(mainSource).toContain('openQuickCaptureWithContentSource("auto")');
+    expect(mainSource).not.toContain("quick-capture-selection");
+    expect(mainSource).toContain("quick-capture-clipboard");
+    expect(mainSource).not.toContain("command.quickCaptureSelection");
+    expect(mainSource).toContain("command.quickCaptureClipboard");
+    expect(mainSource).toContain("openQuickCaptureWithContentSource");
+  });
+
+  it("registers an Obsidian URI for iPhone quick capture launch", () => {
+    expect(mainSource).toContain('registerObsidianProtocolHandler("memos-plus"');
+    expect(mainSource).toContain("handleMemosPlusProtocol");
+    expect(mainSource).toContain('mode === "clipboard"');
+    expect(mainSource).toContain("openQuickCaptureWithInitialContent");
+    expect(mainSource).toContain('initialContentMode: "none"');
+  });
+
+  it("wires quick capture modal through the shared initial-content function", () => {
+    expect(modalSource).toContain("createComposerSession");
+    expect(composerSessionSource).toContain("getQuickCaptureInitialContent");
+    expect(composerSessionSource).toContain("applyInitialContent");
+    expect(modalSource).toContain("initialContentMode");
+    expect(composerSessionSource).toContain("mergeComposerContent");
+  });
+
+  it("lets the sidebar quick input fill selection or clipboard without duplicating source logic", () => {
+    expect(quickInputSource).toContain("createComposerSession");
+    expect(quickInputSource).not.toContain("quickInput.insertSelection");
+    expect(quickInputSource).not.toContain("quickInput.insertClipboard");
+    expect(composerSessionSource).toContain("getQuickCaptureInitialContent");
+    expect(composerSessionSource).toContain("applyIncomingContent");
+  });
+
+  it("adds settings and Chinese labels for quick capture content sources", () => {
+    for (const field of [
+      "quickCaptureAutoSelection",
+      "quickCaptureDetectClipboard",
+      "quickCaptureClipboardMode",
+      "quickCaptureExistingContentMode",
+      "quickCaptureRecognizeClipboardLinks"
+    ]) {
+      expect(settingsSource).toContain(field);
+    }
+    expect(settingsSource).toContain("renderQuickCaptureContentSourceSettings");
+    expect(i18nSource).toContain('"settings.quickCaptureContentSource": "快速记录内容来源"');
+    expect(i18nSource).toContain('"quickCaptureContent.clipboardEmpty": "剪贴板为空"');
+  });
+});

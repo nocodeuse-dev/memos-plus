@@ -1,0 +1,37 @@
+{
+  "name": "memos-plus",
+  "version": "0.1.123",
+  "description": "A local-first memo workbench for Obsidian, stored as readable Markdown.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "check:release-version": "node scripts/check-release-version.mjs",
+    "install:github": "node scripts/install-github-release.mjs",
+    "lint": "eslint .",
+    "sync": "node scripts/sync.mjs",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "obsidian",
+    "memos",
+    "markdown"
+  ],
+  "author": "nocodeuse-dev",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^22.15.17",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "^0.25.5",
+    "eslint": "^9.39.4",
+    "eslint-plugin-obsidianmd": "^0.3.0",
+    "globals": "^16.5.0",
+    "obsidian": "latest",
+    "tslib": "^2.8.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.59.1",
+    "vitest": "^4.0.15"
+  }
+}
