@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -24,6 +24,10 @@ function normalizeTag(tag) {
     return undefined;
   }
   return tag.startsWith("v") ? tag : `v${tag}`;
+}
+
+function timestamp() {
+  return new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
 }
 
 function getGitHubToken() {
@@ -79,6 +83,31 @@ async function getRelease() {
   return fetchJson(`https://api.github.com/repos/${REPOSITORY}/${path}`);
 }
 
+async function cleanTargetIfRequested() {
+  if (!process.argv.includes("--clean") || !existsSync(TARGET_DIR)) {
+    return;
+  }
+
+  const discardData = process.argv.includes("--discard-data");
+  let pluginData;
+  if (!discardData) {
+    try {
+      pluginData = await readFile(join(TARGET_DIR, "data.json"), "utf8");
+      const backupPath = `${TARGET_DIR}.data.json.bak-${timestamp()}`;
+      await writeFile(backupPath, pluginData);
+      console.log(`Backed up ${PLUGIN_ID} data.json to ${backupPath}`);
+    } catch {
+      pluginData = undefined;
+    }
+  }
+
+  await rm(TARGET_DIR, { recursive: true, force: true });
+  if (pluginData !== undefined) {
+    await mkdir(TARGET_DIR, { recursive: true });
+    await writeFile(join(TARGET_DIR, "data.json"), pluginData);
+  }
+}
+
 function findAsset(release, name) {
   const asset = release.assets?.find((item) => item.name === name);
   if (!asset?.browser_download_url) {
@@ -122,6 +151,7 @@ function reloadPlugin() {
 
 async function main() {
   const release = await getRelease();
+  await cleanTargetIfRequested();
   await mkdir(TARGET_DIR, { recursive: true });
 
   for (const file of DIST_FILES) {

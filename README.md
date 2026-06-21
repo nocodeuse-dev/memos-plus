@@ -59,11 +59,13 @@ npm run sync
 
 Release artifacts are `main.js`, `manifest.json`, and `styles.css`.
 
-`npm run sync` is the default local development loop. It bumps the patch
-version, builds the plugin, copies `main.js`, `manifest.json`, and `styles.css`
-to `/Users/yangjiahao/Documents/Steamboy/.obsidian/plugins/memos-plus`, then
-asks the Obsidian CLI to reload only the `memos-plus` plugin in the `Steamboy`
-vault.
+`npm run sync` is the default release loop. It bumps the patch version, runs
+tests and build, commits the release, pushes `main`, creates a GitHub tag, waits
+for the GitHub Release workflow, installs the release into the `Steamboy` vault
+from GitHub, then reloads only the `memos-plus` plugin.
+
+For emergency local-only testing, `npm run sync:local` keeps the old direct
+build-and-copy behavior.
 
 ## Install from GitHub
 
@@ -100,6 +102,13 @@ To install a specific release tag instead:
 npm run install:github -- --tag v0.1.123
 ```
 
+To reinstall from GitHub as a completely fresh plugin and discard old plugin
+settings:
+
+```bash
+npm run install:github -- --tag v0.1.123 --clean --discard-data
+```
+
 ## Publish a Release
 
 Before publishing, make sure the version in `package.json`, `package-lock.json`,
@@ -116,6 +125,15 @@ git push origin main v0.1.123
 The GitHub Actions release workflow runs tests, checks the release version,
 builds `main.js`, packages the release zip, and publishes the four release
 assets for BRAT and manual installation.
+
+For normal plugin changes, prefer:
+
+```bash
+npm run sync
+```
+
+This command handles the patch version bump, GitHub release, GitHub-based
+Steamboy installation, and plugin reload together.
 
 ## Credits
 
