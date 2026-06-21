@@ -15,6 +15,7 @@ export interface QuickCaptureModalOptions {
   initialContent?: string;
   initialContentMode?: QuickCaptureInitialContentMode;
   showClipboardEmptyNotice?: boolean;
+  resolveMarkdownLink?: (text: string) => Promise<string | null>;
 }
 
 export class QuickCaptureModal extends Modal {
@@ -40,7 +41,8 @@ export class QuickCaptureModal extends Modal {
       store: this.options.store,
       persistSettings: this.options.persistSettings,
       refreshViews: this.options.refreshViews,
-      registerCleanup: (cleanup) => this.cleanups.push(cleanup)
+      registerCleanup: (cleanup) => this.cleanups.push(cleanup),
+      resolveMarkdownLink: this.options.resolveMarkdownLink
     }, {
       initialContent: this.options.initialContent,
       initialContentMode: this.options.initialContentMode ?? "auto",

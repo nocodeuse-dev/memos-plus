@@ -10,6 +10,7 @@ import {
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
 import { createNativeMarkdownComposer, type NativeMarkdownComposer } from "./nativeComposer";
+import { mergeComposerContent, type QuickCaptureContentAction } from "./quickCaptureContent";
 import type { MemosPlusSettings } from "./settings";
 
 interface ComposerToolbarButton {
@@ -31,6 +32,17 @@ export interface ComposerWidgetOptions {
   createExcalidrawAttachment: () => Promise<TFile>;
   registerCleanup?: (cleanup: () => void) => void;
   sendActionTitle?: () => MemosPlusSettings["defaultSendAction"];
+  resolveMarkdownLink?: (text: string) => Promise<string | null>;
+}
+
+export type ComposerInputChangeSource = "quick-input-paste" | "clipboard-fill" | "clipboard-append" | "selection-fill" | "selection-append";
+type ComposerInputChangeAction = Extract<QuickCaptureContentAction, "replace" | "append"> | "insert";
+
+interface ComposerInputChangeOptions {
+  action?: ComposerInputChangeAction;
+  focus?: boolean;
+  emitInputEvent?: boolean;
+  analyzeLinks?: boolean;
 }
 
 export class ComposerWidget {
@@ -82,6 +94,21 @@ export class ComposerWidget {
 
   insertText(text: string): void {
     this.composer.insertText(text);
+  }
+
+  async processInputContentChange(source: ComposerInputChangeSource, text: string, options: ComposerInputChangeOptions = {}): Promise<void> {
+    const action = options.action ?? "replace";
+    this.debugInputPipeline(source, { action, textLength: text.length });
+    const processedText = options.analyzeLinks === false ? text : await this.resolveInputLinkText(source, text);
+    if (action === "insert") {
+      this.composer.insertText(processedText);
+    } else {
+      this.composer.setValue(mergeComposerContent(this.composer.getValue(), processedText, action));
+      if (options.focus) {
+        this.composer.focus();
+      }
+    }
+    this.handleInputContentUpdated(options.emitInputEvent ?? false);
   }
 
   async insertImageFile(file: File): Promise<void> {
@@ -557,14 +584,55 @@ export class ComposerWidget {
     const items = Array.from(event.clipboardData?.items ?? []);
     const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
     const file = imageItem?.getAsFile();
-    if (!file) {
+    if (file) {
+      if (!shouldMemosHandleImagePaste(this.options.settings().imageHandlingMode, this.options.app)) {
+        return;
+      }
+      event.preventDefault();
+      await this.handleImageFile(file);
       return;
     }
-    if (!shouldMemosHandleImagePaste(this.options.settings().imageHandlingMode, this.options.app)) {
+
+    const text = event.clipboardData?.getData("text/plain") ?? "";
+    if (!text || !this.options.resolveMarkdownLink) {
       return;
     }
     event.preventDefault();
-    await this.handleImageFile(file);
+    await this.processInputContentChange("quick-input-paste", text, {
+      action: "insert",
+      emitInputEvent: true
+    });
+  }
+
+  private async resolveInputLinkText(source: ComposerInputChangeSource, text: string): Promise<string> {
+    const trimmed = text.trim();
+    if (!trimmed || !this.options.resolveMarkdownLink) {
+      return text;
+    }
+    this.debugInputPipeline("link-analysis-start", { source, textLength: trimmed.length });
+    try {
+      const markdownLink = await this.options.resolveMarkdownLink(trimmed);
+      this.debugInputPipeline("link-analysis-result", { source, matched: Boolean(markdownLink) });
+      return markdownLink ?? text;
+    } catch (error) {
+      this.debugInputPipeline("link-analysis-result", { source, matched: false, error: true });
+      console.warn("[Memos Plus] link-analysis-result failed", error);
+      return text;
+    }
+  }
+
+  private handleInputContentUpdated(emitInputEvent: boolean): void {
+    this.updateCalloutStatus();
+    if (emitInputEvent) {
+      this.composer.element.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }
+
+  private debugInputPipeline(event: string, data: Record<string, unknown>): void {
+    if (!this.options.settings().performanceDebugMode) {
+      return;
+    }
+    console.warn(`[Memos Plus debug] ${event}`, data);
   }
 
   private async handleComposerDrop(event: DragEvent): Promise<void> {

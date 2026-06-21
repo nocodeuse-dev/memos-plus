@@ -436,7 +436,8 @@ export class MemosPlusView extends ItemView {
       store: this.plugin.store,
       persistSettings: () => this.plugin.persistSettings(),
       refreshViews: () => this.reload(),
-      registerCleanup: (cleanup) => this.register(cleanup)
+      registerCleanup: (cleanup) => this.register(cleanup),
+      resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text)
     });
   }
 
@@ -1538,7 +1539,8 @@ export class MemosPlusView extends ItemView {
         settings: this.plugin.settings,
         store: this.plugin.store,
         persistSettings: () => this.plugin.persistSettings(),
-        refreshViews: () => this.plugin.refreshViews()
+        refreshViews: () => this.plugin.refreshViews(),
+        resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text)
       }).open();
     });
   }

@@ -33,6 +33,17 @@ describe("link capture parsing", () => {
     );
   });
 
+  it("keeps existing platform title cleanup for WeChat, Bilibili, Xiaohongshu, and ordinary pages", async () => {
+    await expect(resolveClipboardMarkdownLink("https://mp.weixin.qq.com/s/abc", async () => "微信文章标题")).resolves.toBe(
+      "[微信文章标题](https://mp.weixin.qq.com/s/abc)"
+    );
+    expect(extractTitle("https://www.bilibili.com/video/BV1xx", '<title>哔哩视频标题 - 哔哩哔哩</title>')).toBe("哔哩视频标题");
+    expect(extractTitle("https://www.xiaohongshu.com/explore/abc", '<title>小红书笔记 - 小红书</title>')).toBe("小红书笔记");
+    await expect(resolveClipboardMarkdownLink("https://example.com/page", async () => "普通网页标题")).resolves.toBe(
+      "[普通网页标题](https://example.com/page)"
+    );
+  });
+
   it("decodes entities and removes common site suffixes", () => {
     expect(extractTitle("https://youtube.com/watch?v=1", '<meta property="og:title" content="Tiny &amp; Desk - YouTube">')).toBe(
       "Tiny & Desk"

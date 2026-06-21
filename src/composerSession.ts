@@ -1,12 +1,11 @@
-import { Notice, type App } from "obsidian";
+import { Notice, Platform, type App } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { createComposerActions, type ComposerActions, type ComposerActionsOptions, type ComposerProjectMode } from "./composerActions";
-import { ComposerWidget } from "./composerWidget";
+import { ComposerWidget, type ComposerInputChangeSource } from "./composerWidget";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
 import {
   getQuickCaptureInitialContent,
-  mergeComposerContent,
   openQuickCaptureContentPrompt,
   readClipboardImageSafely,
   readClipboardTextSafely,
@@ -26,6 +25,7 @@ export interface ComposerSessionHost {
   persistSettings: () => Promise<void>;
   refreshViews: () => Promise<void>;
   registerCleanup?: (cleanup: () => void) => void;
+  resolveMarkdownLink?: (text: string) => Promise<string | null>;
 }
 
 export interface ComposerSessionOptions extends ComposerActionsOptions {
@@ -67,7 +67,8 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     saveImageAttachment: (buffer, extension) => host.store.saveImageAttachment(buffer, extension),
     createExcalidrawAttachment: () => host.store.createExcalidrawAttachment(),
     registerCleanup: host.registerCleanup,
-    sendActionTitle: options.defaultSendAction
+    sendActionTitle: options.defaultSendAction,
+    resolveMarkdownLink: host.resolveMarkdownLink
   });
 
   const initialContent = resolveComposerInitialContent(host.settings, options.initialContent);
@@ -101,9 +102,15 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
       await options.onIncomingContentApplied?.();
       return;
     }
-    widget.setValue(mergeComposerContent(widget.getValue(), result.content, result.action));
+    if (result.action === "skip") {
+      return;
+    }
+    await widget.processInputContentChange(inputChangeSourceForIncomingContent(result), result.content, {
+      action: result.action,
+      focus: !Platform.isMobile,
+      analyzeLinks: result.source !== "selection"
+    });
     await options.onIncomingContentApplied?.();
-    widget.focus();
   };
 
   const applyInitialContent = async (
@@ -143,6 +150,13 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
 }
 
 export type { ComposerProjectMode };
+
+function inputChangeSourceForIncomingContent(result: QuickCaptureInitialContentResult): ComposerInputChangeSource {
+  if (result.source === "selection") {
+    return result.action === "append" ? "selection-append" : "selection-fill";
+  }
+  return result.action === "append" ? "clipboard-append" : "clipboard-fill";
+}
 
 async function openComposerTaskOptions(host: ComposerSessionHost, content: string, context: { manualCalloutMode: boolean }): Promise<string | null> {
   const task = await openTaskOptionsModal(host.app, {

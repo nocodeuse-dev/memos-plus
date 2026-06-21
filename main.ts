@@ -131,7 +131,8 @@ export default class MemosPlusPlugin extends Plugin {
         settings: this.settings,
         store: this.store,
         persistSettings: () => this.persistSettings(),
-        refreshViews: () => this.refreshViews()
+        refreshViews: () => this.refreshViews(),
+        resolveMarkdownLink: (text) => this.resolveMarkdownLink(text)
       }).open();
       return null;
     }
@@ -159,7 +160,8 @@ export default class MemosPlusPlugin extends Plugin {
       persistSettings: () => this.persistSettings(),
       refreshViews: () => this.refreshViews(),
       initialContentMode,
-      showClipboardEmptyNotice
+      showClipboardEmptyNotice,
+      resolveMarkdownLink: (text) => this.resolveMarkdownLink(text)
     }).open();
   }
 
@@ -170,7 +172,8 @@ export default class MemosPlusPlugin extends Plugin {
       persistSettings: () => this.persistSettings(),
       refreshViews: () => this.refreshViews(),
       initialContent,
-      initialContentMode: "none"
+      initialContentMode: "none",
+      resolveMarkdownLink: (text) => this.resolveMarkdownLink(text)
     }).open();
   }
 
@@ -224,7 +227,7 @@ export default class MemosPlusPlugin extends Plugin {
     return (await navigator.clipboard.readText()).trim();
   }
 
-  private async resolveMarkdownLink(text: string): Promise<string | null> {
+  async resolveMarkdownLink(text: string): Promise<string | null> {
     return resolveClipboardMarkdownLink(text, (url) =>
       fetchPageTitle(url, async (requestUrlValue) => {
         const response = await requestUrl({

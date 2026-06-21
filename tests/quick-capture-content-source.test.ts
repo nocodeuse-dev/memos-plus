@@ -5,6 +5,7 @@ const mainSource = readFileSync("main.ts", "utf8");
 const modalSource = readFileSync("src/modal.ts", "utf8");
 const quickInputSource = readFileSync("src/quickInputView.ts", "utf8");
 const composerSessionSource = readFileSync("src/composerSession.ts", "utf8");
+const widgetSource = readFileSync("src/composerWidget.ts", "utf8");
 const settingsSource = readFileSync("src/settings.ts", "utf8");
 const i18nSource = readFileSync("src/i18n.ts", "utf8");
 
@@ -32,7 +33,7 @@ describe("quick capture content sources", () => {
     expect(composerSessionSource).toContain("getQuickCaptureInitialContent");
     expect(composerSessionSource).toContain("applyInitialContent");
     expect(modalSource).toContain("initialContentMode");
-    expect(composerSessionSource).toContain("mergeComposerContent");
+    expect(composerSessionSource).toContain("processInputContentChange");
   });
 
   it("lets the sidebar quick input fill selection or clipboard without duplicating source logic", () => {
@@ -41,6 +42,23 @@ describe("quick capture content sources", () => {
     expect(quickInputSource).not.toContain("quickInput.insertClipboard");
     expect(composerSessionSource).toContain("getQuickCaptureInitialContent");
     expect(composerSessionSource).toContain("applyIncomingContent");
+  });
+
+  it("routes manual paste and clipboard prompt fill/append through shared input link analysis", () => {
+    expect(widgetSource).toContain("processInputContentChange");
+    expect(widgetSource).toContain("quick-input-paste");
+    expect(widgetSource).toContain("link-analysis-start");
+    expect(widgetSource).toContain("link-analysis-result");
+    expect(widgetSource).toContain("resolveMarkdownLink");
+
+    expect(composerSessionSource).toContain("clipboard-fill");
+    expect(composerSessionSource).toContain("clipboard-append");
+    expect(composerSessionSource).toContain("processInputContentChange");
+    expect(composerSessionSource).not.toContain("widget.setValue(mergeComposerContent");
+
+    expect(mainSource).toContain("resolveMarkdownLink: (text) => this.resolveMarkdownLink(text)");
+    expect(modalSource).toContain("resolveMarkdownLink");
+    expect(quickInputSource).toContain("resolveMarkdownLink");
   });
 
   it("adds settings and Chinese labels for quick capture content sources", () => {

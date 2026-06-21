@@ -114,7 +114,8 @@ export class MemosPlusQuickInputView extends ItemView {
         store: this.plugin.store,
         persistSettings: () => this.plugin.persistSettings(),
         refreshViews: () => this.plugin.refreshViews(),
-        registerCleanup: (cleanup) => this.register(cleanup)
+        registerCleanup: (cleanup) => this.register(cleanup),
+        resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text)
       },
       {
         defaultSendAction: () => sendActionForQuickInput(this.plugin.settings),
