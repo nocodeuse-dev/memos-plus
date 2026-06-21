@@ -147,7 +147,15 @@ async function main() {
   run("npm", ["run", "check:release-version", "--", tag]);
 
   run("git", ["add", "-A"]);
-  run("git", ["commit", "-m", `Release ${tag}`]);
+  run("git", [
+    "-c",
+    "user.name=nocodeuse-dev",
+    "-c",
+    "user.email=261329542+nocodeuse-dev@users.noreply.github.com",
+    "commit",
+    "-m",
+    `Release ${tag}`
+  ]);
   run("git", ["push", "origin", "main"]);
   run("git", ["tag", tag]);
   run("git", ["push", "origin", tag]);
