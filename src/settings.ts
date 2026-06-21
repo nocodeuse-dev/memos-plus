@@ -307,29 +307,55 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
 };
 
 type SettingsTabId =
+  | "layout"
   | "sendRules"
   | "inputTools"
   | "records"
   | "tasks"
   | "fileTemplates"
-  | "layout"
   | "directoryFilters"
   | "display"
   | "performanceData"
   | "advanced";
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; labelKey: string }> = [
+  { id: "layout", labelKey: "settings.tab.layout" },
   { id: "sendRules", labelKey: "settings.tab.sendRules" },
   { id: "inputTools", labelKey: "settings.tab.input" },
   { id: "records", labelKey: "settings.tab.records" },
   { id: "tasks", labelKey: "settings.tab.tasks" },
   { id: "fileTemplates", labelKey: "settings.tab.fileTemplates" },
   { id: "directoryFilters", labelKey: "settings.tab.filters" },
-  { id: "layout", labelKey: "settings.tab.layout" },
   { id: "display", labelKey: "settings.tab.display" },
   { id: "performanceData", labelKey: "settings.tab.performance" },
   { id: "advanced", labelKey: "settings.tab.advanced" }
 ];
+
+interface HorizontalScrollContainer {
+  scrollLeft: number;
+  getBoundingClientRect(): Pick<DOMRect, "left" | "right">;
+}
+
+interface HorizontalScrollTarget {
+  getBoundingClientRect(): Pick<DOMRect, "left" | "right">;
+  scrollIntoView(options?: ScrollIntoViewOptions): void;
+}
+
+export function restoreSettingsTabsScroll(
+  tabBar: HorizontalScrollContainer,
+  previousScrollLeft: number,
+  activeTab?: HorizontalScrollTarget | null
+): void {
+  tabBar.scrollLeft = previousScrollLeft;
+  if (!activeTab) {
+    return;
+  }
+  const barRect = tabBar.getBoundingClientRect();
+  const activeRect = activeTab.getBoundingClientRect();
+  if (activeRect.left < barRect.left || activeRect.right > barRect.right) {
+    activeTab.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+}
 
 export function normalizeSettings(data: unknown): MemosPlusSettings {
   const raw = isRecord(data) ? data : {};
@@ -492,9 +518,11 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
 }
 
 export class MemosPlusSettingTab extends PluginSettingTab {
-  private currentSettingTab: SettingsTabId = "sendRules";
+  private currentSettingTab: SettingsTabId = "layout";
   private selectedLayoutSurface: DisplaySurface = "home";
   private selectedLayoutModuleId: DisplayModuleId = "quickInput";
+  private settingsTabsEl: HTMLElement | null = null;
+  private settingsPanelEl: HTMLElement | null = null;
 
   constructor(app: App, private readonly plugin: MemosPlusPlugin) {
     super(app, plugin);
@@ -504,8 +532,17 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("memos-plus-settings");
-    this.renderSettingsTabs(containerEl);
-    this.renderActiveSettingsTab(containerEl.createDiv({ cls: "memos-plus-settings-panel" }));
+    this.settingsTabsEl = this.renderSettingsTabs(containerEl);
+    this.settingsPanelEl = containerEl.createDiv({ cls: "memos-plus-settings-panel" });
+    this.renderCurrentSettingsPanel();
+  }
+
+  private renderCurrentSettingsPanel(): void {
+    if (!this.settingsPanelEl) {
+      return;
+    }
+    this.settingsPanelEl.empty();
+    this.renderActiveSettingsTab(this.settingsPanelEl);
   }
 
   private renderActiveSettingsTab(container: HTMLElement): void {
@@ -545,12 +582,13 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     }
   }
 
-  private renderSettingsTabs(container: HTMLElement): void {
+  private renderSettingsTabs(container: HTMLElement): HTMLElement {
     const lang = this.plugin.settings.language;
     const tabs = container.createDiv({ cls: "memos-plus-settings-tabs" });
     for (const tab of SETTINGS_TABS) {
       this.renderSettingsTabButton(tabs, tab, lang);
     }
+    return tabs;
   }
 
   private renderSettingsTabButton(
@@ -561,12 +599,38 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const button = container.createEl("button", {
       cls: `memos-plus-settings-tab${tab.id === this.currentSettingTab ? " is-active" : ""}`,
       text: t(lang, tab.labelKey),
-      attr: { type: "button" }
+      attr: { type: "button", "aria-pressed": String(tab.id === this.currentSettingTab) }
     });
+    button.dataset.settingsTabId = tab.id;
     button.addEventListener("click", () => {
-      this.currentSettingTab = tab.id;
-      this.display();
+      this.switchSettingsTab(tab.id, button);
     });
+  }
+
+  private switchSettingsTab(tabId: SettingsTabId, selectedButton?: HTMLElement): void {
+    const tabs = this.settingsTabsEl;
+    const previousScrollLeft = tabs?.scrollLeft ?? 0;
+    this.currentSettingTab = tabId;
+    this.updateSettingsTabButtons();
+    this.renderCurrentSettingsPanel();
+    if (tabs) {
+      restoreSettingsTabsScroll(tabs, previousScrollLeft, selectedButton ?? this.findSettingsTabButton(tabId));
+    }
+  }
+
+  private updateSettingsTabButtons(): void {
+    if (!this.settingsTabsEl) {
+      return;
+    }
+    for (const button of Array.from(this.settingsTabsEl.querySelectorAll<HTMLElement>(".memos-plus-settings-tab"))) {
+      const isActive = button.dataset.settingsTabId === this.currentSettingTab;
+      button.toggleClass("is-active", isActive);
+      button.setAttr("aria-pressed", String(isActive));
+    }
+  }
+
+  private findSettingsTabButton(tabId: SettingsTabId): HTMLElement | null {
+    return this.settingsTabsEl?.querySelector<HTMLElement>(`.memos-plus-settings-tab[data-settings-tab-id="${tabId}"]`) ?? null;
   }
 
   private renderSectionHeader(container: HTMLElement, titleKey: string, descKey?: string): void {
@@ -1223,8 +1287,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         attr: { type: "button" }
       })
       .addEventListener("click", () => {
-        this.currentSettingTab = fullSettingsTab ?? this.fullSettingsTabForModule(module.id);
-        this.display();
+        this.switchSettingsTab(fullSettingsTab ?? this.fullSettingsTabForModule(module.id));
       });
   }
 
@@ -2487,8 +2550,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .setDesc(formatTaskIndexStatus(status, lang, this.plugin.settings.taskVaultFilterEnabled))
       .addButton((button) => {
         button.setButtonText(t(lang, "settings.taskIndexOpenPerformance")).onClick(() => {
-          this.currentSettingTab = "performanceData";
-          this.display();
+          this.switchSettingsTab("performanceData");
         });
       });
   }

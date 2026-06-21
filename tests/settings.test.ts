@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, normalizeSettings } from "../src/settings";
+import { DEFAULT_SETTINGS, normalizeSettings, restoreSettingsTabsScroll } from "../src/settings";
 import { buildEmptyExcalidrawFile, buildExcalidrawAttachmentPath, buildImageAttachmentPath, normalizeImageExtension } from "../src/store";
 
 vi.mock("obsidian", () => ({
@@ -191,6 +191,40 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.taskDefaultScheduledDate).toBe("");
     expect(DEFAULT_SETTINGS.taskDefaultRecurrence).toBe("none");
     expect(DEFAULT_SETTINGS.taskPromptOnCreate).toBe(true);
+  });
+});
+
+describe("settings tab scroll behavior", () => {
+  it("restores the tab bar scroll position and leaves visible active tabs alone", () => {
+    const activeTab = {
+      getBoundingClientRect: () => ({ left: 140, right: 220 }),
+      scrollIntoView: vi.fn()
+    };
+    const tabBar = {
+      scrollLeft: 0,
+      getBoundingClientRect: () => ({ left: 100, right: 320 })
+    };
+
+    restoreSettingsTabsScroll(tabBar, 180, activeTab);
+
+    expect(tabBar.scrollLeft).toBe(180);
+    expect(activeTab.scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("uses nearest scrollIntoView only when the active tab is outside the visible range", () => {
+    const activeTab = {
+      getBoundingClientRect: () => ({ left: 360, right: 460 }),
+      scrollIntoView: vi.fn()
+    };
+    const tabBar = {
+      scrollLeft: 0,
+      getBoundingClientRect: () => ({ left: 100, right: 320 })
+    };
+
+    restoreSettingsTabsScroll(tabBar, 180, activeTab);
+
+    expect(tabBar.scrollLeft).toBe(180);
+    expect(activeTab.scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
   });
 });
 

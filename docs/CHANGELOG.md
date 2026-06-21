@@ -2,6 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
+- 修复设置页顶部横向标签栏滚动位置丢失：点击“显示设置”“高级设置”等后方标签时不再重建顶部标签栏，切换内容后会恢复原有横向滚动位置并保持当前标签可见；“界面布局”现在位于标签栏最前面，并作为首次打开设置页的默认分类。
 - 稳定移动端弹窗交互：快速记录、编辑、图标选择、保存搜索、发送标签/模板/路径选择等弹窗打开时不再在移动端自动聚焦输入框，避免弹窗动画、键盘唤起和视口滚动修正叠加导致 Obsidian Mobile 卡死或闪退；桌面端保留自动聚焦体验。
 - 激进删除旧项目插入模板兼容层：移除 `legacyProjectTemplate.ts`、旧项目插入模板测试、`projectInsertTemplate` / `projectTemplateOptions` / `projectInsertHeading` / `createProjectHeadingIfMissing` 设置字段和归一化读取；默认“发送到项目”规则现在只由现代发送规则 `ManagedTemplate` 创建。
 - 清理旧项目插入模板的可见文案：移除设置 i18n 中不再使用的 `projectTemplate.*` 和旧项目插入模板标签，避免“项目插入模板”历史概念重新出现在设置页。

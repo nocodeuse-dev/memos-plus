@@ -13,7 +13,7 @@ describe("settings top tabs source", () => {
     expect(settingsSource).toContain("renderSettingsTabs");
     expect(settingsSource).toContain("renderSettingsTabButton");
     expect(settingsSource).toContain("renderActiveSettingsTab");
-    expect(settingsSource).toContain('private currentSettingTab: SettingsTabId = "sendRules"');
+    expect(settingsSource).toContain('private currentSettingTab: SettingsTabId = "layout"');
     expect(settingsSource).not.toContain("SETTINGS_CENTER_CARDS");
     expect(settingsSource).not.toContain("renderSettingsCenterCard");
     expect(settingsSource).toContain("renderTemplateManagementSettings");
@@ -28,6 +28,30 @@ describe("settings top tabs source", () => {
     expect(settingsSource).toContain("renderAdvancedSettings");
     const switchSource = settingsSource.slice(settingsSource.indexOf("private renderActiveSettingsTab"), settingsSource.indexOf("private renderSettingsTabs"));
     expect(switchSource).not.toContain("renderProjectSettings");
+  });
+
+  it("puts layout first and preserves the tab bar while switching categories", () => {
+    const tabsSource = settingsSource.slice(settingsSource.indexOf("const SETTINGS_TABS"), settingsSource.indexOf("export function normalizeSettings"));
+    const tabIds = [...tabsSource.matchAll(/\{ id: "([^"]+)"/g)].map((match) => match[1]);
+    expect(tabIds).toEqual([
+      "layout",
+      "sendRules",
+      "inputTools",
+      "records",
+      "tasks",
+      "fileTemplates",
+      "directoryFilters",
+      "display",
+      "performanceData",
+      "advanced"
+    ]);
+
+    const tabButtonSource = settingsSource.slice(settingsSource.indexOf("private renderSettingsTabButton"), settingsSource.indexOf("private renderSectionHeader"));
+    expect(tabButtonSource).toContain("this.switchSettingsTab(tab.id, button)");
+    expect(tabButtonSource).not.toContain("this.display()");
+    expect(settingsSource).toContain("restoreSettingsTabsScroll");
+    expect(settingsSource).toContain("private renderCurrentSettingsPanel()");
+    expect(settingsSource).toContain("private updateSettingsTabButtons()");
   });
 
   it("defines the requested settings tab labels in i18n keys", () => {
