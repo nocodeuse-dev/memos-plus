@@ -1,17 +1,23 @@
 # Memos Plus
 
-Memos Plus is a local-first Obsidian plugin for quick memo capture, review, filtering, and lightweight task tracking. It stores memos in readable yearly Markdown files.
+不再堆积零散素材，收集即归档。
+
+一键抓取内容，直接归入目标文档。收集同步完成整理，碎片化信息从此有序。
 
 ## 中文介绍
 
-Memos Plus 是一个本地优先的 Obsidian 插件，适合用来快速记录灵感、链接、任务、病例经验和项目笔记，再把这些内容整理到年度 memo 文件、项目文件或指定标题下面。
+Memos Plus 是一个本地优先的 Obsidian 收集与整理工作台。它不是让你再多维护一个收集箱，而是把灵感、链接、任务、病例经验、项目想法和临时素材，在记录的同时送到正确的笔记、项目文件或 Markdown 标题下面。
 
-- 快速记录：支持主页面输入、快速记录弹窗和侧边栏输入。
-- 整理投递：支持把内容发送到项目文件、标签文件或真实 Markdown 标题下。
-- 任务兼容：支持 Obsidian Tasks 风格任务、优先级和日期字段。
-- 移动端可用：支持移动端轻量首页和 GitHub Release / BRAT 更新方式。
+- 一键收集：从主页面、快速记录弹窗、侧边栏或移动端入口抓取内容。
+- 即时归档：把内容直接投递到项目文件、标签文件、最近文件或真实 Markdown 标题下。
+- 边收边整理：支持链接资料、普通笔记、Obsidian Tasks 任务、Callout、代码块和自定义格式。
+- 移动端可用：适合 iPhone 快速记录，也支持 GitHub Release / BRAT 更新方式。
 
-如果你想先看完整的中文产品介绍，可以直接看 [docs/FEISHU_INTRO.md](/Users/yangjiahao/Documents/Obsidian-memos/docs/FEISHU_INTRO.md)。
+完整中文产品介绍见 [docs/FEISHU_INTRO.md](docs/FEISHU_INTRO.md)。
+
+## English Summary
+
+Memos Plus is a local-first Obsidian plugin for quick memo capture, review, filtering, and lightweight task tracking. It stores memos in readable yearly Markdown files.
 
 ## Storage format
 
