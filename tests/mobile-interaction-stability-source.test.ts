@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 const composerWidgetSource = readFileSync("src/composerWidget.ts", "utf8");
 const quickCaptureSource = readFileSync("src/modal.ts", "utf8");
 const quickInputSource = readFileSync("src/quickInputView.ts", "utf8");
+const iconPickerSource = readFileSync("src/iconPicker.ts", "utf8");
+const savedSearchModalSource = readFileSync("src/savedSearchModal.ts", "utf8");
+const projectSendModalSource = readFileSync("src/projectFileSuggestModal.ts", "utf8");
+const sidebarGroupModalSource = readFileSync("src/sidebarGroupModal.ts", "utf8");
+const templateManagerModalSource = readFileSync("src/templateManagerModal.ts", "utf8");
 
 describe("mobile interaction stability source", () => {
   it("only reveals the composer for keyboard changes while the composer is the active interaction target", () => {
@@ -15,9 +20,22 @@ describe("mobile interaction stability source", () => {
     expect(composerWidgetSource).toContain("scheduleMobileKeyboardViewportUpdate");
   });
 
-  it("keeps quick capture autofocus while preventing sidebar auto-open from focusing input", () => {
+  it("keeps modal autofocus desktop-only so mobile modals do not immediately open the keyboard", () => {
     expect(quickCaptureSource).not.toContain("focusAfterIncomingContent");
-    expect(quickCaptureSource).toContain("this.composerSession.focus();");
+    expect(quickCaptureSource).toContain('import { focusOnDesktopOnly } from "./modalFocus";');
+    expect(quickCaptureSource).toContain("focusOnDesktopOnly(this.composerSession);");
+    expect(quickCaptureSource).not.toContain("this.composerSession.focus();");
+    expect(quickCaptureSource).toContain("focusOnDesktopOnly(this.textarea);");
+
+    for (const source of [
+      iconPickerSource,
+      savedSearchModalSource,
+      projectSendModalSource,
+      sidebarGroupModalSource,
+      templateManagerModalSource
+    ]) {
+      expect(source).toContain("focusOnDesktopOnly");
+    }
 
     expect(quickInputSource).not.toContain("focusAfterIncomingContent");
     expect(quickInputSource).not.toContain("this.composerSession.focus();");

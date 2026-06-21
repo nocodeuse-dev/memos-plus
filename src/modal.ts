@@ -2,6 +2,7 @@ import { App, Modal, Setting } from "obsidian";
 import { createComposerSession, type ComposerSession } from "./composerSession";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
+import { focusOnDesktopOnly } from "./modalFocus";
 import type { QuickCaptureInitialContentMode } from "./quickCaptureContent";
 import type { MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
@@ -49,7 +50,7 @@ export class QuickCaptureModal extends Modal {
     });
 
     void this.composerSession.applyInitialContent();
-    this.composerSession.focus();
+    focusOnDesktopOnly(this.composerSession);
   }
 
   onClose(): void {
@@ -103,7 +104,7 @@ export class EditMemoModal extends Modal {
           });
       });
 
-    this.textarea.focus();
+    focusOnDesktopOnly(this.textarea);
   }
 
   onClose(): void {

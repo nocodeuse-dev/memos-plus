@@ -2,6 +2,7 @@ import { App, Modal, Notice, setIcon } from "obsidian";
 import { IconPickerModal, normalizeIconName } from "./iconPicker";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
+import { focusOnDesktopOnly } from "./modalFocus";
 import type { MemoItem } from "./markdown";
 import {
   createDefaultSavedSearchCondition,
@@ -178,7 +179,7 @@ export class SavedSearchModal extends Modal {
     });
     this.renderPreview();
 
-    this.nameInput.focus();
+    focusOnDesktopOnly(this.nameInput);
   }
 
   onClose(): void {

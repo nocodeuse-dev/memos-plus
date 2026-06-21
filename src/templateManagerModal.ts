@@ -2,6 +2,7 @@ import { App, Modal, Setting, TFolder, normalizePath } from "obsidian";
 import { normalizeFileTag } from "./fileSend";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
+import { focusOnDesktopOnly } from "./modalFocus";
 import {
   DEFAULT_TEMPLATE_HEADING,
   MANAGED_TEMPLATE_TYPES,
@@ -640,7 +641,7 @@ class TemplatePathPickerModal extends Modal {
       this.renderList(list);
     });
     this.renderList(list);
-    search.focus();
+    focusOnDesktopOnly(search);
   }
 
   onClose(): void {

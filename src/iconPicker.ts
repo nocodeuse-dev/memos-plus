@@ -2,6 +2,7 @@ import { App, Modal, Platform, getIconIds, setIcon } from "obsidian";
 import type { IconName } from "obsidian";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
+import { focusOnDesktopOnly } from "./modalFocus";
 import { debounce, DESKTOP_DEBOUNCE_MS, iconPickerResultLimit, MOBILE_DEBOUNCE_MS } from "./performance";
 
 export interface IconPickerModalOptions {
@@ -63,7 +64,7 @@ export class IconPickerModal extends Modal {
     });
     this.listEl = contentEl.createDiv({ cls: "memos-plus-icon-picker-list" });
     this.renderList();
-    search.focus();
+    focusOnDesktopOnly(search);
   }
 
   onClose(): void {

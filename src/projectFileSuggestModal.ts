@@ -13,6 +13,7 @@ import {
 import { filterFileTemplateLibraryItems, type FileTemplateLibraryItem } from "./fileTemplateLibrary";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
+import { focusOnDesktopOnly } from "./modalFocus";
 import { debounce } from "./performance";
 import type { ProjectInfo } from "./projectSend";
 import { resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
@@ -123,7 +124,7 @@ class ProjectTagTabModal extends Modal {
         void this.submit(save);
       }
     });
-    this.input.focus();
+    focusOnDesktopOnly(this.input);
   }
 
   onClose(): void {
@@ -237,7 +238,7 @@ class FileTemplateLibraryModal extends Modal {
         void this.submit(create);
       }
     });
-    this.titleInput.focus();
+    focusOnDesktopOnly(this.titleInput);
   }
 
   private renderCategoryTabs(container: HTMLElement): void {
@@ -1399,7 +1400,7 @@ export class ProjectSendModal extends Modal {
       }
     });
     create.addEventListener("click", () => void submit());
-    input.focus();
+    focusOnDesktopOnly(input);
   }
 
   private chooseProjectFileTarget(

@@ -2,6 +2,7 @@ import { App, Modal, Notice, setIcon } from "obsidian";
 import { IconPickerModal, normalizeIconName } from "./iconPicker";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
+import { focusOnDesktopOnly } from "./modalFocus";
 
 export interface SidebarGroupModalOptions {
   language: Language;
@@ -77,7 +78,7 @@ export class SidebarGroupModal extends Modal {
         void this.submit();
       }
     });
-    this.titleInput.focus();
+    focusOnDesktopOnly(this.titleInput);
   }
 
   onClose(): void {
