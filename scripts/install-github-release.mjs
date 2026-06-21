@@ -12,6 +12,8 @@ const COMMUNITY_PLUGINS_PATH = `${VAULT_DOT_OBSIDIAN}/community-plugins.json`;
 const OBSIDIAN = "/Applications/Obsidian.app/Contents/MacOS/obsidian";
 const DIST_FILES = ["main.js", "manifest.json", "styles.css"];
 
+let githubToken;
+
 function optionValue(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
@@ -24,12 +26,36 @@ function normalizeTag(tag) {
   return tag.startsWith("v") ? tag : `v${tag}`;
 }
 
+function getGitHubToken() {
+  if (githubToken !== undefined) {
+    return githubToken;
+  }
+
+  githubToken = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
+  if (!githubToken) {
+    const result = spawnSync("gh", ["auth", "token"], {
+      encoding: "utf8",
+      stdio: "pipe"
+    });
+    if (result.status === 0) {
+      githubToken = result.stdout.trim();
+    }
+  }
+  return githubToken;
+}
+
+function githubHeaders(accept) {
+  const token = getGitHubToken();
+  return {
+    "Accept": accept,
+    "User-Agent": "memos-plus-installer",
+    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+  };
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, {
-    headers: {
-      "Accept": "application/vnd.github+json",
-      "User-Agent": "memos-plus-installer"
-    }
+    headers: githubHeaders("application/vnd.github+json")
   });
   if (!response.ok) {
     throw new Error(`GitHub request failed: ${response.status} ${response.statusText} ${url}`);
@@ -39,10 +65,7 @@ async function fetchJson(url) {
 
 async function fetchText(url) {
   const response = await fetch(url, {
-    headers: {
-      "Accept": "application/octet-stream",
-      "User-Agent": "memos-plus-installer"
-    }
+    headers: githubHeaders("application/octet-stream")
   });
   if (!response.ok) {
     throw new Error(`Release asset download failed: ${response.status} ${response.statusText} ${url}`);
