@@ -2141,6 +2141,7 @@
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  padding-bottom: 10px;
 }
 
 .memos-plus-project-send-modal button.memos-plus-project-option {
@@ -2269,6 +2270,16 @@
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-top: 10px;
+  background: var(--background-primary);
+  border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+}
+
+.memos-plus-project-search-footer {
+  margin-top: 10px;
 }
 
 .memos-plus-project-add {

@@ -1011,14 +1011,20 @@ export class ProjectSendModal extends Modal {
       attr: { type: "search", placeholder: t(lang, "fileSend.searchFiles") }
     });
     search.value = this.fileQuery;
+    const list = contentEl.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results" });
+    const footer = contentEl.createDiv({ cls: "memos-plus-project-footer memos-plus-project-search-footer" });
+    if (this.options.onSaveDefault) {
+      this.renderDirectSendButton(footer);
+    }
+    const createFile = this.renderFileSearchCreateButton(footer);
     const renderDebounced = debounce(() => {
       void this.renderFileSearchContent(list);
     }, 200);
     search.addEventListener("input", () => {
       this.fileQuery = search.value;
+      this.updateFileSearchCreateButton(createFile);
       renderDebounced();
     });
-    const list = contentEl.createDiv({ cls: "memos-plus-project-list" });
     void this.renderFileSearchContent(list);
   }
 
@@ -1027,7 +1033,7 @@ export class ProjectSendModal extends Modal {
     list.empty();
     const cached = this.fileSearchCache.get(query.trim().toLowerCase());
     if (cached) {
-      this.renderFileListItems(list, cached, () => void this.renderFileSearch(), undefined, "");
+      this.renderFileListItems(list, cached, () => void this.renderFileSearch(), undefined, "", false);
       return;
     }
     list.createDiv({ cls: "memos-plus-project-empty", text: t(this.options.language, "common.loading") });
@@ -1041,7 +1047,7 @@ export class ProjectSendModal extends Modal {
       return;
     }
     list.empty();
-    this.renderFileListItems(list, files, () => void this.renderFileSearch(), undefined, "");
+    this.renderFileListItems(list, files, () => void this.renderFileSearch(), undefined, "", false);
   }
 
   private renderFileList(files: TaggedFileInfo[], title: string, refresh: () => void, back?: () => void, createTag = ""): void {
@@ -1054,11 +1060,13 @@ export class ProjectSendModal extends Modal {
     this.renderFileListItems(list, files, refresh, back, createTag);
   }
 
-  private renderFileListItems(list: HTMLElement, files: TaggedFileInfo[], refresh: () => void, back?: () => void, createTag = ""): void {
+  private renderFileListItems(list: HTMLElement, files: TaggedFileInfo[], refresh: () => void, back?: () => void, createTag = "", showInlineCreate = true): void {
     const lang = this.options.language;
     if (files.length === 0) {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.noFiles") });
-      this.renderTemplateCreateButton(list, "file", createTag);
+      if (showInlineCreate) {
+        this.renderTemplateCreateButton(list, "file", createTag);
+      }
     }
     for (const info of files.slice(0, mobileModalResultLimit())) {
       const button = this.renderFileInfoOption(list, info);
@@ -1421,6 +1429,33 @@ export class ProjectSendModal extends Modal {
     setIcon(button, "plus");
     button.createSpan({ text: t(this.options.language, "fileTemplateLibrary.useTemplateCreate") });
     button.addEventListener("click", () => this.openFileTemplateLibraryModal(target, tag));
+  }
+
+  private renderFileSearchCreateButton(container: HTMLElement): HTMLButtonElement {
+    const button = container.createEl("button", {
+      cls: "memos-plus-project-add memos-plus-project-create-file",
+      attr: { type: "button" }
+    });
+    setIcon(button, "file-plus");
+    button.createSpan({ cls: "memos-plus-project-add-label" });
+    this.updateFileSearchCreateButton(button);
+    button.addEventListener("click", () => void withMobileClickLock(button, () => this.openFileTemplateLibraryModal("file")));
+    return button;
+  }
+
+  private updateFileSearchCreateButton(button: HTMLButtonElement): void {
+    const lang = this.options.language;
+    const query = this.fileQuery.trim();
+    const label =
+      query && Platform.isMobile
+        ? t(lang, "projectSend.createFileFromSearchMobile")
+        : query
+          ? t(lang, "projectSend.createFileFromSearchNamed").replace("{query}", query)
+          : t(lang, "projectSend.createFileFromSearch");
+    const title = t(lang, "projectSend.createFileFromSearchHint");
+    button.setAttr("title", query ? `${title}：${query}` : title);
+    const labelEl = button.querySelector<HTMLElement>(".memos-plus-project-add-label");
+    labelEl?.setText(label);
   }
 
   private openFileTemplateLibraryModal(target: "project" | "file", tag = ""): void {

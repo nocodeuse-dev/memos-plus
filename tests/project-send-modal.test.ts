@@ -6,6 +6,7 @@ const viewSource = readFileSync("src/view.ts", "utf8");
 const deliverySource = readFileSync("src/projectDelivery.ts", "utf8");
 const composerActionsSource = readFileSync("src/composerActions.ts", "utf8");
 const stylesSource = readFileSync("styles.css", "utf8");
+const i18nSource = readFileSync("src/i18n.ts", "utf8");
 
 describe("project send modal source", () => {
   it("uses real Markdown headings for project delivery instead of fixed project sections", () => {
@@ -83,6 +84,24 @@ describe("project send modal source", () => {
     expect(modalSource).not.toContain("private readonly templates: ManagedTemplate[]");
     expect(deliverySource).toContain("onLoadFileTemplates");
     expect(deliverySource).toContain("createFileFromLibraryTemplate");
+  });
+
+  it("keeps new file creation in the search results footer instead of adding a top tab", () => {
+    const fileSearchSource = modalSource.slice(modalSource.indexOf("private async renderFileSearch()"), modalSource.indexOf("private async renderFileSearchContent"));
+    const modeTabsSource = modalSource.slice(modalSource.indexOf("private renderModeTabs"), modalSource.indexOf("private visibleTabIds"));
+
+    expect(modalSource).toContain('const FIXED_SEND_TABS: FixedSendMode[] = ["project", "tag", "recent", "search"];');
+    expect(modeTabsSource).not.toContain("createFileFromSearch");
+    expect(fileSearchSource).toContain('memos-plus-project-search-footer');
+    expect(fileSearchSource).toContain("this.renderFileSearchCreateButton(footer)");
+    expect(fileSearchSource).toContain("this.updateFileSearchCreateButton(createFile)");
+    expect(modalSource).toContain("private renderFileSearchCreateButton");
+    expect(modalSource).toContain('this.openFileTemplateLibraryModal("file")');
+    expect(stylesSource).toContain(".memos-plus-project-search-footer");
+    expect(stylesSource).toContain("position: sticky");
+    expect(stylesSource).toContain("padding-bottom: 10px");
+    expect(i18nSource).toContain('"projectSend.createFileFromSearch": "新建文件"');
+    expect(i18nSource).toContain('"projectSend.createFileFromSearchNamed": "新建“{query}”"');
   });
 
   it("the composer send-to-project flow opens the project workflow modal", () => {
