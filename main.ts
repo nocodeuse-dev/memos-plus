@@ -27,6 +27,7 @@ export default class MemosPlusPlugin extends Plugin {
   vaultIndex!: VaultMetadataIndex;
   taskIndex!: TaskIndex;
   private diagnosticSessionId = "";
+  private taskIndexRefreshTimer: number | null = null;
 
   async onload(): Promise<void> {
     this.diagnosticSessionId = createMemosPlusSessionId();
@@ -68,7 +69,7 @@ export default class MemosPlusPlugin extends Plugin {
     registerMemosPlusDiagnostics(this, this.app);
     this.registerVaultIndexInvalidation();
     this.registerTaskIndexInvalidation();
-    this.register(this.taskIndex.onChange(() => void this.refreshViews()));
+    this.register(this.taskIndex.onChange(() => this.scheduleRefreshViews("task-index-change", Platform.isMobile ? 750 : 200)));
 
     this.registerView(MEMOS_PLUS_VIEW_TYPE, (leaf: WorkspaceLeaf) => new MemosPlusView(leaf, this));
     this.registerView(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new MemosPlusQuickInputView(leaf, this));
@@ -152,6 +153,7 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
+    this.clearTaskIndexRefreshTimer();
     logMemosPlusDiagnostic("memos-plus:onunload", {
       memosLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE).length,
       quickInputLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE).length
@@ -257,7 +259,7 @@ export default class MemosPlusPlugin extends Plugin {
     await this.savePluginData("saveSettings");
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
     this.maybeScheduleTaskIndexBuild(0);
-    await this.refreshViews();
+    await this.refreshViews("saveSettings");
   }
 
   async persistSettings(): Promise<void> {
@@ -286,11 +288,33 @@ export default class MemosPlusPlugin extends Plugin {
     }
   }
 
-  async refreshViews(): Promise<void> {
+  private scheduleRefreshViews(source: string, delayMs = 200): void {
+    const memosLeaves = this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE).length;
+    if (memosLeaves === 0) {
+      return;
+    }
+    this.clearTaskIndexRefreshTimer();
+    this.taskIndexRefreshTimer = window.setTimeout(() => {
+      this.taskIndexRefreshTimer = null;
+      void this.refreshViews(source);
+    }, delayMs);
+  }
+
+  private clearTaskIndexRefreshTimer(): void {
+    if (this.taskIndexRefreshTimer === null) {
+      return;
+    }
+    window.clearTimeout(this.taskIndexRefreshTimer);
+    this.taskIndexRefreshTimer = null;
+  }
+
+  async refreshViews(source = "manual"): Promise<void> {
+    const leaves = this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE);
     logMemosPlusDiagnostic("view:refresh", {
-      memosLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE).length
+      source,
+      memosLeaves: leaves.length
     });
-    for (const leaf of this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE)) {
+    for (const leaf of leaves) {
       const view = leaf.view;
       if (view instanceof MemosPlusView) {
         await view.reload();

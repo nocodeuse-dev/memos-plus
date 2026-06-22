@@ -1,6 +1,6 @@
 import { MarkdownView, Modal, Setting, type App } from "obsidian";
 import { t, type Language } from "./i18n";
-import { registerMemosPlusModalClose, registerMemosPlusModalOpen } from "./mobileModalSafety";
+import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import { type MemosPlusSettings } from "./settings";
 
 export type QuickCaptureInitialContentMode = "auto" | "selection" | "clipboard" | "none";
@@ -226,15 +226,17 @@ class QuickCaptureContentPromptModal extends Modal {
         button
           .setButtonText(t(this.language, hasDraft ? "quickCaptureContent.replaceDraft" : "quickCaptureContent.fill"))
           .setCta()
-          .onClick(() => this.finish("replace"))
+          .onClick(() => void withMobileClickLock(button.buttonEl, () => this.finish("replace")))
       )
       .addButton((button) =>
         button
           .setButtonText(t(this.language, hasDraft ? "quickCaptureContent.appendDraft" : "quickCaptureContent.append"))
-          .onClick(() => this.finish("append"))
+          .onClick(() => void withMobileClickLock(button.buttonEl, () => this.finish("append")))
       )
       .addButton((button) =>
-        button.setButtonText(t(this.language, hasDraft ? "quickCaptureContent.cancel" : "quickCaptureContent.ignore")).onClick(() => this.finish("skip"))
+        button
+          .setButtonText(t(this.language, hasDraft ? "quickCaptureContent.cancel" : "quickCaptureContent.ignore"))
+          .onClick(() => void withMobileClickLock(button.buttonEl, () => this.finish("skip")))
       );
   }
 

@@ -104,6 +104,13 @@ describe("mobile interaction stability source", () => {
     expect(mainSource).toContain("exportMemosPlusDiagnosticLog");
     expect(mainSource).toContain('id: "export-diagnostic-log"');
     expect(mainSource).toContain("async exportDiagnosticLog()");
+    expect(mainSource).toContain("taskIndexRefreshTimer");
+    expect(mainSource).toContain("this.taskIndex.onChange(() => this.scheduleRefreshViews");
+    expect(mainSource).toContain('this.scheduleRefreshViews("task-index-change"');
+    expect(mainSource).toContain("private scheduleRefreshViews");
+    expect(mainSource).toContain("window.clearTimeout(this.taskIndexRefreshTimer)");
+    expect(mainSource).toContain("if (memosLeaves === 0)");
+    expect(mainSource).toContain("source = \"manual\"");
     expect(mainSource).toContain("logMemosPlusDiagnostic(\"data:load\"");
     expect(mainSource).toContain("logMemosPlusDiagnostic(\"data:save\"");
     expect(mainSource).toContain("logMemosPlusDiagnostic(\"memos-plus:onload\"");
@@ -118,6 +125,9 @@ describe("mobile interaction stability source", () => {
     expect(viewSource).toContain("this.plugin.exportDiagnosticLog()");
     expect(settingsSource).toContain("renderDiagnosticExport");
     expect(settingsSource).toContain("this.plugin.exportDiagnosticLog()");
+    expect(quickCaptureContentSource).toContain("withMobileClickLock");
+    expect(quickCaptureContentSource).toContain("button.buttonEl");
+    expect(diagnosticsSource).toContain("error.stack");
     expect(modalSafetySource).toContain("logMemosPlusDiagnostic(\"modal:option-click\"");
   });
 

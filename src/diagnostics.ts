@@ -386,7 +386,8 @@ function sanitizeValue(value: unknown, depth: number): unknown {
 
 function summarizeError(error: unknown): string {
   if (error instanceof Error) {
-    return `${error.name}: ${error.message}`;
+    const stack = error.stack ? `\n${error.stack}` : "";
+    return `${error.name}: ${error.message}${stack}`;
   }
   if (typeof error === "string") {
     return error;
