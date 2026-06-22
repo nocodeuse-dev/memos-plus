@@ -3,6 +3,7 @@ import { IconPickerModal, normalizeIconName } from "./iconPicker";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
+import { isMobileModalSafeMode, registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import type { MemoItem } from "./markdown";
 import {
   createDefaultSavedSearchCondition,
@@ -88,6 +89,7 @@ export class SavedSearchModal extends Modal {
   private conditions: SavedSearchCondition[];
   private match: SavedSearch["match"];
   private previewRequest = 0;
+  private closed = false;
 
   constructor(
     app: App,
@@ -100,6 +102,8 @@ export class SavedSearchModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "SavedSearchModal");
+    this.closed = false;
     const { contentEl } = this;
     const lang = this.options.language;
     contentEl.empty();
@@ -175,7 +179,7 @@ export class SavedSearchModal extends Modal {
     this.countEl = footer.createSpan({ cls: "memos-plus-saved-search-count" });
     const save = footer.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "modal.save") });
     save.addEventListener("click", () => {
-      void this.submit();
+      void withMobileClickLock(save, () => this.submit());
     });
     this.renderPreview();
 
@@ -183,6 +187,9 @@ export class SavedSearchModal extends Modal {
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "SavedSearchModal");
+    this.closed = true;
+    this.previewRequest += 1;
     this.contentEl.empty();
   }
 
@@ -466,9 +473,16 @@ export class SavedSearchModal extends Modal {
   private async renderPreviewAsync(requestId: number): Promise<void> {
     const lang = this.options.language;
     const search = this.buildSearch();
+    if (this.closed || requestId !== this.previewRequest) {
+      return;
+    }
+    if (isMobileModalSafeMode()) {
+      this.renderMobileSafePreviewPlaceholder(lang);
+      return;
+    }
     if (search.searchScope === "vault") {
-      const matches = search.conditions.length > 0 ? await this.options.searchVault(search) : [];
-      if (requestId !== this.previewRequest) {
+      const matches = await this.searchVaultPreview(search);
+      if (this.closed || requestId !== this.previewRequest) {
         return;
       }
       this.countEl.setText(t(lang, "savedSearch.vaultMatchCount").replace("{count}", String(matches.length)));
@@ -489,7 +503,7 @@ export class SavedSearchModal extends Modal {
     }
 
     const matches = search.conditions.length > 0 ? filterMemosBySavedSearch(this.options.memos, search) : [];
-    if (requestId !== this.previewRequest) {
+    if (this.closed || requestId !== this.previewRequest) {
       return;
     }
     this.countEl.setText(t(lang, "savedSearch.matchCount").replace("{count}", String(matches.length)));
@@ -503,6 +517,24 @@ export class SavedSearchModal extends Modal {
       item.createDiv({ cls: "memos-plus-saved-search-preview-time", text: `${memo.date} ${memo.time}` });
       item.createDiv({ cls: "memos-plus-saved-search-preview-text", text: firstLine(memo.content) });
     }
+  }
+
+  private async searchVaultPreview(search: SavedSearch): Promise<VaultSearchResult[]> {
+    if (search.conditions.length === 0) {
+      return [];
+    }
+    try {
+      return await this.options.searchVault(search);
+    } catch (error) {
+      console.error("[Memos Plus] Failed to render saved-search vault preview", error);
+      return [];
+    }
+  }
+
+  private renderMobileSafePreviewPlaceholder(lang: Language): void {
+    this.countEl.setText(t(lang, "savedSearch.matchCount").replace("{count}", "-"));
+    this.previewEl.empty();
+    this.previewEl.createDiv({ cls: "memos-plus-saved-search-empty", text: t(lang, "savedSearch.noPreview") });
   }
 
   private buildSearch(): SavedSearch {

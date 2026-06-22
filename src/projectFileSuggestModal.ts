@@ -14,6 +14,7 @@ import { filterFileTemplateLibraryItems, type FileTemplateLibraryItem } from "./
 import type { Language } from "./i18n";
 import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
+import { mobileModalResultLimit, registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import { debounce } from "./performance";
 import type { ProjectInfo } from "./projectSend";
 import { resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
@@ -96,6 +97,7 @@ class ProjectTagTabModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "ProjectTagTabModal");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("memos-plus-modal");
@@ -117,24 +119,25 @@ class ProjectTagTabModal extends Modal {
       text: t(this.language, this.submitKey)
     });
     cancel.addEventListener("click", () => this.close());
-    save.addEventListener("click", () => void this.submit(save));
+    save.addEventListener("click", () => void withMobileClickLock(save, () => this.submit(save)));
     this.input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        void this.submit(save);
+        void withMobileClickLock(save, () => this.submit(save));
       }
     });
     focusOnDesktopOnly(this.input);
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "ProjectTagTabModal");
     this.contentEl.empty();
   }
 
   private async submit(button: HTMLButtonElement): Promise<void> {
     const value = this.input.value.trim();
     if (!value) {
-      this.input.focus();
+      focusOnDesktopOnly(this.input);
       return;
     }
     button.disabled = true;
@@ -156,6 +159,7 @@ class FileTemplateLibraryModal extends Modal {
   private activeCategory = "全部";
   private titleInput!: HTMLInputElement;
   private listEl!: HTMLElement;
+  private closed = false;
 
   constructor(
     app: App,
@@ -176,11 +180,16 @@ class FileTemplateLibraryModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "FileTemplateLibraryModal");
+    this.closed = false;
     this.modalEl.addClass("memos-plus-file-template-modal-shell");
     void this.load();
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "FileTemplateLibraryModal");
+    this.closed = true;
+    this.items = [];
     this.contentEl.empty();
   }
 
@@ -191,7 +200,20 @@ class FileTemplateLibraryModal extends Modal {
     contentEl.addClass("memos-plus-modal", "memos-plus-file-template-modal");
     contentEl.createEl("h2", { text: t(lang, "fileTemplateLibrary.title") });
     contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
-    this.items = await this.options.onLoad();
+    try {
+      this.items = await this.options.onLoad();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load file templates", error);
+      if (contentEl.isConnected) {
+        contentEl.empty();
+        contentEl.addClass("memos-plus-modal", "memos-plus-file-template-modal");
+        contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileTemplateLibrary.empty") });
+      }
+      return;
+    }
+    if (this.closed) {
+      return;
+    }
     if (!this.items.some((item) => item.path === this.selectedPath)) {
       this.selectedPath = this.items.find((item) => item.isFavorite)?.path ?? this.items[0]?.path ?? "";
     }
@@ -199,6 +221,9 @@ class FileTemplateLibraryModal extends Modal {
   }
 
   private render(): void {
+    if (this.closed) {
+      return;
+    }
     const { contentEl } = this;
     const lang = this.options.language;
     contentEl.empty();
@@ -231,11 +256,11 @@ class FileTemplateLibraryModal extends Modal {
       attr: { type: "button" },
       text: t(lang, "fileTemplateLibrary.createFile")
     });
-    create.addEventListener("click", () => void this.submit(create));
+    create.addEventListener("click", () => void withMobileClickLock(create, () => this.submit(create)));
     this.titleInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        void this.submit(create);
+        void withMobileClickLock(create, () => this.submit(create));
       }
     });
     focusOnDesktopOnly(this.titleInput);
@@ -280,9 +305,12 @@ class FileTemplateLibraryModal extends Modal {
   }
 
   private renderList(): void {
+    if (this.closed) {
+      return;
+    }
     const lang = this.options.language;
     this.listEl.empty();
-    const items = filterFileTemplateLibraryItems(this.items, { query: this.query, category: this.activeCategory }).slice(0, 100);
+    const items = filterFileTemplateLibraryItems(this.items, { query: this.query, category: this.activeCategory }).slice(0, mobileModalResultLimit());
     if (items.length === 0) {
       this.listEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileTemplateLibrary.empty") });
       return;
@@ -315,7 +343,7 @@ class FileTemplateLibraryModal extends Modal {
       favorite.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        void this.toggleFavorite(item.path);
+        void withMobileClickLock(favorite, () => this.toggleFavorite(item.path));
       });
       const more = actions.createEl("button", {
         cls: "memos-plus-icon-button",
@@ -342,9 +370,13 @@ class FileTemplateLibraryModal extends Modal {
   }
 
   private async toggleFavorite(path: string): Promise<void> {
-    await this.options.onToggleFavorite(path);
-    this.items = await this.options.onLoad();
-    this.renderList();
+    try {
+      await this.options.onToggleFavorite(path);
+      this.items = await this.options.onLoad();
+      this.renderList();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to toggle file template favorite", error);
+    }
   }
 
   private openItemMenu(event: MouseEvent, item: FileTemplateLibraryItem): void {
@@ -373,18 +405,22 @@ class FileTemplateLibraryModal extends Modal {
     if (!window.confirm(t(this.options.language, "fileTemplateLibrary.deleteConfirm"))) {
       return;
     }
-    await this.options.onDelete(item.path);
-    this.items = await this.options.onLoad();
-    if (this.selectedPath === item.path) {
-      this.selectedPath = this.items[0]?.path ?? "";
+    try {
+      await this.options.onDelete(item.path);
+      this.items = await this.options.onLoad();
+      if (this.selectedPath === item.path) {
+        this.selectedPath = this.items[0]?.path ?? "";
+      }
+      this.render();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to delete file template", error);
     }
-    this.render();
   }
 
   private async submit(button: HTMLButtonElement): Promise<void> {
     const title = this.titleInput.value.trim();
     if (!title) {
-      this.titleInput.focus();
+      focusOnDesktopOnly(this.titleInput);
       return;
     }
     const template = this.items.find((item) => item.path === this.selectedPath) ?? this.items[0];
@@ -427,6 +463,7 @@ export class ProjectSendModal extends Modal {
   private readonly fileSearchCache = new Map<string, TaggedFileInfo[]>();
   private readonly fileHeadingsCache = new Map<string, FileHeadingInfo[]>();
   private draggedTabId = "";
+  private closed = false;
 
   constructor(app: App, private readonly options: ProjectSendModalOptions) {
     super(app);
@@ -440,6 +477,8 @@ export class ProjectSendModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "ProjectSendModal");
+    this.closed = false;
     this.modalEl.addClass("memos-plus-project-send-modal-shell");
     this.contentEl.addClass("memos-plus-modal", "memos-plus-project-send-modal");
     this.contentEl.scrollLeft = 0;
@@ -447,6 +486,14 @@ export class ProjectSendModal extends Modal {
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "ProjectSendModal");
+    this.closed = true;
+    this.projects = [];
+    this.recentFiles = [];
+    this.tagOptions = [];
+    this.taggedFilesCache.clear();
+    this.fileSearchCache.clear();
+    this.fileHeadingsCache.clear();
     this.contentEl.empty();
     if (!this.settled) {
       this.settled = true;
@@ -462,10 +509,12 @@ export class ProjectSendModal extends Modal {
     try {
       this.tagOptions = await this.options.onLoadTags();
       this.tagsLoaded = true;
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load tags", error);
     } finally {
       this.tagsLoading = false;
     }
-    if (this.mode === "tag") {
+    if (!this.closed && this.mode === "tag") {
       this.renderTagPicker();
     }
   }
@@ -478,10 +527,12 @@ export class ProjectSendModal extends Modal {
     try {
       this.projects = await this.options.onLoadProjects();
       this.projectsLoaded = true;
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load projects", error);
     } finally {
       this.projectsLoading = false;
     }
-    if (this.mode === "project" && list?.isConnected) {
+    if (!this.closed && this.mode === "project" && list?.isConnected) {
       this.renderProjectListContent(list);
     }
   }
@@ -494,10 +545,12 @@ export class ProjectSendModal extends Modal {
     try {
       this.recentFiles = await this.options.onLoadRecentFiles();
       this.recentFilesLoaded = true;
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load recent files", error);
     } finally {
       this.recentFilesLoading = false;
     }
-    if (this.mode === "recent") {
+    if (!this.closed && this.mode === "recent") {
       this.renderRecentFiles();
     }
   }
@@ -535,6 +588,9 @@ export class ProjectSendModal extends Modal {
   }
 
   private renderCurrentMode(): void {
+    if (this.closed) {
+      return;
+    }
     this.ensureActiveTabVisible();
     const template = this.currentTemplate();
     if (template?.targetSource === "default-memo") {
@@ -659,14 +715,14 @@ export class ProjectSendModal extends Modal {
         button.setAttr("title", t(lang, "projectSend.removeTagTabHint"));
         const close = button.createSpan({ cls: "memos-plus-project-send-tab-close", attr: { "aria-label": t(lang, "projectSend.removeTagTab") } });
         setIcon(close, "x");
-        close.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          void this.removeCustomTagTab(customTag);
-        });
-        button.addEventListener("contextmenu", (event) => this.openCustomTagTabMenu(event, customTag));
-      }
-      button.addEventListener("click", () => void this.openTab(id));
+      close.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void withMobileClickLock(close, () => this.removeCustomTagTab(customTag));
+      });
+      button.addEventListener("contextmenu", (event) => this.openCustomTagTabMenu(event, customTag));
+    }
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.openTab(id)));
       button.addEventListener("dragstart", (event) => this.startTabDrag(event, id, button));
       button.addEventListener("dragover", (event) => {
         event.preventDefault();
@@ -683,7 +739,7 @@ export class ProjectSendModal extends Modal {
         attr: { type: "button", "aria-label": t(lang, "projectSend.addTagTab"), title: t(lang, "projectSend.addTagTab") }
       });
       setIcon(add, "plus");
-      add.addEventListener("click", () => void this.addCustomTagTab());
+      add.addEventListener("click", () => void withMobileClickLock(add, () => this.addCustomTagTab()));
     }
   }
 
@@ -830,7 +886,7 @@ export class ProjectSendModal extends Modal {
     }
     for (const project of projects) {
       const button = this.renderProjectOption(list, project);
-      button.addEventListener("click", () => void this.renderProjectHeadingPicker(project));
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.renderProjectHeadingPicker(project)));
     }
   }
 
@@ -880,7 +936,7 @@ export class ProjectSendModal extends Modal {
       const title = button.createDiv({ cls: "memos-plus-project-option-title" });
       setIcon(title.createSpan({ cls: "memos-plus-file-target-icon" }), "tag");
       title.createSpan({ text: tag });
-      button.addEventListener("click", () => void this.renderTaggedFiles(tag));
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.renderTaggedFiles(tag)));
     }
   }
 
@@ -889,7 +945,15 @@ export class ProjectSendModal extends Modal {
     this.tagQuery = tag;
     const contentEl = this.renderFileStepHeader(t(lang, "fileSend.selectFile"), () => this.renderTagPicker());
     contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.selectFile") });
-    const files = await this.loadTaggedFilesCached(tag);
+    let files: TaggedFileInfo[] = [];
+    try {
+      files = await this.loadTaggedFilesCached(tag);
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load tagged files", error);
+    }
+    if (this.closed) {
+      return;
+    }
     this.renderFileList(files, `${t(lang, "fileSend.selectFile")} · #${tag}`, () => void this.renderTaggedFiles(tag), () => this.renderTagPicker(), tag);
   }
 
@@ -900,7 +964,12 @@ export class ProjectSendModal extends Modal {
     this.tagQuery = tag;
     const title = `${t(lang, "fileSend.selectFile")} · #${tag}`;
     this.renderShell().createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
-    const files = await this.loadTaggedFilesCached(tag);
+    let files: TaggedFileInfo[] = [];
+    try {
+      files = await this.loadTaggedFilesCached(tag);
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load custom tag files", error);
+    }
     if (this.mode !== "custom-tag" || this.activeCustomTag !== tag) {
       return;
     }
@@ -946,7 +1015,12 @@ export class ProjectSendModal extends Modal {
       return;
     }
     list.createDiv({ cls: "memos-plus-project-empty", text: t(this.options.language, "common.loading") });
-    const files = await this.searchFilesCached(query);
+    let files: TaggedFileInfo[] = [];
+    try {
+      files = await this.searchFilesCached(query);
+    } catch (error) {
+      console.error("[Memos Plus] Failed to search files", error);
+    }
     if (query !== this.fileQuery) {
       return;
     }
@@ -970,9 +1044,9 @@ export class ProjectSendModal extends Modal {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.noFiles") });
       this.renderTemplateCreateButton(list, "file", createTag);
     }
-    for (const info of files.slice(0, 120)) {
+    for (const info of files.slice(0, mobileModalResultLimit())) {
       const button = this.renderFileInfoOption(list, info);
-      button.addEventListener("click", () => void this.renderHeadingPicker(info, refresh, back));
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.renderHeadingPicker(info, refresh, back)));
     }
   }
 
@@ -1084,7 +1158,9 @@ export class ProjectSendModal extends Modal {
       heading: currentHeading
     });
     createHeading.addEventListener("click", () =>
-      this.handleFileTargetChoice(info.file, "", "new-heading", () => void this.renderHeadingPicker(info, refresh, back, mode), mode, false, buildNewHeadingTarget(""))
+      void withMobileClickLock(createHeading, () =>
+        this.handleFileTargetChoice(info.file, "", "new-heading", () => void this.renderHeadingPicker(info, refresh, back, mode), mode, false, buildNewHeadingTarget(""))
+      )
     );
     const updateNewHeadingVisibility = (): void => {
       newHeadingControls.toggleClass("is-hidden", position.value !== "new-heading");
@@ -1092,7 +1168,15 @@ export class ProjectSendModal extends Modal {
     position.addEventListener("change", updateNewHeadingVisibility);
     updateNewHeadingVisibility();
 
-    const headings = await this.loadHeadingsCached(info.file);
+    let headings: FileHeadingInfo[] = [];
+    try {
+      headings = await this.loadHeadingsCached(info.file);
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load headings", error);
+    }
+    if (this.closed) {
+      return;
+    }
     const list = contentEl.createDiv({ cls: "memos-plus-project-section-grid memos-plus-heading-target-grid" });
     if (headings.length === 0) {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.noHeadings") });
@@ -1111,18 +1195,20 @@ export class ProjectSendModal extends Modal {
         attr: { type: "button" }
       });
       button.setText(`${"  ".repeat(Math.max(0, heading.level - 1))}${"#".repeat(heading.level)} ${heading.heading}`);
-      button.addEventListener("click", () => {
-        const selectedPosition = position.value as FileInsertPosition;
-        this.handleFileTargetChoice(
-          info.file,
-          heading.heading,
-          selectedPosition,
-          () => void this.renderHeadingPicker(info, refresh, back, mode),
-          mode,
-          false,
-          selectedPosition === "new-heading" ? buildNewHeadingTarget(heading.heading) : {}
-        );
-      });
+      button.addEventListener("click", () =>
+        void withMobileClickLock(button, () => {
+          const selectedPosition = position.value as FileInsertPosition;
+          this.handleFileTargetChoice(
+            info.file,
+            heading.heading,
+            selectedPosition,
+            () => void this.renderHeadingPicker(info, refresh, back, mode),
+            mode,
+            false,
+            selectedPosition === "new-heading" ? buildNewHeadingTarget(heading.heading) : {}
+          );
+        })
+      );
     }
 
     this.renderFilePositionButtons(list, info.file, () => void this.renderHeadingPicker(info, refresh, back, mode), mode);
@@ -1135,12 +1221,12 @@ export class ProjectSendModal extends Modal {
       ["file-start", t(lang, "fileSend.position.fileStart")]
     ] as Array<[FileInsertPosition, string]>) {
       const button = container.createEl("button", { cls: "memos-plus-project-section", attr: { type: "button" }, text: label });
-      button.addEventListener("click", () => this.handleFileTargetChoice(file, "", position, backAction, mode));
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.handleFileTargetChoice(file, "", position, backAction, mode)));
     }
     if (includeCreateHeading) {
       const heading = this.defaultInsertHeading();
       const button = container.createEl("button", { cls: "memos-plus-project-section is-default", attr: { type: "button" }, text: `${t(lang, "fileSend.position.createHeading")}：${heading}` });
-      button.addEventListener("click", () => this.handleFileTargetChoice(file, heading, "heading-top", backAction, mode, true));
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.handleFileTargetChoice(file, heading, "heading-top", backAction, mode, true)));
     }
   }
 
@@ -1310,7 +1396,7 @@ export class ProjectSendModal extends Modal {
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
     const confirm = footer.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "projectSend.confirm") });
     confirm.addEventListener("click", () => {
-      onConfirm(buildTaskOptions());
+      void withMobileClickLock(confirm, () => onConfirm(buildTaskOptions()));
     });
   }
 
@@ -1380,7 +1466,7 @@ export class ProjectSendModal extends Modal {
       const name = input.value.trim();
       if (!name) {
         new Notice(t(lang, "projectSend.projectNameRequired"));
-        input.focus();
+        focusOnDesktopOnly(input);
         return;
       }
       create.setAttr("disabled", "true");
@@ -1389,6 +1475,8 @@ export class ProjectSendModal extends Modal {
         if (project) {
           await this.renderProjectHeadingPicker(project);
         }
+      } catch (error) {
+        console.error("[Memos Plus] Failed to create project", error);
       } finally {
         create.removeAttribute("disabled");
       }
@@ -1396,10 +1484,10 @@ export class ProjectSendModal extends Modal {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        void submit();
+        void withMobileClickLock(create, submit);
       }
     });
-    create.addEventListener("click", () => void submit());
+    create.addEventListener("click", () => void withMobileClickLock(create, submit));
     focusOnDesktopOnly(input);
   }
 
@@ -1412,6 +1500,9 @@ export class ProjectSendModal extends Modal {
     createHeadingIfMissing = false,
     targetOptions: Partial<FileSendTarget> = {}
   ): void {
+    if (this.settled) {
+      return;
+    }
     this.settled = true;
     this.options.onChoose({ file, section: heading, task, mode: "project", fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions }, template });
     this.close();
@@ -1426,6 +1517,9 @@ export class ProjectSendModal extends Modal {
     createHeadingIfMissing = false,
     targetOptions: Partial<FileSendTarget> = {}
   ): void {
+    if (this.settled) {
+      return;
+    }
     this.settled = true;
     this.options.onChoose({ file, section: heading, task, mode: "file", fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions }, template });
     this.close();
@@ -1456,7 +1550,7 @@ export class ProjectSendModal extends Modal {
     const direct = container.createEl("button", { cls: "memos-plus-project-add", attr: { type: "button" } });
     setIcon(direct, "send");
     direct.createSpan({ text: t(lang, "projectSend.directSend") });
-    direct.addEventListener("click", () => void this.saveDefault(direct));
+    direct.addEventListener("click", () => void withMobileClickLock(direct, () => this.saveDefault(direct)));
   }
 
   private async saveDefault(button: HTMLButtonElement): Promise<void> {

@@ -12,18 +12,43 @@ import type { QuickCaptureInitialContentMode } from "./src/quickCaptureContent";
 import { TaskIndex } from "./src/taskIndex";
 import { VaultMetadataIndex } from "./src/vaultIndex";
 import { viewLayoutsNeedData, type ViewLayoutsSettings } from "./src/displayModules";
+import {
+  configureMemosPlusDiagnostics,
+  createMemosPlusSessionId,
+  logMemosPlusDiagnostic,
+  registerMemosPlusDiagnostics
+} from "./src/diagnostics";
 
 export default class MemosPlusPlugin extends Plugin {
   settings: MemosPlusSettings = normalizeSettings({});
   store!: MemosPlusStore;
   vaultIndex!: VaultMetadataIndex;
   taskIndex!: TaskIndex;
+  private diagnosticSessionId = "";
 
   async onload(): Promise<void> {
+    this.diagnosticSessionId = createMemosPlusSessionId();
+    configureMemosPlusDiagnostics({
+      enabled: Platform.isMobile,
+      sessionId: this.diagnosticSessionId,
+      version: this.manifest.version
+    });
+    logMemosPlusDiagnostic("memos-plus:onload", { phase: "start" });
     this.settings = normalizeSettings(await this.loadData());
+    configureMemosPlusDiagnostics({
+      enabled: Platform.isMobile || this.settings.performanceDebugMode,
+      sessionId: this.diagnosticSessionId,
+      version: this.manifest.version
+    });
+    logMemosPlusDiagnostic("memos-plus:onload", {
+      phase: "settings-loaded",
+      quickInputEnabled: this.settings.quickInputEnabled,
+      quickInputAutoOpen: this.settings.quickInputAutoOpen
+    });
     this.vaultIndex = new VaultMetadataIndex(this.app);
     this.taskIndex = new TaskIndex(this.app, { isMobile: () => Platform.isMobile });
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
+    registerMemosPlusDiagnostics(this, this.app);
     this.registerVaultIndexInvalidation();
     this.registerTaskIndexInvalidation();
     this.register(this.taskIndex.onChange(() => void this.refreshViews()));
@@ -102,6 +127,10 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
+    logMemosPlusDiagnostic("memos-plus:onunload", {
+      memosLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE).length,
+      quickInputLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE).length
+    });
     this.app.workspace.detachLeavesOfType(MEMOS_PLUS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE);
   }
@@ -192,6 +221,9 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
+    logMemosPlusDiagnostic("settings:save", {
+      refreshViews: true
+    });
     await this.saveData(this.settings);
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
     this.maybeScheduleTaskIndexBuild(0);
@@ -199,11 +231,17 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   async persistSettings(): Promise<void> {
+    logMemosPlusDiagnostic("settings:persist", {
+      refreshViews: false
+    });
     await this.saveData(this.settings);
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
   }
 
   async refreshViews(): Promise<void> {
+    logMemosPlusDiagnostic("view:refresh", {
+      memosLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE).length
+    });
     for (const leaf of this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE)) {
       const view = leaf.view;
       if (view instanceof MemosPlusView) {

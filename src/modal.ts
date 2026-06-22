@@ -3,6 +3,7 @@ import { createComposerSession, type ComposerSession } from "./composerSession";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
+import { registerMemosPlusModalClose, registerMemosPlusModalOpen } from "./mobileModalSafety";
 import type { QuickCaptureInitialContentMode } from "./quickCaptureContent";
 import type { MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
@@ -30,6 +31,7 @@ export class QuickCaptureModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "QuickCaptureModal");
     const { contentEl } = this;
     contentEl.empty();
     this.modalEl.addClass("memos-plus-quick-capture-keyboard-shell");
@@ -56,6 +58,7 @@ export class QuickCaptureModal extends Modal {
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "QuickCaptureModal");
     for (const cleanup of this.cleanups.splice(0)) {
       cleanup();
     }
@@ -80,6 +83,7 @@ export class EditMemoModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "EditMemoModal");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("memos-plus-modal");
@@ -110,6 +114,7 @@ export class EditMemoModal extends Modal {
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "EditMemoModal");
     this.contentEl.empty();
   }
 

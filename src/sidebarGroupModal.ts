@@ -3,6 +3,7 @@ import { IconPickerModal, normalizeIconName } from "./iconPicker";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
+import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 
 export interface SidebarGroupModalOptions {
   language: Language;
@@ -31,6 +32,7 @@ export class SidebarGroupModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "SidebarGroupModal");
     const lang = this.options.language;
     const { contentEl } = this;
     contentEl.empty();
@@ -69,19 +71,20 @@ export class SidebarGroupModal extends Modal {
     cancel.addEventListener("click", () => this.close());
     const save = footer.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "modal.save") });
     save.addEventListener("click", () => {
-      void this.submit();
+      void withMobileClickLock(save, () => this.submit());
     });
 
     this.titleInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        void this.submit();
+        void withMobileClickLock(save, () => this.submit());
       }
     });
     focusOnDesktopOnly(this.titleInput);
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "SidebarGroupModal");
     this.contentEl.empty();
   }
 

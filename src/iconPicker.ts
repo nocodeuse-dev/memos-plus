@@ -3,6 +3,7 @@ import type { IconName } from "obsidian";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
+import { registerMemosPlusModalClose, registerMemosPlusModalOpen } from "./mobileModalSafety";
 import { debounce, DESKTOP_DEBOUNCE_MS, iconPickerResultLimit, MOBILE_DEBOUNCE_MS } from "./performance";
 
 export interface IconPickerModalOptions {
@@ -48,6 +49,7 @@ export class IconPickerModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "IconPickerModal");
     const lang = this.options.language;
     const { contentEl } = this;
     contentEl.empty();
@@ -68,6 +70,7 @@ export class IconPickerModal extends Modal {
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "IconPickerModal");
     this.contentEl.empty();
   }
 

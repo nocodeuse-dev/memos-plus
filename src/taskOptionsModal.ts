@@ -1,5 +1,6 @@
 import { App, Modal } from "obsidian";
 import { t, type Language } from "./i18n";
+import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import type { MemosPlusSettings } from "./settings";
 import { renderTaskContentWithDetail } from "./taskContent";
 import {
@@ -51,6 +52,7 @@ class TaskOptionsModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "TaskOptionsModal");
     const lang = this.options.language;
     const { contentEl } = this;
     contentEl.empty();
@@ -105,27 +107,30 @@ class TaskOptionsModal extends Modal {
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
     const cancel = footer.createEl("button", { attr: { type: "button" }, text: t(lang, "modal.cancel") });
     const confirm = footer.createEl("button", { cls: "memos-plus-save-button", attr: { type: "button" }, text: t(lang, "projectSend.confirm") });
-    cancel.addEventListener("click", () => this.cancel());
+    cancel.addEventListener("click", () => void withMobileClickLock(cancel, () => this.cancel()));
     confirm.addEventListener("click", () => {
-      this.resolve(
-        asTask && !asTask.checked
-          ? undefined
-          : {
-              isTask: true,
-              priority: normalizeTaskPriority(priority.value),
-              startDate: normalizeTaskDate(startDate.value),
-              scheduledDate: normalizeTaskDate(scheduledDate.value),
-              dueDate: normalizeTaskDate(dueDate.value),
-              doneDate: normalizeTaskDate(doneDate.value),
-              recurrence: normalizeTaskRecurrence(recurrence.value),
-              customRecurrence: customRecurrence.value.trim(),
-              addCreatedDate: addCreatedDate.checked
-            }
+      void withMobileClickLock(confirm, () =>
+        this.resolve(
+          asTask && !asTask.checked
+            ? undefined
+            : {
+                isTask: true,
+                priority: normalizeTaskPriority(priority.value),
+                startDate: normalizeTaskDate(startDate.value),
+                scheduledDate: normalizeTaskDate(scheduledDate.value),
+                dueDate: normalizeTaskDate(dueDate.value),
+                doneDate: normalizeTaskDate(doneDate.value),
+                recurrence: normalizeTaskRecurrence(recurrence.value),
+                customRecurrence: customRecurrence.value.trim(),
+                addCreatedDate: addCreatedDate.checked
+              }
+        )
       );
     });
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "TaskOptionsModal");
     this.contentEl.empty();
     if (!this.resolved) {
       this.onResolve(null);

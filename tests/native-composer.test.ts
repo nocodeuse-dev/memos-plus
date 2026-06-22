@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Platform } from "obsidian";
 import { createNativeMarkdownComposer } from "../src/nativeComposer";
 
 vi.mock("obsidian", () => ({
@@ -8,6 +9,7 @@ vi.mock("obsidian", () => ({
   Setting: class {},
   TFile: class {},
   TFolder: class {},
+  Platform: { isMobile: false },
   normalizePath: (value: string) => value.replace(/\/+/g, "/").replace(/\/$/, "")
 }));
 
@@ -73,6 +75,7 @@ function installFakeDocument(): void {
 
 describe("createNativeMarkdownComposer", () => {
   afterEach(() => {
+    Platform.isMobile = false;
     vi.unstubAllGlobals();
   });
 
@@ -118,7 +121,7 @@ describe("createNativeMarkdownComposer", () => {
 
     const host = composer.element as unknown as FakeElement;
     expect(host.listeners.get("mousedown")?.[0]?.capture).toBe(true);
-    expect(host.listeners.get("touchstart")?.[0]?.capture).toBe(true);
+    expect(host.listeners.get("touchstart")).toBeUndefined();
     expect(host.listeners.get("click")?.[0]?.capture).toBe(true);
 
     host.dispatch("mousedown");
@@ -144,6 +147,44 @@ describe("createNativeMarkdownComposer", () => {
 
     composer.destroy();
     expect(embed.unload).toHaveBeenCalled();
+  });
+
+  it("uses only one touch focus listener for mobile markdown embeds", () => {
+    Platform.isMobile = true;
+    installFakeDocument();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    const editor = {
+      getValue: vi.fn(() => ""),
+      setValue: vi.fn(),
+      replaceSelection: vi.fn(),
+      getCursor: vi.fn(() => ({ line: 0, ch: 0 })),
+      posToOffset: vi.fn(() => 0),
+      offsetToPos: vi.fn(() => ({ line: 0, ch: 0 })),
+      setCursor: vi.fn(),
+      focus: vi.fn()
+    };
+    const embed = {
+      set: vi.fn(),
+      showEditor: vi.fn(),
+      unload: vi.fn(),
+      editMode: { editor }
+    };
+    const container = new FakeElement("div");
+
+    const composer = createNativeMarkdownComposer({
+      app: { embedRegistry: { embedByExtension: { md: () => embed } } } as never,
+      container: container as never,
+      placeholder: "",
+      sourcePath: "Memos/memos.md"
+    });
+
+    const host = composer.element as unknown as FakeElement;
+    expect(host.listeners.get("touchstart")?.[0]?.capture).toBe(true);
+    expect(host.listeners.get("mousedown")).toBeUndefined();
+    expect(host.listeners.get("click")).toBeUndefined();
   });
 
   it("falls back to a textarea when the markdown embed is unavailable", () => {

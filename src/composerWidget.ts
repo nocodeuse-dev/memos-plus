@@ -174,6 +174,9 @@ export class ComposerWidget {
     this.mobileViewportBaselineHeight = Math.round(window.visualViewport?.height ?? window.innerHeight);
 
     const handleFocus = (): void => {
+      if (!this.element.contains(document.activeElement)) {
+        return;
+      }
       this.mobileKeyboardActive = true;
       if (!window.visualViewport) {
         this.applyFallbackMobileKeyboardInset();

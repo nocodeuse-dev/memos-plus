@@ -17,6 +17,7 @@ import type { DefaultSendAction, MemosPlusSettings } from "./settings";
 import { todayString } from "./filter";
 import { VaultSavedSearchIndex } from "./vaultSearch";
 import { hasSidebarDirectoryModules, isSidebarDirectoryModule, resolveViewLayoutModules, type DisplayModuleId } from "./displayModules";
+import { logMemosPlusDiagnostic } from "./diagnostics";
 
 export const MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE = "memos-plus-quick-input-view";
 
@@ -40,6 +41,7 @@ export class MemosPlusQuickInputView extends ItemView {
     private readonly plugin: MemosPlusPlugin
   ) {
     super(leaf);
+    logMemosPlusDiagnostic("view:constructor", { type: MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE });
     this.vaultSearchIndex = new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex);
   }
 
@@ -56,6 +58,7 @@ export class MemosPlusQuickInputView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    logMemosPlusDiagnostic("view:onOpen", { type: MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE });
     this.registerEvent(this.app.vault.on("modify", () => this.scheduleDirectoryRefresh()));
     this.registerEvent(this.app.vault.on("create", () => this.scheduleDirectoryRefresh()));
     this.registerEvent(this.app.vault.on("delete", () => this.scheduleDirectoryRefresh()));
@@ -63,6 +66,7 @@ export class MemosPlusQuickInputView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    logMemosPlusDiagnostic("view:onClose", { type: MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE });
     await this.persistDraft();
     this.clearPreviewTimers();
     this.clearDirectoryRefreshTimer();
@@ -76,6 +80,7 @@ export class MemosPlusQuickInputView extends ItemView {
   }
 
   private render(): void {
+    logMemosPlusDiagnostic("view:render", { type: MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE });
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     container.addClass("memos-plus-quick-input-view");

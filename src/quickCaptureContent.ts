@@ -1,5 +1,6 @@
 import { MarkdownView, Modal, Setting, type App } from "obsidian";
 import { t, type Language } from "./i18n";
+import { registerMemosPlusModalClose, registerMemosPlusModalOpen } from "./mobileModalSafety";
 import { type MemosPlusSettings } from "./settings";
 
 export type QuickCaptureInitialContentMode = "auto" | "selection" | "clipboard" | "none";
@@ -210,6 +211,7 @@ class QuickCaptureContentPromptModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "QuickCaptureContentPromptModal");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("memos-plus-modal");
@@ -237,6 +239,7 @@ class QuickCaptureContentPromptModal extends Modal {
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "QuickCaptureContentPromptModal");
     if (!this.resolved) {
       this.resolve("skip");
     }

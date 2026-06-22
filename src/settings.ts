@@ -97,6 +97,7 @@ import {
   type TemplateTaskMode
 } from "./templateManager";
 import { TemplateEditorModal } from "./templateManagerModal";
+import { logMemosPlusDiagnostic } from "./diagnostics";
 
 export interface MemosPlusSettings {
   memoFolderPath: string;
@@ -529,6 +530,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   }
 
   display(): void {
+    logMemosPlusDiagnostic("settings:display", { tab: this.currentSettingTab });
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("memos-plus-settings");
@@ -541,6 +543,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     if (!this.settingsPanelEl) {
       return;
     }
+    logMemosPlusDiagnostic("settings:panel-render", { tab: this.currentSettingTab });
     this.settingsPanelEl.empty();
     this.renderActiveSettingsTab(this.settingsPanelEl);
   }

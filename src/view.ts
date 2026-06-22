@@ -40,6 +40,7 @@ import { filterTaskIndexItems, getTaskIndexOrganizerCounts, type TaskIndexItem, 
 import { resolveTemplateAfterTransferAction } from "./templateManager";
 import { VaultSavedSearchIndex, type VaultSearchResult } from "./vaultSearch";
 import { hasSidebarDirectoryModules, resolveViewLayoutDataNeeds, resolveViewLayoutModules, type DisplayModuleDataNeed, type DisplayModuleId } from "./displayModules";
+import { logMemosPlusDiagnostic } from "./diagnostics";
 
 export const MEMOS_PLUS_VIEW_TYPE = "memos-plus-view";
 
@@ -89,6 +90,7 @@ export class MemosPlusView extends ItemView {
     private readonly plugin: MemosPlusPlugin
   ) {
     super(leaf);
+    logMemosPlusDiagnostic("view:constructor", { type: MEMOS_PLUS_VIEW_TYPE });
     this.vaultSearchIndex = new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex);
     this.organizerTasksExpanded = this.plugin.settings.organizerTasksDefaultExpanded;
   }
@@ -106,11 +108,13 @@ export class MemosPlusView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    logMemosPlusDiagnostic("view:onOpen", { type: MEMOS_PLUS_VIEW_TYPE });
     this.visibleCount = this.pageSize();
     await this.reload();
   }
 
   async onClose(): Promise<void> {
+    logMemosPlusDiagnostic("view:onClose", { type: MEMOS_PLUS_VIEW_TYPE });
     this.cancelScheduledTimelineRender();
     this.composerSession?.destroy();
     this.composerSession = null;
@@ -118,6 +122,10 @@ export class MemosPlusView extends ItemView {
   }
 
   async reload(options: { preserveScroll?: boolean } = {}): Promise<void> {
+    logMemosPlusDiagnostic("view:refresh", {
+      type: MEMOS_PLUS_VIEW_TYPE,
+      preserveScroll: Boolean(options.preserveScroll)
+    });
     const scrollPosition = options.preserveScroll ? this.captureMainScrollPosition() : null;
     const profiler = this.profiler();
     const dataNeeds = this.activeLayoutDataNeeds();
@@ -130,6 +138,7 @@ export class MemosPlusView extends ItemView {
   }
 
   async render(): Promise<void> {
+    logMemosPlusDiagnostic("view:render", { type: MEMOS_PLUS_VIEW_TYPE });
     await this.profiler().measure("render view time", async () => {
       this.cancelScheduledTimelineRender();
       this.clearMemoSearchCaches();

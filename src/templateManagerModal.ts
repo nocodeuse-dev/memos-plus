@@ -3,6 +3,7 @@ import { normalizeFileTag } from "./fileSend";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
+import { mobileModalResultLimit, registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import {
   DEFAULT_TEMPLATE_HEADING,
   MANAGED_TEMPLATE_TYPES,
@@ -48,6 +49,7 @@ export class TemplateEditorModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "TemplateEditorModal");
     const { contentEl } = this;
     const lang = this.options.language;
     contentEl.empty();
@@ -61,10 +63,11 @@ export class TemplateEditorModal extends Modal {
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
     footer.createEl("button", { attr: { type: "button" }, text: t(lang, "modal.cancel") }).addEventListener("click", () => this.close());
     const save = footer.createEl("button", { cls: "memos-plus-save-button", attr: { type: "button" }, text: t(lang, "modal.save") });
-    save.addEventListener("click", () => void this.submit(save));
+    save.addEventListener("click", () => void withMobileClickLock(save, () => this.submit(save)));
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "TemplateEditorModal");
     this.contentEl.empty();
   }
 
@@ -491,7 +494,7 @@ export class TemplateEditorModal extends Modal {
           advancedInput.setRangeText(token, advancedInput.selectionStart, advancedInput.selectionEnd, "end");
           this.draft.advancedContentTemplate = advancedInput.value;
           this.refreshPreview();
-          advancedInput.focus();
+          focusOnDesktopOnly(advancedInput);
         });
       });
     }
@@ -626,6 +629,7 @@ class TemplatePathPickerModal extends Modal {
   }
 
   onOpen(): void {
+    registerMemosPlusModalOpen(this, "TemplatePathPickerModal");
     this.contentEl.empty();
     this.contentEl.addClass("memos-plus-modal");
     this.contentEl.createEl("h2", {
@@ -645,13 +649,14 @@ class TemplatePathPickerModal extends Modal {
   }
 
   onClose(): void {
+    registerMemosPlusModalClose(this, "TemplatePathPickerModal");
     this.contentEl.empty();
   }
 
   private renderList(list: HTMLElement): void {
     list.empty();
     const items = this.mode === "file" ? this.templateFiles() : this.folders();
-    for (const path of items.filter((path) => !this.query || path.toLowerCase().includes(this.query)).slice(0, 120)) {
+    for (const path of items.filter((path) => !this.query || path.toLowerCase().includes(this.query)).slice(0, mobileModalResultLimit())) {
       const button = list.createEl("button", { cls: "memos-plus-project-option", attr: { type: "button" } });
       button.createDiv({ cls: "memos-plus-project-option-title", text: path || "/" });
       button.addEventListener("click", () => {

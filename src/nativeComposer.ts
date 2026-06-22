@@ -1,4 +1,4 @@
-import type { App, Editor } from "obsidian";
+import { Platform, type App, type Editor } from "obsidian";
 import { wrapCodeBlockAtCursor } from "./composerTools";
 
 export type ComposerKind = "native" | "textarea";
@@ -71,9 +71,12 @@ function tryCreateNativeComposer(options: NativeMarkdownComposerOptions): Native
         editor.focus();
       });
     };
-    host.addEventListener("mousedown", focusEditor, true);
-    host.addEventListener("touchstart", focusEditor, true);
-    host.addEventListener("click", focusEditor, true);
+    if (Platform.isMobile) {
+      host.addEventListener("touchstart", focusEditor, true);
+    } else {
+      host.addEventListener("mousedown", focusEditor, true);
+      host.addEventListener("click", focusEditor, true);
+    }
     return new EmbeddedMarkdownComposer(host, embed, editor);
   } catch (error) {
     console.warn("[Memos Plus] Could not create native Markdown composer", error);
