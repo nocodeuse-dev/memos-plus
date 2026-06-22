@@ -1279,7 +1279,7 @@
   font-size: var(--font-text-size);
   line-height: var(--line-height-normal);
   color: var(--text-normal);
-  caret-color: var(--text-accent);
+  caret-color: var(--text-normal);
 }
 
 .memos-plus-native-editor-host,
@@ -1330,6 +1330,10 @@
   overflow-wrap: break-word;
 }
 
+.memos-plus-native-editor-host .cm-cursor {
+  border-left-color: var(--text-normal);
+}
+
 .memos-plus-native-editor-host:focus-within {
   outline: none;
   box-shadow: none;
@@ -1348,7 +1352,7 @@
   font-family: var(--font-text);
   font-size: var(--font-text-size);
   line-height: var(--line-height-normal);
-  caret-color: var(--text-accent);
+  caret-color: var(--text-normal);
   tab-size: 2;
 }
 

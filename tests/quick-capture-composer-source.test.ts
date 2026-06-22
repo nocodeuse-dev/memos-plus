@@ -56,7 +56,20 @@ describe("quick capture shared composer", () => {
     expect(textareaFocusRule).toContain("box-shadow: none");
     expect(textareaFocusRule).toContain("outline: none");
     expect(textareaFocusRule).not.toContain("inset");
-    expect(stylesSource).toContain("caret-color: var(--text-accent)");
+  });
+
+  it("uses a neutral text caret inside the composer so the cursor does not read as an extra purple border", () => {
+    const nativeHostRule = stylesSource.match(/\.memos-plus-native-editor-host \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(nativeHostRule).toContain("caret-color: var(--text-normal)");
+
+    const cmCursorRule = stylesSource.match(/\.memos-plus-native-editor-host \.cm-cursor \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(cmCursorRule).toContain("border-left-color: var(--text-normal)");
+
+    const textareaRule =
+      Array.from(stylesSource.matchAll(/\.memos-plus-composer-input \{([\s\S]*?)\n\}/g))
+        .map((match) => match[1])
+        .find((rule) => rule.includes("width: 100%")) ?? "";
+    expect(textareaRule).toContain("caret-color: var(--text-normal)");
   });
 
   it("renders composer appearance controls in the input tools settings tab", () => {
