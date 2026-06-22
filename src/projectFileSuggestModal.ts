@@ -543,6 +543,9 @@ class FileTemplateLibraryModal extends Modal {
     try {
       await this.options.onCreate(template, title);
       this.close();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to create file from template library", error);
+      new Notice(t(this.options.language, "fileTemplateLibrary.createFailed"));
     } finally {
       if (button.isConnected) {
         button.disabled = false;
@@ -1572,7 +1575,6 @@ export class ProjectSendModal extends Modal {
   }
 
   private openFileTemplateLibraryModal(target: "project" | "file", tag = "", activeTabId = "", preferredPathOverride = ""): void {
-    const deliveryTemplate = this.currentTemplate();
     new FileTemplateLibraryModal(this.app, {
       language: this.options.language,
       initialTitle: this.templateCreateTitle(target, tag),
@@ -1590,9 +1592,13 @@ export class ProjectSendModal extends Modal {
       onCreate: async (template, title) => {
         const file = await this.options.onCreateFromFileTemplate(template.path, title, tag);
         if (!file) {
-          return;
+          throw new Error("File template creation returned no file");
         }
-        await this.options.onMarkFileTemplateRecent(template.path);
+        try {
+          await this.options.onMarkFileTemplateRecent(template.path);
+        } catch (error) {
+          console.error("[Memos Plus] Failed to mark file template as recent", error);
+        }
         if (target === "project") {
           await this.renderProjectHeadingPicker({
             file,
@@ -1603,17 +1609,14 @@ export class ProjectSendModal extends Modal {
           });
           return;
         }
-         this.chooseFile(
-           file,
-           deliveryTemplate?.heading ?? "",
-           deliveryTemplate?.insertPosition ?? this.options.defaultFileInsertPosition,
-           deliveryTemplate,
-           undefined,
-           false,
-           this.fileTargetOptionsFromTemplate(deliveryTemplate)
-         );
+        await this.renderCreatedFileHeadingPicker(file, tag);
       }
     }).open();
+  }
+
+  private async renderCreatedFileHeadingPicker(file: TFile, tag = ""): Promise<void> {
+    const info = createdFileToTaggedFileInfo(file, tag);
+    await this.renderHeadingPicker(info, () => void this.renderCreatedFileHeadingPicker(file, tag), () => this.renderCurrentMode(), "file");
   }
 
   private templateCreateTitle(target: "project" | "file", tag = ""): string {
@@ -1903,6 +1906,19 @@ function projectInfoToTaggedFileInfo(project: ProjectInfo): TaggedFileInfo {
     matchTags: [],
     status: project.status,
     updatedAt: project.updatedAt
+  };
+}
+
+function createdFileToTaggedFileInfo(file: TFile, tag = ""): TaggedFileInfo {
+  const normalizedTag = normalizeFileTag(tag);
+  const tags = normalizedTag ? [normalizedTag] : [];
+  return {
+    file,
+    name: file.basename,
+    path: file.path,
+    tags,
+    matchTags: tags,
+    updatedAt: file.stat?.mtime ?? Date.now()
   };
 }
 

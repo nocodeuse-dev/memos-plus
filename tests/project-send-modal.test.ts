@@ -113,6 +113,20 @@ describe("project send modal source", () => {
     expect(i18nSource).toContain('"projectSend.createFileFromSearchNamed": "新建“{query}”"');
   });
 
+  it("routes files created from the template library through the existing heading picker", () => {
+    const templateModalSource = modalSource.slice(
+      modalSource.indexOf('private openFileTemplateLibraryModal(target: "project" | "file"'),
+      modalSource.indexOf('private templateCreateTitle(target: "project" | "file"')
+    );
+    const fileBranchSource = templateModalSource.slice(templateModalSource.indexOf('if (target === "project")'));
+
+    expect(templateModalSource).toContain("onCreateFromFileTemplate");
+    expect(fileBranchSource).toContain("this.renderCreatedFileHeadingPicker(file, tag)");
+    expect(fileBranchSource).not.toContain("this.chooseFile(");
+    expect(modalSource).toContain("fileTemplateLibrary.createFailed");
+    expect(i18nSource).toContain('"fileTemplateLibrary.createFailed"');
+  });
+
   it("the composer send-to-project flow opens the project workflow modal", () => {
     expect(deliverySource).toContain("ProjectSendModal");
     expect(deliverySource).toContain("selectProjectTarget");
