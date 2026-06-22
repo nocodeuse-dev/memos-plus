@@ -58,6 +58,7 @@ export const DIAGNOSTIC_EVENT_NAMES = [
   "modal:option-click",
   "settings:save",
   "settings:persist",
+  "settings:diagnostic-export",
   "data:load",
   "data:save",
   "view:render",

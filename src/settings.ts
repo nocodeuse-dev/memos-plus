@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, normalizePath } from "obsidian";
+import { App, Platform, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type MemosPlusPlugin from "../main";
 import {
   CALLOUT_TYPES,
@@ -534,9 +534,24 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("memos-plus-settings");
+    this.renderDiagnosticExport(containerEl);
     this.settingsTabsEl = this.renderSettingsTabs(containerEl);
     this.settingsPanelEl = containerEl.createDiv({ cls: "memos-plus-settings-panel" });
     this.renderCurrentSettingsPanel();
+  }
+
+  private renderDiagnosticExport(container: HTMLElement): void {
+    if (!Platform.isMobile && !this.plugin.settings.performanceDebugMode) {
+      return;
+    }
+    const lang = this.plugin.settings.language;
+    const diagnostic = container.createDiv({ cls: "memos-plus-settings-diagnostic-export" });
+    new Setting(diagnostic).setName(t(lang, "command.exportDiagnosticLog")).addButton((button) => {
+      button.setButtonText(t(lang, "command.exportDiagnosticLog")).onClick(async () => {
+        logMemosPlusDiagnostic("settings:diagnostic-export", { source: "settings" });
+        await this.plugin.exportDiagnosticLog();
+      });
+    });
   }
 
   private renderCurrentSettingsPanel(): void {

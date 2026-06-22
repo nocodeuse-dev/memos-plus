@@ -17,6 +17,7 @@ const templateManagerModalSource = readFileSync("src/templateManagerModal.ts", "
 const taskOptionsModalSource = readFileSync("src/taskOptionsModal.ts", "utf8");
 const diagnosticsSource = existsSync("src/diagnostics.ts") ? readFileSync("src/diagnostics.ts", "utf8") : "";
 const modalSafetySource = existsSync("src/mobileModalSafety.ts") ? readFileSync("src/mobileModalSafety.ts", "utf8") : "";
+const settingsSource = readFileSync("src/settings.ts", "utf8");
 
 describe("mobile interaction stability source", () => {
   it("only reveals the composer for keyboard changes while the composer is the active interaction target", () => {
@@ -115,6 +116,8 @@ describe("mobile interaction stability source", () => {
     expect(viewSource).toContain("logMemosPlusDiagnostic(\"sidebar:render-end\"");
     expect(viewSource).toContain("showDiagnosticButton");
     expect(viewSource).toContain("this.plugin.exportDiagnosticLog()");
+    expect(settingsSource).toContain("renderDiagnosticExport");
+    expect(settingsSource).toContain("this.plugin.exportDiagnosticLog()");
     expect(modalSafetySource).toContain("logMemosPlusDiagnostic(\"modal:option-click\"");
   });
 

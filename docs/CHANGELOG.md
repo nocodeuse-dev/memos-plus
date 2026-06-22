@@ -2,7 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
-- 扩展移动端闪退/重载诊断：诊断日志现在保留最近 200 条结构化事件，覆盖 load/save、主视图/侧栏渲染起止、弹窗选项点击、window resize、visualViewport、输入焦点和错误事件，并新增“导出 Memos Plus 调试日志”命令和移动端工具栏入口写入 `Memos Plus Debug Log.md`，方便在 iPhone 镜像复现后判断是插件重载、视图重建还是 WebView 中断。
+- 扩展移动端闪退/重载诊断：诊断日志现在保留最近 200 条结构化事件，覆盖 load/save、主视图/侧栏渲染起止、弹窗选项点击、window resize、visualViewport、输入焦点和错误事件，并新增“导出 Memos Plus 调试日志”命令、设置页入口和移动端工具栏入口写入 `Memos Plus Debug Log.md`，方便在 iPhone 镜像复现后判断是插件重载、视图重建还是 WebView 中断。
 - 快速输入框新增“清空输入内容”按钮：主页、侧边栏、移动端和快速记录弹窗共用同一入口；短内容可直接清空，长内容、链接、任务或附件引用会先确认。清空只局部重置输入框、Callout/任务临时状态和草稿缓存，不改变默认发送规则或当前发送目标，移动端点击不会主动聚焦输入框或触发整页重绘。
 - 修复移动端主页快速输入框聚焦后的布局异常：主页输入框在 iPhone/Obsidian Mobile 上改为受控的 120px 起始高度和 40vh/280px 最大高度，textarea 回退不再信任异常 `scrollHeight` 把空输入框撑成大黑框；键盘弹出时只调整主页底部避让和输入框最大高度，工具栏与发送按钮保持两列布局，悬浮记录按钮会在输入框聚焦期间隐藏，避免遮挡“发送”按钮。
 - 增加移动端弹窗稳定性诊断与安全收口：移动端默认输出带 `sessionId` 的 onload/onunload、视图、弹窗、设置保存、layout-change、visualViewport、focus/blur、window error 和 unhandledrejection 日志，用于区分真实插件重载、视图重建和 WebView 重启；弹窗关键按钮加入移动端重复点击锁，关闭后清理大型结果缓存并阻止异步结果继续渲染，Saved Search 移动端不再实时跑复杂预览，发送/模板列表移动端首批限制为 30 条，原生 Markdown 输入框移动端不再同时绑定 touch 与 click 聚焦。
