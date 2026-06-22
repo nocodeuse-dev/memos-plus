@@ -9,6 +9,7 @@ vi.mock("obsidian", () => ({
   Menu: class {},
   Modal: class {},
   Notice: vi.fn(),
+  Platform: { isMobile: false },
   PluginSettingTab: class {},
   Setting: class {},
   TFile: class {},
@@ -63,6 +64,41 @@ describe("composer send failure draft recovery", () => {
     expect(persistSettings).toHaveBeenCalled();
     expect(composer.clear).not.toHaveBeenCalled();
     expect(composer.focus).toHaveBeenCalled();
+  });
+
+  it("does not refocus the composer after saving a failure draft on mobile", async () => {
+    const obsidian = await import("obsidian");
+    const platform = obsidian.Platform as { isMobile: boolean };
+    const previous = platform.isMobile;
+    platform.isMobile = true;
+    try {
+      const settings = normalizeSettings({
+        sendFailureDraftEnabled: true,
+        sendFailureDraftContent: ""
+      });
+      const composer = fakeComposer("移动端失败也不能拉键盘");
+      const actions = createComposerActions(
+        {
+          app: { workspace: { getActiveFile: () => ({ basename: "memos plus" }) } },
+          store: {
+            addMemo: vi.fn(async () => {
+              throw new Error("write failed");
+            })
+          },
+          settings,
+          persistSettings: vi.fn(async () => {}),
+          refreshViews: vi.fn(async () => {})
+        } as never,
+        () => composer as never
+      );
+
+      await actions.saveDefault();
+
+      expect(settings.sendFailureDraftContent).toBe("移动端失败也不能拉键盘");
+      expect(composer.focus).not.toHaveBeenCalled();
+    } finally {
+      platform.isMobile = previous;
+    }
   });
 
   it("restores a saved failure draft when no explicit initial content is provided", () => {

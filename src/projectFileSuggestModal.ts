@@ -1,4 +1,4 @@
-import { App, Menu, Modal, Notice, TFile, setIcon } from "obsidian";
+import { App, Menu, Modal, Notice, Platform, TFile, setIcon } from "obsidian";
 import {
   normalizeFileTag,
   type ExistingHeadingBehavior,
@@ -152,6 +152,22 @@ class ProjectTagTabModal extends Modal {
   }
 }
 
+function promptForProjectTagTab(
+  app: App,
+  language: Language,
+  onSubmit: (value: string) => Promise<void>,
+  initialValue = "",
+  titleKey = "projectSend.addTagTab",
+  submitKey = "projectSend.addTagTab"
+): Promise<void> {
+  if (Platform.isMobile) {
+    const value = window.prompt(t(language, titleKey), initialValue)?.trim() ?? "";
+    return value ? onSubmit(value) : Promise.resolve();
+  }
+  new ProjectTagTabModal(app, language, onSubmit, initialValue, titleKey, submitKey).open();
+  return Promise.resolve();
+}
+
 class FileTemplateLibraryModal extends Modal {
   private items: FileTemplateLibraryItem[] = [];
   private selectedPath = "";
@@ -287,7 +303,7 @@ class FileTemplateLibraryModal extends Modal {
     });
     setIcon(add, "plus");
     add.addEventListener("click", () => {
-      new ProjectTagTabModal(
+      void withMobileClickLock(add, () => promptForProjectTagTab(
         this.app,
         lang,
         async (value) => {
@@ -300,7 +316,7 @@ class FileTemplateLibraryModal extends Modal {
         "",
         "fileTemplateLibrary.category.custom",
         "projectSend.addTagTab"
-      ).open();
+      ));
     });
   }
 
@@ -1579,8 +1595,8 @@ export class ProjectSendModal extends Modal {
     await this.renderCustomTagFiles(tag);
   }
 
-  private addCustomTagTab(): void {
-    new ProjectTagTabModal(this.app, this.options.language, async (value) => {
+  private addCustomTagTab(): Promise<void> {
+    return promptForProjectTagTab(this.app, this.options.language, async (value) => {
       const tag = normalizeFileTag(value);
       if (!tag) {
         return;
@@ -1592,7 +1608,7 @@ export class ProjectSendModal extends Modal {
         await this.persistTabPreferences();
       }
       await this.openCustomTagTab(tag);
-    }).open();
+    });
   }
 
   private openCustomTagTabMenu(event: MouseEvent, tag: string): void {
@@ -1611,8 +1627,8 @@ export class ProjectSendModal extends Modal {
     menu.showAtMouseEvent(event);
   }
 
-  private renameCustomTagTab(tag: string): void {
-    new ProjectTagTabModal(
+  private renameCustomTagTab(tag: string): Promise<void> {
+    return promptForProjectTagTab(
       this.app,
       this.options.language,
       async (value) => {
@@ -1636,7 +1652,7 @@ export class ProjectSendModal extends Modal {
       tag,
       "projectSend.renameTagTab",
       "projectSend.renameTagTab"
-    ).open();
+    );
   }
 
   private async removeCustomTagTab(tag: string): Promise<void> {

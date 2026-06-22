@@ -560,7 +560,7 @@ export class ComposerWidget {
     const content = this.composer.getValue();
     const formatted = await this.options.formatTaskContent(content, { manualCalloutMode: this.calloutMode });
     if (formatted === null) {
-      this.composer.focus();
+      this.focusComposerAfterTaskModal();
       return;
     }
     if (!content.trim()) {
@@ -571,6 +571,13 @@ export class ComposerWidget {
     this.calloutMode = false;
     this.updateCalloutStatus();
     this.updateClearButtonState();
+    this.focusComposerAfterTaskModal();
+  }
+
+  private focusComposerAfterTaskModal(): void {
+    if (Platform.isMobile) {
+      return;
+    }
     this.composer.focus();
   }
 

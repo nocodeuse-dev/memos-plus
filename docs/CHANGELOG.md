@@ -2,6 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
+- 收口移动端弹窗关闭后的键盘/重载风险：任务设置弹窗取消或确认后不再在 iPhone 上自动聚焦主页输入框，发送到项目的空内容提示和发送失败草稿保护也只在桌面端恢复焦点，避免弹窗关闭后触发 focus → visualViewport resize → scroll/render 的循环；发送弹窗内新增/重命名标签这类轻量输入在移动端改用系统 prompt，避免在 ProjectSendModal 上继续叠加 ProjectTagTabModal。
 - 修复移动端原生 Markdown 快速输入框文字被压成竖排的问题：为 Memos Plus 自己的 CodeMirror composer 容器、内容层和行补齐宽度、最小宽度和横排书写约束，避免 iPhone/Obsidian Mobile 上聚焦输入后输入列宽坍缩成一个字符。
 - 收口移动端刷新风暴：TaskIndex 文件变化不再无条件触发全局 `refreshViews()`，没有 Memos 主视图时直接跳过，有主视图时按移动端节奏防抖合并刷新，避免 Obsidian Sync 或批量文件变化造成短时间上百次视图刷新；剪贴板内容确认弹窗的“填入/追加/忽略”也接入移动端重复点击锁，并增强 unhandled rejection 日志栈信息。
 - 扩展移动端闪退/重载诊断：诊断日志现在保留最近 200 条结构化事件，覆盖 load/save、主视图/侧栏渲染起止、弹窗选项点击、window resize、visualViewport、输入焦点和错误事件，并新增“导出 Memos Plus 调试日志”命令、设置页入口和移动端工具栏入口写入 `Memos Plus Debug Log.md`，方便在 iPhone 镜像复现后判断是插件重载、视图重建还是 WebView 中断。

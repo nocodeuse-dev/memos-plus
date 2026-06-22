@@ -1,4 +1,4 @@
-import { Menu, Notice, type App } from "obsidian";
+import { Menu, Notice, Platform, type App } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import type { ComposerWidget } from "./composerWidget";
 import { t } from "./i18n";
@@ -72,7 +72,7 @@ export function createComposerActions(
     const content = composer.getValue().trim();
     if (!content) {
       new Notice(t(lang, "notice.projectInputRequired"));
-      composer.focus();
+      focusComposerOnDesktop(composer);
       return null;
     }
     try {
@@ -178,7 +178,7 @@ async function saveFailureDraft(host: ComposerActionsHost, composer: ComposerWid
     console.error("Memos Plus: failed to persist send failure draft", error);
   }
   new Notice(t(host.settings.language, "notice.sendFailedDraftSaved"));
-  composer.focus();
+  focusComposerOnDesktop(composer);
 }
 
 async function clearFailureDraft(host: ComposerActionsHost): Promise<void> {
@@ -191,4 +191,11 @@ async function clearFailureDraft(host: ComposerActionsHost): Promise<void> {
   } catch (error) {
     console.error("Memos Plus: failed to clear send failure draft", error);
   }
+}
+
+function focusComposerOnDesktop(composer: ComposerWidget): void {
+  if (Platform.isMobile) {
+    return;
+  }
+  composer.focus();
 }

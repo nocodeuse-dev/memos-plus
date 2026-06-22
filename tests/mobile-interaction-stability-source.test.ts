@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const mainSource = readFileSync("main.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
 const composerWidgetSource = readFileSync("src/composerWidget.ts", "utf8");
+const composerActionsSource = readFileSync("src/composerActions.ts", "utf8");
 const nativeComposerSource = readFileSync("src/nativeComposer.ts", "utf8");
 const stylesSource = readFileSync("styles.css", "utf8");
 const quickCaptureSource = readFileSync("src/modal.ts", "utf8");
@@ -58,6 +59,27 @@ describe("mobile interaction stability source", () => {
     expect(projectSendModalSource).not.toContain("this.titleInput.focus();");
     expect(projectSendModalSource).not.toContain("input.focus();");
     expect(templateManagerModalSource).not.toContain("advancedInput.focus();");
+  });
+
+  it("does not refocus the main composer after closing the task options modal on mobile", () => {
+    const taskToolBlock = composerWidgetSource.match(/private async applyTaskTool\(\): Promise<void> \{[\s\S]*?\n  \}/)?.[0] ?? "";
+    expect(taskToolBlock).toContain("focusComposerAfterTaskModal");
+    expect(taskToolBlock).not.toContain("this.composer.focus();");
+    expect(composerWidgetSource).toContain("private focusComposerAfterTaskModal(): void");
+    expect(composerWidgetSource).toContain("if (Platform.isMobile)");
+  });
+
+  it("does not refocus the composer from send validation or failure handling on mobile", () => {
+    expect(composerActionsSource).toContain('import { Menu, Notice, Platform, type App } from "obsidian";');
+    expect(composerActionsSource).toContain("focusComposerOnDesktop(composer)");
+    expect(composerActionsSource).toContain("function focusComposerOnDesktop(composer: ComposerWidget): void");
+    expect(composerActionsSource).toContain("if (Platform.isMobile)");
+    const sendToProjectBlock =
+      composerActionsSource.match(/const sendToProject = async[\s\S]*?\n  \};\n\n  const openSendMenu/)?.[0] ?? "";
+    const saveFailureDraftBlock =
+      composerActionsSource.match(/async function saveFailureDraft[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(sendToProjectBlock).not.toContain("composer.focus();");
+    expect(saveFailureDraftBlock).not.toContain("composer.focus();");
   });
 
   it("records diagnostic evidence that distinguishes plugin reloads from view recreation and WebView restarts", () => {
@@ -155,6 +177,14 @@ describe("mobile interaction stability source", () => {
     expect(projectSendModalSource).toContain("withMobileClickLock");
     expect(taskOptionsModalSource).toContain("withMobileClickLock");
     expect(sidebarGroupModalSource).toContain("withMobileClickLock");
+  });
+
+  it("uses an inline mobile prompt instead of stacking ProjectTagTabModal over ProjectSendModal", () => {
+    expect(projectSendModalSource).toContain("promptForProjectTagTab");
+    expect(projectSendModalSource).toContain("Platform.isMobile");
+    expect(projectSendModalSource).toContain("window.prompt");
+    expect(projectSendModalSource).toContain("new ProjectTagTabModal");
+    expect(projectSendModalSource).toContain("return Promise.resolve()");
   });
 
   it("uses mobile modal safe mode to avoid heavy previews and oversized result lists", () => {
