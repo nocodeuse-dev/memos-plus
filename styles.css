@@ -1331,7 +1331,8 @@
 }
 
 .memos-plus-native-editor-host:focus-within {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memos-plus-composer-border-color) 30%, transparent);
+  outline: none;
+  box-shadow: none;
 }
 
 .memos-plus-composer-input {
@@ -1371,7 +1372,8 @@
 }
 
 .memos-plus-composer-input:focus {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memos-plus-composer-border-color) 30%, transparent);
+  outline: none;
+  box-shadow: none;
 }
 
 .memos-plus-composer.is-dragging .memos-plus-composer-editor,

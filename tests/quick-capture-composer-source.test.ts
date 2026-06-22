@@ -43,6 +43,22 @@ describe("quick capture shared composer", () => {
     expect(stylesSource).toContain(".memos-plus-composer:focus-within");
   });
 
+  it("keeps the focus ring on the outer composer instead of drawing an inner purple line", () => {
+    const outerFocusRule = stylesSource.match(/\.memos-plus-composer:focus-within \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(outerFocusRule).toContain("box-shadow");
+
+    const nativeFocusRule = stylesSource.match(/\.memos-plus-native-editor-host:focus-within \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(nativeFocusRule).toContain("box-shadow: none");
+    expect(nativeFocusRule).toContain("outline: none");
+    expect(nativeFocusRule).not.toContain("inset");
+
+    const textareaFocusRule = stylesSource.match(/\.memos-plus-composer-input:focus \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(textareaFocusRule).toContain("box-shadow: none");
+    expect(textareaFocusRule).toContain("outline: none");
+    expect(textareaFocusRule).not.toContain("inset");
+    expect(stylesSource).toContain("caret-color: var(--text-accent)");
+  });
+
   it("renders composer appearance controls in the input tools settings tab", () => {
     const settingsSource = readFileSync("src/settings.ts", "utf8");
     const i18nSource = readFileSync("src/i18n.ts", "utf8");
