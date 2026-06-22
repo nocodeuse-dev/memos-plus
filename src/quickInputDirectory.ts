@@ -1,5 +1,13 @@
-import { filterMemos } from "./filter";
+import { filterMemos, getAllTags } from "./filter";
+import type { DisplayModuleId } from "./displayModules";
+import { t } from "./i18n";
 import type { MemoItem } from "./markdown";
+import {
+  buildOrganizerPanelSections,
+  filterMemosForOrganizerFilter,
+  organizerFilterLabelKey,
+  type OrganizerFilterId
+} from "./organizerPanel";
 import { filterMemosBySavedSearch, savedSearchIncludesArchivedCondition, type SavedSearch } from "./savedSearch";
 import type { MemosPlusSettings } from "./settings";
 import type { SidebarGroupItem, SidebarItem, SidebarSearchItem } from "./sidebar";
@@ -29,6 +37,22 @@ export type QuickInputDirectoryEntry =
       count: number | string;
       item: SidebarSearchItem;
       search: SavedSearch | null;
+    }
+  | {
+      type: "organizer";
+      id: string;
+      title: string;
+      icon: string;
+      count: number | string;
+      filterId: OrganizerFilterId;
+    }
+  | {
+      type: "tag";
+      id: string;
+      title: string;
+      icon: string;
+      count: number | string;
+      tag: string;
     };
 
 export type QuickInputPreviewItem =
@@ -62,6 +86,8 @@ export interface QuickInputDirectoryOptions {
   today: string;
   limit: number;
   includeCounts?: boolean;
+  visibleModules?: ReadonlySet<DisplayModuleId>;
+  moduleOrder?: readonly DisplayModuleId[];
 }
 
 export interface QuickInputDirectoryPreview {
@@ -76,16 +102,38 @@ export function buildQuickInputDirectoryEntries(
 ): QuickInputDirectoryEntry[] {
   const savedSearches = new Map(settings.savedSearches.map((search) => [search.id, search]));
   const includeCounts = options.includeCounts !== false;
-  const entries: QuickInputDirectoryEntry[] = [
-    {
-      type: "all",
-      id: "all",
-      title: "全部笔记",
-      icon: settings.allMemosIcon || "layout-grid",
-      count: includeCounts ? visibleMemos(settings, memos, options.today).length : ""
-    },
-    ...sidebarItemsToEntries(settings.sidebarItems, settings, memos, savedSearches, options.today, includeCounts)
-  ];
+  const entries: QuickInputDirectoryEntry[] = [];
+  const modules = options.visibleModules ?? null;
+  const moduleOrder = options.moduleOrder ?? (modules ? [...modules] : ["allNotes", "projectDirectory"] satisfies DisplayModuleId[]);
+  const rendered = new Set<string>();
+
+  for (const moduleId of moduleOrder) {
+    if (moduleId === "allNotes" && shouldRenderModule(modules, "allNotes") && !rendered.has("allNotes")) {
+      rendered.add("allNotes");
+      entries.push({
+        type: "all",
+        id: "all",
+        title: "全部笔记",
+        icon: settings.allMemosIcon || "layout-grid",
+        count: includeCounts ? visibleMemos(settings, memos, options.today).length : ""
+      });
+      continue;
+    }
+    if (isCustomDirectoryModule(moduleId) && shouldRenderCustomDirectory(modules) && !rendered.has("customDirectory")) {
+      rendered.add("customDirectory");
+      entries.push(...sidebarItemsToEntries(settings.sidebarItems, settings, memos, savedSearches, options.today, includeCounts));
+      continue;
+    }
+    if ((moduleId === "organizeDirectory" || moduleId === "taskDirectory") && !rendered.has("organizer")) {
+      rendered.add("organizer");
+      entries.push(...organizerEntries(settings, memos, options.today, includeCounts, modules));
+      continue;
+    }
+    if (moduleId === "tagFilters" && shouldRenderModule(modules, "tagFilters") && !rendered.has("tagFilters")) {
+      rendered.add("tagFilters");
+      entries.push(...tagEntries(settings, memos, options.today, includeCounts));
+    }
+  }
   return entries.slice(0, Math.max(1, options.limit));
 }
 
@@ -104,6 +152,18 @@ export function buildQuickInputDirectoryPreview(
     }
     return memoPreview(filterSearchMemos(settings, memos, entry.search, options.today), options.limit);
   }
+  if (entry.type === "organizer") {
+    return memoPreview(
+      filterMemosForOrganizerFilter(entry.filterId, memos, {
+        today: options.today,
+        states: settings.organizerMemoStates
+      }),
+      options.limit
+    );
+  }
+  if (entry.type === "tag") {
+    return memoPreview(tagMemos(settings, memos, entry.tag, options.today), options.limit);
+  }
   return memoPreview(memosForGroup(entry, settings, memos, options.today), options.limit);
 }
 
@@ -115,6 +175,61 @@ export function collectQuickInputDirectoryVaultSearches(entry: QuickInputDirecto
     return entry.children.flatMap(collectQuickInputDirectoryVaultSearches);
   }
   return [];
+}
+
+function shouldRenderModule(modules: ReadonlySet<DisplayModuleId> | null, moduleId: DisplayModuleId): boolean {
+  return !modules || modules.has(moduleId);
+}
+
+function isCustomDirectoryModule(moduleId: DisplayModuleId): boolean {
+  return moduleId === "projectDirectory" || moduleId === "projectFilters";
+}
+
+function shouldRenderCustomDirectory(modules: ReadonlySet<DisplayModuleId> | null): boolean {
+  return !modules || modules.has("projectDirectory") || modules.has("projectFilters");
+}
+
+function organizerEntries(
+  settings: MemosPlusSettings,
+  memos: MemoItem[],
+  today: string,
+  includeCounts: boolean,
+  modules: ReadonlySet<DisplayModuleId> | null
+): QuickInputDirectoryEntry[] {
+  if (!settings.organizerPanelEnabled) {
+    return [];
+  }
+  const showSections = shouldRenderModule(modules, "organizeDirectory");
+  const showTasks = shouldRenderModule(modules, "taskDirectory");
+  if (!showSections && !showTasks) {
+    return [];
+  }
+  return buildOrganizerPanelSections(memos, {
+    today,
+    states: settings.organizerMemoStates,
+    sectionSettings: settings.organizerPanelSections,
+    limit: 0
+  })
+    .filter((section) => (section.id === "tasks" ? showTasks : showSections))
+    .map((section) => ({
+      type: "organizer" as const,
+      id: `organizer:${section.id}`,
+      title: t(settings.language, organizerFilterLabelKey(section.id)),
+      icon: section.icon,
+      count: includeCounts ? section.total : "",
+      filterId: section.id
+    }));
+}
+
+function tagEntries(settings: MemosPlusSettings, memos: MemoItem[], today: string, includeCounts: boolean): QuickInputDirectoryEntry[] {
+  return getAllTags(memos).map((tag) => ({
+    type: "tag" as const,
+    id: `tag:${tag}`,
+    title: `#${tag}`,
+    icon: "tag",
+    count: includeCounts ? tagMemos(settings, memos, tag, today).length : "",
+    tag
+  }));
 }
 
 function sidebarItemsToEntries(
@@ -189,6 +304,16 @@ function filterSearchMemos(settings: MemosPlusSettings, memos: MemoItem[], searc
     sortOrder: settings.sortOrder
   });
   return filterMemosBySavedSearch(baseMemos, search, { today });
+}
+
+function tagMemos(settings: MemosPlusSettings, memos: MemoItem[], tag: string, today: string): MemoItem[] {
+  return filterMemos(memos, {
+    view: "all",
+    today,
+    tag,
+    showArchived: settings.showArchived,
+    sortOrder: settings.sortOrder
+  });
 }
 
 function memosForGroup(entry: Extract<QuickInputDirectoryEntry, { type: "group" }>, settings: MemosPlusSettings, memos: MemoItem[], today: string): MemoItem[] {

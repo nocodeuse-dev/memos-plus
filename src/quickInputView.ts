@@ -236,7 +236,9 @@ export class MemosPlusQuickInputView extends ItemView {
     const entries = buildQuickInputDirectoryEntries(this.plugin.settings, memos, {
       today: todayString(),
       limit: this.plugin.settings.quickInputDirectoryLimit,
-      includeCounts: this.shouldRenderSidebarFileCount(modules)
+      includeCounts: this.shouldRenderSidebarFileCount(modules),
+      visibleModules: modules,
+      moduleOrder: [...modules]
     });
     const list = directoryEl.createDiv({ cls: "memos-plus-quick-directory-list" });
     for (const entry of entries) {

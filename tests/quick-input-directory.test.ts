@@ -128,6 +128,26 @@ describe("quick input directory data", () => {
     });
   });
 
+  it("adds built-in sidebar layout modules instead of only custom sidebar items", () => {
+    const currentSettings = settings();
+    const entries = buildQuickInputDirectoryEntries(currentSettings, memos, {
+      today: "2026-06-13",
+      limit: 20,
+      visibleModules: new Set(["allNotes", "projectDirectory", "organizeDirectory", "taskDirectory", "tagFilters", "fileCount", "fileList"]),
+      moduleOrder: ["allNotes", "projectDirectory", "organizeDirectory", "taskDirectory", "tagFilters", "fileCount", "fileList"]
+    });
+
+    const titles = entries.map((entry) => entry.title);
+    expect(titles).toEqual(
+      expect.arrayContaining(["全部笔记", "项目", "所有项目", "软件项目", "待整理", "今日新增", "未归档", "有链接", "有图片", "未完成任务", "#项目", "#归档"])
+    );
+    expect(titles.indexOf("待整理")).toBeGreaterThan(titles.indexOf("软件项目"));
+    expect(titles.indexOf("#项目")).toBeGreaterThan(titles.indexOf("未完成任务"));
+    expect(entries.find((entry) => entry.title === "待整理")).toMatchObject({ type: "organizer", count: 2 });
+    expect(entries.find((entry) => entry.title === "未完成任务")).toMatchObject({ type: "organizer", count: 1 });
+    expect(entries.find((entry) => entry.title === "#项目")).toMatchObject({ type: "tag", count: 1 });
+  });
+
   it("shows filtered content below the clicked directory item and respects limits", () => {
     const currentSettings = settings();
     const entries = buildQuickInputDirectoryEntries(currentSettings, memos, { today: "2026-06-13", limit: 6 });
