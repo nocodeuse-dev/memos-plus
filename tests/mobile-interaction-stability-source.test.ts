@@ -181,6 +181,27 @@ describe("mobile interaction stability source", () => {
     expect(stylesSource).toContain(".memos-plus-view.is-keyboard-open");
   });
 
+  it("keeps the mobile CodeMirror composer wide and horizontal instead of collapsing text into a vertical column", () => {
+    const nativeWidthRule =
+      stylesSource.match(
+        /\.memos-plus-native-editor-host,[\s\S]*?\.memos-plus-native-editor-host \.cm-scroller \{([\s\S]*?)\n\}/
+      )?.[1] ?? "";
+    expect(nativeWidthRule).toContain("width: 100%");
+    expect(nativeWidthRule).toContain("min-width: 0");
+
+    const nativeContentRule =
+      stylesSource.match(/\.memos-plus-native-editor-host \.cm-content \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(nativeContentRule).toContain("width: 100%");
+    expect(nativeContentRule).toContain("min-width: 0");
+    expect(nativeContentRule).toContain("writing-mode: horizontal-tb");
+
+    const nativeLineRule =
+      stylesSource.match(/\.memos-plus-native-editor-host \.cm-line \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(nativeLineRule).toContain("writing-mode: horizontal-tb");
+    expect(nativeLineRule).toContain("white-space: pre-wrap");
+    expect(nativeLineRule).toContain("overflow-wrap: break-word");
+  });
+
   it("clamps textarea autoresize on mobile instead of trusting a raw scrollHeight", () => {
     expect(nativeComposerSource).toContain("composerAutoResizeBounds");
     expect(nativeComposerSource).toContain("Platform.isMobile");

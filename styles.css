@@ -1282,6 +1282,15 @@
   caret-color: var(--text-accent);
 }
 
+.memos-plus-native-editor-host,
+.memos-plus-native-editor-host .markdown-source-view,
+.memos-plus-native-editor-host .markdown-source-view.mod-cm6,
+.memos-plus-native-editor-host .cm-editor,
+.memos-plus-native-editor-host .cm-scroller {
+  width: 100%;
+  min-width: 0;
+}
+
 .memos-plus-native-editor-host .markdown-source-view,
 .memos-plus-native-editor-host .markdown-source-view.mod-cm6,
 .memos-plus-native-editor-host .cm-editor {
@@ -1303,8 +1312,22 @@
 
 .memos-plus-native-editor-host .cm-content {
   box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 64px;
   padding: 10px 12px;
+  writing-mode: horizontal-tb;
+}
+
+.memos-plus-native-editor-host .cm-line {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  writing-mode: horizontal-tb;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .memos-plus-native-editor-host:focus-within {
