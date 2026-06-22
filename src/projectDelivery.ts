@@ -1,7 +1,7 @@
 import { App, type TFile } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { normalizeFileTag } from "./fileSend";
-import { normalizeFileTemplateTabs, toggleFavoriteFileTemplatePath, updateRecentFileTemplatePaths } from "./fileTemplateLibrary";
+import { normalizeFileTemplateLibraryTabOrder, normalizeFileTemplateTabs, toggleFavoriteFileTemplatePath, updateRecentFileTemplatePaths } from "./fileTemplateLibrary";
 import type { MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 import { updateRecentFileTargetPaths } from "./fileSend";
@@ -99,6 +99,9 @@ async function selectProjectTarget(
       customTagTabs: host.settings.projectSendTagTabs,
       fileTemplateTabs: host.settings.fileTemplateTabs,
       fileTemplateTabInteraction: host.settings.fileTemplateTabInteraction,
+      fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId,
+      fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder,
+      fileTemplateLibraryInteraction: host.settings.fileTemplateLibraryInteraction,
       tabOrder: host.settings.projectSendTabOrder,
       hiddenTabs: host.settings.projectSendHiddenTabs,
       templates,
@@ -152,6 +155,10 @@ async function selectProjectTarget(
       onSaveFileTemplateTabs: async (tabs) => {
         host.settings.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
         host.settings.projectSendTagTabs = host.settings.fileTemplateTabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : []));
+        await host.persistSettings();
+      },
+      onSaveFileTemplateLibraryTabPreferences: async ({ tabOrder }) => {
+        host.settings.fileTemplateLibraryTabOrder = normalizeFileTemplateLibraryTabOrder(tabOrder);
         await host.persistSettings();
       },
       onSaveTabPreferences: async ({ tabOrder, hiddenTabs }) => {

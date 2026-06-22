@@ -179,6 +179,12 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.fileTemplateLibraryFavorites).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryRecent).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaults).toEqual({});
+    expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaultTabId).toBe("all");
+    expect(DEFAULT_SETTINGS.fileTemplateLibraryTabOrder).toEqual([]);
+    expect(DEFAULT_SETTINGS.fileTemplateLibraryInteraction).toEqual({
+      enableDesktopTabDrag: true,
+      enableMobileTabDrag: false
+    });
     expect(DEFAULT_SETTINGS.fileTemplateTabs).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateTabInteraction).toEqual({
       enableDesktopDrag: true,
@@ -532,6 +538,12 @@ describe("normalizeSettings", () => {
           "": "bad.md",
           项目: ""
         },
+        fileTemplateLibraryDefaultTabId: " category:病历 ",
+        fileTemplateLibraryTabOrder: ["category:病历", "recent", "bad", "all", "recent"],
+        fileTemplateLibraryInteraction: {
+          enableDesktopTabDrag: false,
+          enableMobileTabDrag: true
+        },
         fileTemplateTabs: [
           { id: " tag-medical ", name: " 病 ", type: "tag-filter", tags: ["#病", "医学", "#病"] },
           { id: "group-common", name: " 常用模板 ", type: "template-group", templatePaths: [" 我的资源//模板/项目模板.md ", ""] }
@@ -581,6 +593,12 @@ describe("normalizeSettings", () => {
       fileTemplateLibraryRecent: ["我的资源/模板/项目.md", "我的资源/模板/疾病.md"],
       fileTemplateLibraryDefaults: {
         病: "我的资源/模板/疾病.md"
+      },
+      fileTemplateLibraryDefaultTabId: "category:病历",
+      fileTemplateLibraryTabOrder: ["category:病历", "recent", "all"],
+      fileTemplateLibraryInteraction: {
+        enableDesktopTabDrag: false,
+        enableMobileTabDrag: true
       },
       fileTemplateTabs: [
         { id: "tag-medical", name: "病", type: "tag-filter", tags: ["病", "医学"], templatePaths: [] },

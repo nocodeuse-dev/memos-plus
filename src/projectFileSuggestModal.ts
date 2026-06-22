@@ -14,11 +14,19 @@ import {
   addTemplatePathToFileTemplateTab,
   createTagFilterFileTemplateTab,
   createTemplateGroupFileTemplateTab,
+  FILE_TEMPLATE_LIBRARY_TAB_ALL,
+  FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
+  FILE_TEMPLATE_LIBRARY_TAB_RECENT,
   filterFileTemplateLibraryItems,
   filterFileTemplateLibraryItemsForTab,
+  getFileTemplateLibraryCategoryTabId,
   legacyProjectSendTagsToFileTemplateTabs,
+  normalizeFileTemplateLibraryDefaultTabId,
+  normalizeFileTemplateLibraryTabId,
+  normalizeFileTemplateLibraryTabOrder,
   normalizeFileTemplateTabs,
   type FileTemplateLibraryItem,
+  type FileTemplateLibraryInteractionSettings,
   type FileTemplateTabInteractionSettings,
   type FileTemplateTab,
   type FileTemplateTabType
@@ -70,6 +78,9 @@ interface ProjectSendModalOptions {
   customTagTabs?: string[];
   fileTemplateTabs: FileTemplateTab[];
   fileTemplateTabInteraction: FileTemplateTabInteractionSettings;
+  fileTemplateLibraryDefaultTabId: string;
+  fileTemplateLibraryTabOrder: string[];
+  fileTemplateLibraryInteraction: FileTemplateLibraryInteractionSettings;
   tabOrder: string[];
   hiddenTabs: string[];
   templates: ManagedTemplate[];
@@ -93,6 +104,7 @@ interface ProjectSendModalOptions {
   onLoadHeadings: (file: TFile) => Promise<FileHeadingInfo[]>;
   onSaveCustomTagTabs?: (tags: string[]) => Promise<void>;
   onSaveFileTemplateTabs: (tabs: FileTemplateTab[]) => Promise<void>;
+  onSaveFileTemplateLibraryTabPreferences: (state: { tabOrder: string[] }) => Promise<void>;
   onSaveTabPreferences: (state: { tabOrder: string[]; hiddenTabs: string[] }) => Promise<void>;
   onSaveDefault?: () => Promise<void>;
   onChoose: (choice: ProjectSendChoice | null) => void;
@@ -197,7 +209,10 @@ class FileTemplateLibraryModal extends Modal {
   private items: FileTemplateLibraryItem[] = [];
   private selectedPath = "";
   private query = "";
-  private activeCategory = "全部";
+  private activeTabId = FILE_TEMPLATE_LIBRARY_TAB_ALL;
+  private tabOrder: string[] = [];
+  private draggedLibraryTabId = "";
+  private initialTabResolved = false;
   private titleInput!: HTMLInputElement;
   private listEl!: HTMLElement;
   private closed = false;
@@ -212,17 +227,22 @@ class FileTemplateLibraryModal extends Modal {
       initialActiveTabId?: string;
       fileTemplateTabs: FileTemplateTab[];
       fileTemplateTabInteraction: FileTemplateTabInteractionSettings;
+      defaultTabId: string;
+      tabOrder: string[];
+      interaction: FileTemplateLibraryInteractionSettings;
       onLoad: () => Promise<FileTemplateLibraryItem[]>;
       onCreate: (template: FileTemplateLibraryItem, title: string) => Promise<void>;
       onToggleFavorite: (templatePath: string) => Promise<void>;
       onDelete: (templatePath: string) => Promise<void>;
       onSaveTabs: (tabs: FileTemplateTab[]) => Promise<void>;
+      onSaveTabPreferences: (state: { tabOrder: string[] }) => Promise<void>;
     }
   ) {
     super(app);
     this.selectedPath = options.preferredPath ?? "";
     this.query = options.initialTag ?? "";
-    this.activeCategory = options.initialActiveTabId ? getCustomTabId(options.initialActiveTabId) : "全部";
+    this.activeTabId = this.explicitInitialTabId() || FILE_TEMPLATE_LIBRARY_TAB_ALL;
+    this.tabOrder = normalizeFileTemplateLibraryTabOrder(options.tabOrder);
   }
 
   onOpen(): void {
@@ -263,6 +283,7 @@ class FileTemplateLibraryModal extends Modal {
     if (!this.items.some((item) => item.path === this.selectedPath)) {
       this.selectedPath = this.items.find((item) => item.isFavorite)?.path ?? this.items[0]?.path ?? "";
     }
+    this.ensureActiveLibraryTab();
     this.render();
   }
 
@@ -315,37 +336,32 @@ class FileTemplateLibraryModal extends Modal {
   private renderCategoryTabs(container: HTMLElement): void {
     const lang = this.options.language;
     const tabs = container.createDiv({ cls: "memos-plus-file-template-tabs" });
-    const categories = ["全部", "收藏", "最近", ...uniqueTags(this.items.map((item) => item.category))];
-    for (const category of categories) {
+    for (const tab of this.libraryTabs()) {
       const button = tabs.createEl("button", {
-        cls: `memos-plus-file-template-tab${category === this.activeCategory ? " is-active" : ""}`,
-        attr: { type: "button", "aria-pressed": String(category === this.activeCategory) },
-        text: category === "全部" ? t(lang, "fileTemplateLibrary.category.all") : category === "收藏" ? t(lang, "fileTemplateLibrary.category.favorite") : category === "最近" ? t(lang, "fileTemplateLibrary.category.recent") : category
+        cls: `memos-plus-file-template-tab${tab.id === this.activeTabId ? " is-active" : ""}`,
+        attr: { type: "button", "aria-pressed": String(tab.id === this.activeTabId) },
+        text: tab.label
       });
       button.addEventListener("click", () => {
-        this.activeCategory = category;
+        this.activeTabId = tab.id;
         this.render();
       });
-    }
-    for (const tab of this.options.fileTemplateTabs) {
-      const id = getCustomTabId(tab.id);
-      const button = tabs.createEl("button", {
-        cls: `memos-plus-file-template-tab${id === this.activeCategory ? " is-active" : ""}`,
-        attr: { type: "button", "aria-pressed": String(id === this.activeCategory) },
-        text: tab.name
-      });
-      button.addEventListener("click", () => {
-        this.activeCategory = id;
-        this.render();
-      });
-      if (this.canDragTemplatesIntoTabs() && tab.type === "template-group") {
+      if (this.canReorderLibraryTabs()) {
+        button.setAttr("draggable", "true");
+        button.addEventListener("dragstart", (event) => this.startLibraryTabDrag(event, tab.id, button));
+        button.addEventListener("dragend", () => {
+          this.draggedLibraryTabId = "";
+          button.removeClass("is-dragging");
+        });
+      }
+      if (this.canReorderLibraryTabs() || (this.canDragTemplatesIntoTabs() && tab.customTab?.type === "template-group")) {
         button.addClass("is-drop-target");
         button.addEventListener("dragover", (event) => {
           event.preventDefault();
           button.addClass("is-drag-over");
         });
         button.addEventListener("dragleave", () => button.removeClass("is-drag-over"));
-        button.addEventListener("drop", (event) => void this.dropTemplateOnTab(event, tab.id, button));
+        button.addEventListener("drop", (event) => void this.handleLibraryTabDrop(event, tab, button));
       }
     }
     if (this.isMobileTemplateTabsReadOnly()) {
@@ -376,16 +392,16 @@ class FileTemplateLibraryModal extends Modal {
     }
     const lang = this.options.language;
     this.listEl.empty();
-    const activeTab = getCustomTabFromTabId(this.activeCategory, this.options.fileTemplateTabs);
+    const activeTab = this.activeLibraryTab();
     const items = (
-      activeTab
-        ? filterFileTemplateLibraryItemsForTab(this.items, activeTab, this.query)
-        : filterFileTemplateLibraryItems(this.items, { query: this.query, category: this.activeCategory })
+      activeTab?.customTab
+        ? filterFileTemplateLibraryItemsForTab(this.items, activeTab.customTab, this.query)
+        : filterFileTemplateLibraryItems(this.items, { query: this.query, category: activeTab?.category ?? "全部" })
     ).slice(0, mobileModalResultLimit());
     if (items.length === 0) {
       this.listEl.createDiv({
         cls: "memos-plus-project-empty",
-        text: activeTab?.type === "template-group" ? t(lang, "fileTemplateLibrary.emptyGroup") : t(lang, "fileTemplateLibrary.empty")
+        text: activeTab?.customTab?.type === "template-group" ? t(lang, "fileTemplateLibrary.emptyGroup") : t(lang, "fileTemplateLibrary.empty")
       });
       return;
     }
@@ -460,14 +476,16 @@ class FileTemplateLibraryModal extends Modal {
     }
     const tabs = normalizeFileTemplateTabs([...this.options.fileTemplateTabs, tab]);
     await this.saveTemplateTabs(tabs);
-    this.activeCategory = getCustomTabId(tab.id);
+    this.activeTabId = getCustomTabId(tab.id);
+    this.tabOrder = normalizeFileTemplateLibraryTabOrder([...this.tabOrder, this.activeTabId]);
+    await this.options.onSaveTabPreferences({ tabOrder: [...this.tabOrder] });
     this.render();
   }
 
   private async dropTemplateOnTab(event: DragEvent, tabId: string, button: HTMLButtonElement): Promise<void> {
     event.preventDefault();
     button.removeClass("is-drag-over");
-    const path = event.dataTransfer?.getData("application/x-memos-plus-template-path") || event.dataTransfer?.getData("text/plain") || "";
+    const path = event.dataTransfer?.getData("application/x-memos-plus-template-path") || "";
     const before = this.options.fileTemplateTabs.find((tab) => tab.id === tabId)?.templatePaths.length ?? 0;
     const tabs = addTemplatePathToFileTemplateTab(this.options.fileTemplateTabs, tabId, path);
     const target = tabs.find((tab) => tab.id === tabId);
@@ -476,7 +494,7 @@ class FileTemplateLibraryModal extends Modal {
     }
     await this.saveTemplateTabs(tabs);
     new Notice(t(this.options.language, "notice.fileTemplateTabAdded").replace("{name}", target.name));
-    this.activeCategory = getCustomTabId(tabId);
+    this.activeTabId = getCustomTabId(tabId);
     this.render();
   }
 
@@ -491,6 +509,102 @@ class FileTemplateLibraryModal extends Modal {
 
   private isMobileTemplateTabsReadOnly(): boolean {
     return isMobileTemplateTabsReadOnly(this.options.fileTemplateTabInteraction);
+  }
+
+  private canReorderLibraryTabs(): boolean {
+    return canReorderFileTemplateLibraryTabs(this.options.interaction);
+  }
+
+  private explicitInitialTabId(): string {
+    const initial = this.options.initialActiveTabId?.trim();
+    if (!initial) {
+      return "";
+    }
+    return normalizeFileTemplateLibraryTabId(initial) || normalizeFileTemplateLibraryTabId(getCustomTabId(initial));
+  }
+
+  private ensureActiveLibraryTab(): void {
+    const tabs = this.libraryTabs();
+    const ids = tabs.map((tab) => tab.id);
+    if (!this.initialTabResolved) {
+      this.activeTabId = normalizeFileTemplateLibraryDefaultTabId(
+        this.explicitInitialTabId() || this.options.defaultTabId,
+        ids
+      );
+      this.initialTabResolved = true;
+      return;
+    }
+    if (!ids.includes(this.activeTabId)) {
+      this.activeTabId = FILE_TEMPLATE_LIBRARY_TAB_ALL;
+    }
+  }
+
+  private libraryTabs(): FileTemplateLibraryTabView[] {
+    const lang = this.options.language;
+    const tabs: FileTemplateLibraryTabView[] = [
+      { id: FILE_TEMPLATE_LIBRARY_TAB_ALL, label: t(lang, "fileTemplateLibrary.category.all"), category: "全部" },
+      { id: FILE_TEMPLATE_LIBRARY_TAB_FAVORITE, label: t(lang, "fileTemplateLibrary.category.favorite"), category: "收藏" },
+      { id: FILE_TEMPLATE_LIBRARY_TAB_RECENT, label: t(lang, "fileTemplateLibrary.category.recent"), category: "最近" },
+      ...uniqueTags(this.items.map((item) => item.category)).map((category) => ({
+        id: getFileTemplateLibraryCategoryTabId(category),
+        label: category,
+        category
+      })),
+      ...this.options.fileTemplateTabs.map((tab) => ({
+        id: getCustomTabId(tab.id),
+        label: tab.name,
+        customTab: tab
+      }))
+    ];
+    const byId = new Map(tabs.map((tab) => [tab.id, tab]));
+    const orderedIds = normalizeFileTemplateLibraryTabOrder(this.tabOrder, tabs.map((tab) => tab.id));
+    return orderedIds.flatMap((id) => byId.get(id) ?? []);
+  }
+
+  private activeLibraryTab(): FileTemplateLibraryTabView | null {
+    return this.libraryTabs().find((tab) => tab.id === this.activeTabId) ?? null;
+  }
+
+  private startLibraryTabDrag(event: DragEvent, tabId: string, button: HTMLButtonElement): void {
+    this.draggedLibraryTabId = tabId;
+    button.addClass("is-dragging");
+    event.dataTransfer?.setData("application/x-memos-plus-library-tab-id", tabId);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+    }
+  }
+
+  private async handleLibraryTabDrop(event: DragEvent, tab: FileTemplateLibraryTabView, button: HTMLButtonElement): Promise<void> {
+    if (tab.customTab?.type === "template-group" && event.dataTransfer?.getData("application/x-memos-plus-template-path")) {
+      await this.dropTemplateOnTab(event, tab.customTab.id, button);
+      return;
+    }
+    await this.dropLibraryTab(event, tab.id, button);
+  }
+
+  private async dropLibraryTab(event: DragEvent, targetId: string, button: HTMLButtonElement): Promise<void> {
+    event.preventDefault();
+    button.removeClass("is-drag-over");
+    if (!this.canReorderLibraryTabs()) {
+      return;
+    }
+    const sourceId = this.draggedLibraryTabId || event.dataTransfer?.getData("application/x-memos-plus-library-tab-id") || "";
+    if (!sourceId || sourceId === targetId) {
+      return;
+    }
+    const currentIds = this.libraryTabs().map((tab) => tab.id);
+    const order = normalizeFileTemplateLibraryTabOrder(this.tabOrder, currentIds);
+    const from = order.indexOf(sourceId);
+    const to = order.indexOf(targetId);
+    if (from < 0 || to < 0) {
+      return;
+    }
+    const next = [...order];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    this.tabOrder = normalizeFileTemplateLibraryTabOrder(next, currentIds);
+    await this.options.onSaveTabPreferences({ tabOrder: [...this.tabOrder] });
+    this.render();
   }
 
   private async toggleFavorite(path: string): Promise<void> {
@@ -564,6 +678,13 @@ class FileTemplateLibraryModal extends Modal {
       }
     }
   }
+}
+
+interface FileTemplateLibraryTabView {
+  id: string;
+  label: string;
+  category?: string;
+  customTab?: FileTemplateTab;
 }
 
 export class ProjectSendModal extends Modal {
@@ -1605,12 +1726,16 @@ export class ProjectSendModal extends Modal {
       initialActiveTabId: activeTabId,
       fileTemplateTabs: this.fileTemplateTabs,
       fileTemplateTabInteraction: this.options.fileTemplateTabInteraction,
+      defaultTabId: this.options.fileTemplateLibraryDefaultTabId,
+      tabOrder: this.options.fileTemplateLibraryTabOrder,
+      interaction: this.options.fileTemplateLibraryInteraction,
       onLoad: this.options.onLoadFileTemplates,
       onToggleFavorite: this.options.onToggleFileTemplateFavorite,
       onDelete: this.options.onDeleteFileTemplate,
       onSaveTabs: async (tabs) => {
         await this.saveFileTemplateTabs(tabs);
       },
+      onSaveTabPreferences: this.options.onSaveFileTemplateLibraryTabPreferences,
       onCreate: async (template, title) => {
         const file = await this.options.onCreateFromFileTemplate(template.path, title, tag);
         if (!file) {
@@ -1867,6 +1992,10 @@ function canReorderTemplateTabs(settings: FileTemplateTabInteractionSettings): b
     return !settings.mobileReadOnly && settings.enableMobileReorder;
   }
   return settings.enableDesktopDrag;
+}
+
+function canReorderFileTemplateLibraryTabs(settings: FileTemplateLibraryInteractionSettings): boolean {
+  return Platform.isMobile ? settings.enableMobileTabDrag : settings.enableDesktopTabDrag;
 }
 
 function isMobileTemplateTabsReadOnly(settings: FileTemplateTabInteractionSettings): boolean {

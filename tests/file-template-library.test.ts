@@ -1,11 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_FILE_TEMPLATE_LIBRARY_INTERACTION,
+  FILE_TEMPLATE_LIBRARY_TAB_ALL,
+  FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
+  FILE_TEMPLATE_LIBRARY_TAB_RECENT,
   DEFAULT_FILE_TEMPLATE_TAB_INTERACTION,
   buildFileTemplateTargetPath,
   addTemplatePathToFileTemplateTab,
   filterFileTemplateLibraryItemsForTab,
   filterFileTemplateLibraryItems,
+  getFileTemplateLibraryCategoryTabId,
   normalizeFileTemplateDefaults,
+  normalizeFileTemplateLibraryDefaultTabId,
+  normalizeFileTemplateLibraryInteraction,
+  normalizeFileTemplateLibraryTabOrder,
   normalizeFileTemplateTabInteraction,
   normalizeFileTemplateTabs,
   normalizeFileTemplateLibraryPaths,
@@ -76,6 +84,34 @@ describe("file template library", () => {
       enableMobileDrag: false,
       enableMobileReorder: false,
       mobileReadOnly: true
+    });
+  });
+
+  it("normalizes template library tab order, default tab, and per-surface tab drag settings", () => {
+    const available = [
+      FILE_TEMPLATE_LIBRARY_TAB_ALL,
+      FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
+      FILE_TEMPLATE_LIBRARY_TAB_RECENT,
+      getFileTemplateLibraryCategoryTabId("未分类"),
+      getFileTemplateLibraryCategoryTabId("病历"),
+      "custom:group-common"
+    ];
+
+    expect(DEFAULT_FILE_TEMPLATE_LIBRARY_INTERACTION).toEqual({
+      enableDesktopTabDrag: true,
+      enableMobileTabDrag: false
+    });
+    expect(
+      normalizeFileTemplateLibraryTabOrder(
+        ["category:病历", "recent", "bad", "custom:group-common", "recent"],
+        available
+      )
+    ).toEqual(["category:病历", "recent", "custom:group-common", "all", "favorite", "category:未分类"]);
+    expect(normalizeFileTemplateLibraryDefaultTabId("category:病历", available)).toBe("category:病历");
+    expect(normalizeFileTemplateLibraryDefaultTabId("missing", available)).toBe(FILE_TEMPLATE_LIBRARY_TAB_ALL);
+    expect(normalizeFileTemplateLibraryInteraction({ enableDesktopTabDrag: false, enableMobileTabDrag: true })).toEqual({
+      enableDesktopTabDrag: false,
+      enableMobileTabDrag: true
     });
   });
 

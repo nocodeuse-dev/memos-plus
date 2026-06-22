@@ -5,6 +5,14 @@ import { renderTemplateVariables, type TemplateVariableContext } from "./templat
 export const DEFAULT_FILE_TEMPLATE_LIBRARY_FOLDER = "我的资源/模板";
 export const DEFAULT_FILE_TEMPLATE_LIBRARY_TARGET_FOLDER = "我的资源/Memos";
 export const FILE_TEMPLATE_LIBRARY_RECENT_LIMIT = 20;
+export const FILE_TEMPLATE_LIBRARY_TAB_ALL = "all";
+export const FILE_TEMPLATE_LIBRARY_TAB_FAVORITE = "favorite";
+export const FILE_TEMPLATE_LIBRARY_TAB_RECENT = "recent";
+export const FILE_TEMPLATE_LIBRARY_BUILT_IN_TAB_IDS = [
+  FILE_TEMPLATE_LIBRARY_TAB_ALL,
+  FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
+  FILE_TEMPLATE_LIBRARY_TAB_RECENT
+] as const;
 
 export interface FileTemplateLibraryItem {
   path: string;
@@ -34,11 +42,21 @@ export interface FileTemplateTabInteractionSettings {
   mobileReadOnly: boolean;
 }
 
+export interface FileTemplateLibraryInteractionSettings {
+  enableDesktopTabDrag: boolean;
+  enableMobileTabDrag: boolean;
+}
+
 export const DEFAULT_FILE_TEMPLATE_TAB_INTERACTION: FileTemplateTabInteractionSettings = {
   enableDesktopDrag: true,
   enableMobileDrag: false,
   enableMobileReorder: false,
   mobileReadOnly: true
+};
+
+export const DEFAULT_FILE_TEMPLATE_LIBRARY_INTERACTION: FileTemplateLibraryInteractionSettings = {
+  enableDesktopTabDrag: true,
+  enableMobileTabDrag: false
 };
 
 export interface FileTemplateLibraryFilter {
@@ -52,6 +70,9 @@ export interface FileTemplateLibrarySettings {
   fileTemplateLibraryFavorites: string[];
   fileTemplateLibraryRecent: string[];
   fileTemplateLibraryDefaults: Record<string, string>;
+  fileTemplateLibraryDefaultTabId?: string;
+  fileTemplateLibraryTabOrder?: string[];
+  fileTemplateLibraryInteraction?: FileTemplateLibraryInteractionSettings;
   fileTemplateTabs?: FileTemplateTab[];
   fileTemplateTabInteraction?: FileTemplateTabInteractionSettings;
 }
@@ -101,6 +122,73 @@ export function normalizeFileTemplateTabInteraction(value: unknown, legacyEnable
         : DEFAULT_FILE_TEMPLATE_TAB_INTERACTION.enableMobileReorder,
     mobileReadOnly
   };
+}
+
+export function normalizeFileTemplateLibraryInteraction(value: unknown): FileTemplateLibraryInteractionSettings {
+  const raw = isRecord(value) ? value : {};
+  return {
+    enableDesktopTabDrag:
+      typeof raw.enableDesktopTabDrag === "boolean"
+        ? raw.enableDesktopTabDrag
+        : DEFAULT_FILE_TEMPLATE_LIBRARY_INTERACTION.enableDesktopTabDrag,
+    enableMobileTabDrag:
+      typeof raw.enableMobileTabDrag === "boolean"
+        ? raw.enableMobileTabDrag
+        : DEFAULT_FILE_TEMPLATE_LIBRARY_INTERACTION.enableMobileTabDrag
+  };
+}
+
+export function getFileTemplateLibraryCategoryTabId(category: unknown): string {
+  const normalized = normalizeText(category);
+  return normalized ? `category:${normalized}` : "";
+}
+
+export function normalizeFileTemplateLibraryTabId(value: unknown): string {
+  const id = normalizeText(value);
+  if ((FILE_TEMPLATE_LIBRARY_BUILT_IN_TAB_IDS as readonly string[]).includes(id)) {
+    return id;
+  }
+  if (id.startsWith("category:")) {
+    return getFileTemplateLibraryCategoryTabId(id.slice("category:".length));
+  }
+  if (id.startsWith("custom:")) {
+    const customId = normalizeText(id.slice("custom:".length));
+    return customId ? `custom:${customId}` : "";
+  }
+  return "";
+}
+
+export function normalizeFileTemplateLibraryTabOrder(value: unknown, availableIds?: string[]): string[] {
+  const available = availableIds ? new Set(availableIds.map((id) => normalizeFileTemplateLibraryTabId(id)).filter(Boolean)) : null;
+  const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,，]+/) : [];
+  const seen = new Set<string>();
+  const ordered = source.flatMap((item) => {
+    const id = normalizeFileTemplateLibraryTabId(item);
+    if (!id || seen.has(id) || (available && !available.has(id))) {
+      return [];
+    }
+    seen.add(id);
+    return [id];
+  });
+  if (availableIds) {
+    for (const rawId of availableIds) {
+      const id = normalizeFileTemplateLibraryTabId(rawId);
+      if (id && available?.has(id) && !seen.has(id)) {
+        ordered.push(id);
+        seen.add(id);
+      }
+    }
+  }
+  return ordered;
+}
+
+export function normalizeFileTemplateLibraryDefaultTabId(value: unknown, availableIds?: string[]): string {
+  const id = normalizeFileTemplateLibraryTabId(value) || FILE_TEMPLATE_LIBRARY_TAB_ALL;
+  if (!availableIds) {
+    return id;
+  }
+  const available = new Set(availableIds.map((item) => normalizeFileTemplateLibraryTabId(item)).filter(Boolean));
+  return available.has(id) ? id : FILE_TEMPLATE_LIBRARY_TAB_ALL;
 }
 
 export function createTagFilterFileTemplateTab(tagValue: string): FileTemplateTab | null {

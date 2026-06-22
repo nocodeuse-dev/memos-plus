@@ -73,9 +73,25 @@ describe("project send modal source", () => {
     expect(modalSource).toContain("private canReorderTabs()");
     expect(modalSource).toContain("private isMobileTemplateTabsReadOnly()");
     expect(modeTabsSource).toContain("if (this.canReorderTabs())");
-    expect(libraryTabsSource).toContain("if (this.canDragTemplatesIntoTabs() && tab.type === \"template-group\")");
+    expect(libraryTabsSource).toContain("this.canDragTemplatesIntoTabs() && tab.customTab?.type === \"template-group\"");
     expect(modeTabsSource).not.toContain('draggable: "true"');
     expect(libraryTabsSource).not.toContain("!Platform.isMobile && tab.type === \"template-group\"");
+  });
+
+  it("persists template library modal tab order and default tab without mobile drag by default", () => {
+    const libraryModalSource = modalSource.slice(modalSource.indexOf("class FileTemplateLibraryModal"), modalSource.indexOf("export class ProjectSendModal"));
+    const deliveryOptionsSource = deliverySource.slice(deliverySource.indexOf("new ProjectSendModal"), deliverySource.indexOf("onLoadProjects"));
+
+    expect(modalSource).toContain("fileTemplateLibraryDefaultTabId");
+    expect(modalSource).toContain("fileTemplateLibraryTabOrder");
+    expect(modalSource).toContain("fileTemplateLibraryInteraction");
+    expect(libraryModalSource).toContain("private canReorderLibraryTabs()");
+    expect(libraryModalSource).toContain("private async dropLibraryTab");
+    expect(libraryModalSource).toContain('event.dataTransfer?.setData("application/x-memos-plus-library-tab-id"');
+    expect(libraryModalSource).toContain("normalizeFileTemplateLibraryTabOrder");
+    expect(deliveryOptionsSource).toContain("fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId");
+    expect(deliveryOptionsSource).toContain("fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder");
+    expect(deliveryOptionsSource).toContain("fileTemplateLibraryInteraction: host.settings.fileTemplateLibraryInteraction");
   });
 
   it("keeps template rules internal without showing a current-template selector", () => {
