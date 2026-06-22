@@ -128,7 +128,8 @@ export class MemosPlusQuickInputView extends ItemView {
         initialContentMode: "auto",
         afterDefaultSave: () => this.updateDraftFromComposer(),
         afterProjectSend: () => this.updateDraftFromComposer(),
-        onIncomingContentApplied: () => this.updateDraftFromComposer()
+        onIncomingContentApplied: () => this.updateDraftFromComposer(),
+        onClearDraft: () => this.clearQuickInputDraft()
       }
     );
     void this.composerSession.applyInitialContent();
@@ -449,6 +450,14 @@ export class MemosPlusQuickInputView extends ItemView {
       return;
     }
     this.plugin.settings.quickInputDraft = this.composerSession.widget.getValue();
+  }
+
+  private async clearQuickInputDraft(): Promise<void> {
+    if (!this.plugin.settings.quickInputDraft) {
+      return;
+    }
+    this.plugin.settings.quickInputDraft = "";
+    await this.plugin.persistSettings();
   }
 }
 

@@ -24,7 +24,7 @@ describe("mobile interaction stability source", () => {
     expect(composerWidgetSource).toContain("handleDocumentPointer");
     expect(composerWidgetSource).toContain("!this.element.contains(target)");
     expect(composerWidgetSource).toContain("this.mobileKeyboardActive = false");
-    expect(composerWidgetSource).toContain("!this.element.contains(document.activeElement)");
+    expect(composerWidgetSource).toContain("!this.isComposerEditorActive()");
     expect(composerWidgetSource).toContain("if (!this.isMobileKeyboardSessionActive())");
     expect(composerWidgetSource).toContain("scheduleMobileKeyboardViewportUpdate");
     expect(nativeComposerSource).toContain("Platform.isMobile");
@@ -150,5 +150,27 @@ describe("mobile interaction stability source", () => {
     expect(stylesSource).toContain("pointer-events: none");
     expect(viewSource).toContain("renderMobileFab(shell)");
     expect(viewSource).not.toContain("renderMobileFab(shell);\n        return;");
+  });
+
+  it("clears composer content locally on mobile without focusing, scrolling, or rerendering the view", () => {
+    const clearBlock = composerWidgetSource.match(/private async clearInput\([\s\S]*?\n {2}\}/)?.[0] ?? "";
+    expect(clearBlock).toContain("this.composer.clear()");
+    expect(clearBlock).toContain("this.calloutMode = false");
+    expect(clearBlock).toContain("this.handleInputContentUpdated(false)");
+    expect(clearBlock).toContain("await this.options.onClearDraft?.()");
+    expect(clearBlock).not.toContain(".focus(");
+    expect(clearBlock).not.toContain("scrollIntoView");
+    expect(clearBlock).not.toContain("render(");
+    expect(clearBlock).not.toContain("refreshViews");
+  });
+
+  it("treats only the editor surface, not toolbar buttons, as a mobile keyboard target", () => {
+    const keyboardBlock = composerWidgetSource.slice(
+      composerWidgetSource.indexOf("private bindMobileKeyboardVisibility"),
+      composerWidgetSource.indexOf("private scrollComposerIntoView")
+    );
+    expect(composerWidgetSource).toContain("isComposerEditorActive");
+    expect(keyboardBlock).toContain("!this.isComposerEditorActive()");
+    expect(keyboardBlock).not.toContain("!this.element.contains(document.activeElement)");
   });
 });

@@ -690,6 +690,12 @@
   color: var(--memos-plus-accent);
 }
 
+.memos-plus-clear-input-button.is-disabled,
+.memos-plus-clear-input-button:disabled {
+  opacity: .36;
+  pointer-events: none;
+}
+
 .memos-plus-callout-status {
   min-height: 20px;
   padding: 2px 6px;

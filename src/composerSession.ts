@@ -34,6 +34,7 @@ export interface ComposerSessionOptions extends ComposerActionsOptions {
   initialContentMode?: QuickCaptureInitialContentMode;
   showClipboardEmptyNotice?: boolean;
   onIncomingContentApplied?: () => void | Promise<void>;
+  onClearDraft?: () => void | Promise<void>;
 }
 
 export interface ComposerSession {
@@ -68,7 +69,8 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     createExcalidrawAttachment: () => host.store.createExcalidrawAttachment(),
     registerCleanup: host.registerCleanup,
     sendActionTitle: options.defaultSendAction,
-    resolveMarkdownLink: host.resolveMarkdownLink
+    resolveMarkdownLink: host.resolveMarkdownLink,
+    onClearDraft: () => clearComposerDraftCaches(host, options)
   });
 
   const initialContent = resolveComposerInitialContent(host.settings, options.initialContent);
@@ -150,6 +152,21 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
 }
 
 export type { ComposerProjectMode };
+
+async function clearComposerDraftCaches(host: ComposerSessionHost, options: ComposerSessionOptions): Promise<void> {
+  let shouldPersist = false;
+  if (host.settings.sendFailureDraftContent) {
+    host.settings.sendFailureDraftContent = "";
+    shouldPersist = true;
+  }
+  try {
+    await options.onClearDraft?.();
+  } finally {
+    if (shouldPersist) {
+      await host.persistSettings();
+    }
+  }
+}
 
 function inputChangeSourceForIncomingContent(result: QuickCaptureInitialContentResult): ComposerInputChangeSource {
   if (result.source === "selection") {

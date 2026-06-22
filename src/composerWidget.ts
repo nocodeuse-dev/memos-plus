@@ -33,6 +33,7 @@ export interface ComposerWidgetOptions {
   registerCleanup?: (cleanup: () => void) => void;
   sendActionTitle?: () => MemosPlusSettings["defaultSendAction"];
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
+  onClearDraft?: () => void | Promise<void>;
 }
 
 export type ComposerInputChangeSource = "quick-input-paste" | "clipboard-fill" | "clipboard-append" | "selection-fill" | "selection-append";
@@ -61,6 +62,7 @@ export class ComposerWidget {
   private mobileViewportBaselineHeight = 0;
   private calloutMode = false;
   private calloutStatus: HTMLElement | null = null;
+  private clearButton: HTMLButtonElement | null = null;
 
   constructor(private readonly options: ComposerWidgetOptions) {
     const settings = this.options.settings();
@@ -88,10 +90,13 @@ export class ComposerWidget {
 
   setValue(value: string): void {
     this.composer.setValue(value);
+    this.handleInputContentUpdated(false);
   }
 
   clear(): void {
     this.composer.clear();
+    this.calloutMode = false;
+    this.handleInputContentUpdated(false);
   }
 
   focus(): void {
@@ -100,6 +105,7 @@ export class ComposerWidget {
 
   insertText(text: string): void {
     this.composer.insertText(text);
+    this.handleInputContentUpdated(false);
   }
 
   async processInputContentChange(source: ComposerInputChangeSource, text: string, options: ComposerInputChangeOptions = {}): Promise<void> {
@@ -171,6 +177,9 @@ export class ComposerWidget {
     this.element.addEventListener("drop", (event) => {
       void this.handleComposerDrop(event);
     });
+    this.element.addEventListener("input", () => {
+      this.updateClearButtonState();
+    });
   }
 
   private bindMobileKeyboardVisibility(): void {
@@ -181,7 +190,7 @@ export class ComposerWidget {
     this.mobileViewportBaselineHeight = Math.round(window.visualViewport?.height ?? window.innerHeight);
 
     const handleFocus = (): void => {
-      if (!this.element.contains(document.activeElement)) {
+      if (!this.isComposerEditorActive()) {
         return;
       }
       this.mobileKeyboardActive = true;
@@ -202,7 +211,7 @@ export class ComposerWidget {
 
     const handleBlur = (): void => {
       window.setTimeout(() => {
-        if (!this.element.contains(document.activeElement)) {
+        if (!this.isComposerEditorActive()) {
           this.mobileKeyboardActive = false;
           this.setMobileComposerFocusState(false);
           this.clearVisualViewportKeyboardInset();
@@ -310,8 +319,12 @@ export class ComposerWidget {
   }
 
   private isMobileKeyboardSessionActive(): boolean {
+    return this.mobileKeyboardActive || this.isComposerEditorActive();
+  }
+
+  private isComposerEditorActive(): boolean {
     const activeElement = document.activeElement;
-    return this.mobileKeyboardActive || (activeElement instanceof Node && this.element.contains(activeElement));
+    return activeElement instanceof Node && this.composer.element.contains(activeElement);
   }
 
   private scrollComposerIntoView(): void {
@@ -370,7 +383,7 @@ export class ComposerWidget {
   }
 
   private applyKeyboardSurfaceState(content: HTMLElement, shell: HTMLElement | null, keyboardInset: number, viewportHeight: number, viewportTop: number): void {
-    const isKeyboardOpen = keyboardInset > 80 || (this.element.contains(document.activeElement) && viewportHeight < this.mobileViewportBaselineHeight - 80);
+    const isKeyboardOpen = keyboardInset > 80 || (this.isComposerEditorActive() && viewportHeight < this.mobileViewportBaselineHeight - 80);
     const keyboardShift = isKeyboardOpen ? Math.min(180, Math.max(96, Math.round(keyboardInset * 0.45))) : 0;
     const { modalShell } = this.getKeyboardAwareSurfaces();
     for (const surface of [content, shell].filter((item): item is HTMLElement => item instanceof HTMLElement)) {
@@ -438,7 +451,15 @@ export class ComposerWidget {
       { id: "orderedList", icon: "list-ordered", labelKey: "toolbar.insertOL", onClick: () => this.applyTextTool("ol") },
       { id: "task", icon: "square-check", labelKey: "toolbar.insertTask", onClick: () => this.applyTaskTool() },
       { id: "table", icon: "table", labelKey: "toolbar.insertTable", onClick: (button) => this.showTablePicker(button) },
-      { id: "codeBlock", icon: "code-2", labelKey: "toolbar.insertCodeBlock", onClick: () => this.composer.wrapCodeBlock() },
+      {
+        id: "codeBlock",
+        icon: "code-2",
+        labelKey: "toolbar.insertCodeBlock",
+        onClick: () => {
+          this.composer.wrapCodeBlock();
+          this.handleInputContentUpdated(false);
+        }
+      },
       { id: "excalidraw", icon: "pencil-ruler", labelKey: "toolbar.insertExcalidraw", onClick: () => this.createExcalidrawAttachment() }
     ];
     if (settings.calloutEnabled) {
@@ -479,8 +500,22 @@ export class ComposerWidget {
       event.stopPropagation();
       this.openComposerToolsMenu(event, hiddenTools, moreButton);
     });
+    const clearTool = { icon: "eraser", labelKey: "toolbar.clearInput" } as const;
+    const clearLabel = t(lang, clearTool.labelKey);
+    const clearButton = tools.createEl("button", {
+      cls: "memos-plus-tool-button memos-plus-clear-input-button",
+      attr: { type: "button", "aria-label": clearLabel, title: clearLabel }
+    });
+    setIcon(clearButton, "eraser");
+    clearButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.clearInput();
+    });
+    this.clearButton = clearButton;
     this.calloutStatus = tools.createDiv({ cls: "memos-plus-callout-status" });
     this.updateCalloutStatus();
+    this.updateClearButtonState();
     const sendTitle = t(lang, `sendAction.${this.options.sendActionTitle?.() ?? settings.defaultSendAction}`);
     const save = footer.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "composer.send"), attr: { title: sendTitle } });
     save.addEventListener("click", () => {
@@ -509,9 +544,11 @@ export class ComposerWidget {
       textarea.value = result.value;
       textarea.focus();
       textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+      this.handleInputContentUpdated(false);
       return;
     }
     this.composer.insertText(textForTool(tool));
+    this.handleInputContentUpdated(false);
   }
 
   private async applyTaskTool(): Promise<void> {
@@ -533,7 +570,44 @@ export class ComposerWidget {
     this.composer.setValue(formatted);
     this.calloutMode = false;
     this.updateCalloutStatus();
+    this.updateClearButtonState();
     this.composer.focus();
+  }
+
+  private async clearInput(): Promise<void> {
+    const content = this.composer.getValue();
+    if (!content) {
+      this.updateClearButtonState();
+      return;
+    }
+    if (this.isClearInputRisky(content) && !window.confirm(t(this.options.settings().language, "composer.clearConfirm"))) {
+      return;
+    }
+    this.composer.clear();
+    this.calloutMode = false;
+    this.handleInputContentUpdated(false);
+    try {
+      await this.options.onClearDraft?.();
+    } catch (error) {
+      console.warn("[Memos Plus] Failed to clear composer draft cache", error);
+    }
+  }
+
+  private isClearInputRisky(content: string): boolean {
+    return (
+      content.trim().length > 100 ||
+      /https?:\/\/|www\.|!\[\[|\]\(|\.(?:png|jpe?g|gif|webp|m4a|mp3|wav|pdf)\b/i.test(content) ||
+      /^\s*[-*]\s+\[[ xX]\]/m.test(content)
+    );
+  }
+
+  private updateClearButtonState(): void {
+    if (!this.clearButton) {
+      return;
+    }
+    const hasContent = this.composer.getValue().trim().length > 0;
+    this.clearButton.disabled = !hasContent;
+    this.clearButton.classList.toggle("is-disabled", !hasContent);
   }
 
   private openComposerToolsMenu(event: MouseEvent, tools: ComposerToolbarButton[], anchor: HTMLElement): void {
@@ -612,9 +686,11 @@ export class ComposerWidget {
       textarea.value = result.value;
       textarea.focus();
       textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+      this.handleInputContentUpdated(false);
       return;
     }
     this.composer.insertText(`![[${linkName}]]`);
+    this.handleInputContentUpdated(false);
   }
 
   private async handleComposerPaste(event: ClipboardEvent): Promise<void> {
@@ -660,6 +736,7 @@ export class ComposerWidget {
 
   private handleInputContentUpdated(emitInputEvent: boolean): void {
     this.updateCalloutStatus();
+    this.updateClearButtonState();
     if (emitInputEvent) {
       this.composer.element.dispatchEvent(new Event("input", { bubbles: true }));
     }
@@ -801,9 +878,11 @@ export class ComposerWidget {
       textarea.value = result.value;
       textarea.focus();
       textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+      this.handleInputContentUpdated(false);
       return;
     }
     this.composer.insertText(buildTable(rows, columns));
+    this.handleInputContentUpdated(false);
   }
 
   private handleTextareaKeydown(event: KeyboardEvent): void {
@@ -817,6 +896,7 @@ export class ComposerWidget {
         event.preventDefault();
         textarea.value = result.value;
         textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+        this.handleInputContentUpdated(false);
       }
       return;
     }
@@ -825,6 +905,7 @@ export class ComposerWidget {
       const result = applyComposerIndent(textarea.value, textarea.selectionStart, textarea.selectionEnd, event.shiftKey ? "outdent" : "indent");
       textarea.value = result.value;
       textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+      this.handleInputContentUpdated(false);
     }
   }
 }

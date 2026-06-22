@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { createComposerActions } from "../src/composerActions";
 import { resolveComposerInitialContent } from "../src/composerSession";
@@ -27,6 +28,13 @@ function fakeComposer(value: string) {
 }
 
 describe("composer send failure draft recovery", () => {
+  it("clears the saved failure draft when the shared composer clear button clears drafts", () => {
+    const sessionSource = readFileSync("src/composerSession.ts", "utf8");
+    expect(sessionSource).toContain("clearComposerDraftCaches");
+    expect(sessionSource).toContain('host.settings.sendFailureDraftContent = ""');
+    expect(sessionSource).toContain("await options.onClearDraft?.()");
+  });
+
   it("preserves the current composer content as a failure draft when default saving fails", async () => {
     const settings = normalizeSettings({
       sendFailureDraftEnabled: true,

@@ -25,6 +25,9 @@ describe("quick input sidebar view", () => {
     expect(sessionSource).toContain("createComposerActions");
     expect(quickInputSource).toContain("quickInputDraft");
     expect(quickInputSource).toContain("focusComposer()");
+    expect(sessionSource).toContain("onClearDraft");
+    expect(quickInputSource).toContain("clearQuickInputDraft");
+    expect(quickInputSource).toContain('this.plugin.settings.quickInputDraft = ""');
     expect(quickInputSource).not.toContain("this.composerSession.focus();");
     expect(mainSource).toContain("focusComposer && existing.view instanceof MemosPlusQuickInputView");
     expect(mainSource).toContain("focusComposer && leaf.view instanceof MemosPlusQuickInputView");
