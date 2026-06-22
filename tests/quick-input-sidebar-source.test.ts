@@ -66,6 +66,19 @@ describe("quick input sidebar view", () => {
     expect(i18nSource).toContain('"settings.quickInputStartupDesc": "最常用的侧边栏开关放在这里：是否启用右侧快速输入，以及启动时是否自动打开。"');
   });
 
+  it("shows the sidebar startup controls inside the selected quick input inspector", () => {
+    const inspectorSource = settingsSource.slice(
+      settingsSource.indexOf("private renderLayoutQuickInputInspector"),
+      settingsSource.indexOf("private renderLayoutComposerPartInspector")
+    );
+
+    expect(inspectorSource).toContain('surface === "sidebar"');
+    expect(inspectorSource).toContain('this.renderQuickInputStartupCard(container, "settings.quickInputStartupInspectorDesc")');
+    expect(i18nSource).toContain(
+      '"settings.quickInputStartupInspectorDesc": "这里就是控制右侧栏启动的开关：先决定是否启用侧边栏快速输入，再决定打开 Obsidian 后是否自动显示。"'
+    );
+  });
+
   it("auto-opens the sidebar safely after layout ready without focusing the composer", () => {
     expect(settingsSource).toContain("quickInputAutoOpen: true");
     expect(mainSource).toContain("this.app.workspace.onLayoutReady");

@@ -1116,6 +1116,9 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.renderModuleVisibilitySetting(container, surface, module, preview);
     this.renderLinkedModuleVisibilitySetting(container, surface, "inputToolbar", "settings.layoutDesigner.showToolbar", preview);
     this.renderLinkedModuleVisibilitySetting(container, surface, "sendButton", "settings.layoutDesigner.showSendButton", preview);
+    if (surface === "sidebar") {
+      this.renderQuickInputStartupCard(container, "settings.quickInputStartupInspectorDesc");
+    }
 
     new Setting(container)
       .setName(t(lang, surface === "sidebar" ? "settings.quickInputDefaultSendAction" : "settings.defaultSendAction"))
@@ -1763,13 +1766,13 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       });
   }
 
-  private renderQuickInputStartupCard(container: HTMLElement): void {
+  private renderQuickInputStartupCard(container: HTMLElement, descKey = "settings.quickInputStartupDesc"): void {
     const lang = this.plugin.settings.language;
     const card = container.createDiv({ cls: "memos-plus-quick-input-startup-card" });
     const header = card.createDiv({ cls: "memos-plus-quick-input-startup-header" });
     header.createSpan({ cls: "memos-plus-quick-input-startup-badge", text: t(lang, "settings.quickInputStartupBadge") });
     header.createEl("h3", { cls: "memos-plus-quick-input-startup-title", text: t(lang, "settings.quickInputStartupTitle") });
-    card.createDiv({ cls: "memos-plus-quick-input-startup-desc", text: t(lang, "settings.quickInputStartupDesc") });
+    card.createDiv({ cls: "memos-plus-quick-input-startup-desc", text: t(lang, descKey) });
     this.renderQuickInputEnabledToggle(card, "memos-plus-quick-input-startup-setting");
     this.renderQuickInputAutoOpenToggle(card, "memos-plus-quick-input-startup-setting");
   }
