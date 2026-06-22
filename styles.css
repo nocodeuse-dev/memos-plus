@@ -2350,6 +2350,15 @@
   color: var(--text-on-accent);
 }
 
+.memos-plus-file-template-tab.is-drop-target {
+  border-style: dashed;
+}
+
+.memos-plus-file-template-tab.is-drag-over {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+}
+
 .memos-plus-file-template-tab-add {
   display: inline-flex;
   align-items: center;
@@ -2437,6 +2446,24 @@
   flex: 0 0 auto;
   gap: 4px;
   align-self: start;
+}
+
+.memos-plus-file-template-tab-settings {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.memos-plus-file-template-tab-setting {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background-secondary) 84%, transparent);
+  padding: 8px 10px;
+}
+
+.memos-plus-file-template-tab-setting .setting-item {
+  border-top: 0;
+  padding: 8px 0;
 }
 
 .memos-plus-project-send-header {

@@ -179,6 +179,8 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.fileTemplateLibraryFavorites).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryRecent).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaults).toEqual({});
+    expect(DEFAULT_SETTINGS.fileTemplateTabs).toEqual([]);
+    expect(DEFAULT_SETTINGS.enableTemplateTabDrag).toBe(false);
     expect(DEFAULT_SETTINGS.sendToFileDefaultInsertPosition).toBe("heading-top");
     expect(DEFAULT_SETTINGS.sendToFileNoHeadingBehavior).toBe("ask");
     expect(DEFAULT_SETTINGS.recentFileTargetPaths).toEqual([]);
@@ -520,11 +522,16 @@ describe("normalizeSettings", () => {
       fileTemplateLibraryDefaultFolder: " 我的资源//疾病 ",
       fileTemplateLibraryFavorites: [" 我的资源//模板/疾病.md ", "", "我的资源/模板/疾病.md"],
       fileTemplateLibraryRecent: [" 我的资源//模板/项目.md ", "我的资源/模板/疾病.md"],
-      fileTemplateLibraryDefaults: {
-        " #病 ": " 我的资源//模板/疾病.md ",
-        "": "bad.md",
-        项目: ""
-      }
+        fileTemplateLibraryDefaults: {
+          " #病 ": " 我的资源//模板/疾病.md ",
+          "": "bad.md",
+          项目: ""
+        },
+        fileTemplateTabs: [
+          { id: " tag-medical ", name: " 病 ", type: "tag-filter", tags: ["#病", "医学", "#病"] },
+          { id: "group-common", name: " 常用模板 ", type: "template-group", templatePaths: [" 我的资源//模板/项目模板.md ", ""] }
+        ],
+        enableTemplateTabDrag: true
     })
   ).toMatchObject({
       projectTag: "项目",
@@ -537,8 +544,8 @@ describe("normalizeSettings", () => {
       sendToFileDefaultTag: "病",
       sendToFileCommonTags: ["病", "插件", "医学/疾病"],
       projectSendTagTabs: ["病", "插件", "医学/疾病"],
-      projectSendTabOrder: ["search", "custom:插件", "project", "tag", "recent", "custom:病", "custom:医学/疾病"],
-      projectSendHiddenTabs: ["recent", "custom:医学/疾病"],
+      projectSendTabOrder: ["search", "project", "tag", "recent", "custom:tag-medical", "custom:group-common"],
+      projectSendHiddenTabs: ["recent"],
       managedTemplates: [
         expect.objectContaining({
           id: "tpl",
@@ -564,8 +571,26 @@ describe("normalizeSettings", () => {
       fileTemplateLibraryRecent: ["我的资源/模板/项目.md", "我的资源/模板/疾病.md"],
       fileTemplateLibraryDefaults: {
         病: "我的资源/模板/疾病.md"
-      }
+      },
+      fileTemplateTabs: [
+        { id: "tag-medical", name: "病", type: "tag-filter", tags: ["病", "医学"], templatePaths: [] },
+        { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] }
+      ],
+      enableTemplateTabDrag: true
     });
+  });
+
+  it("migrates legacy project send custom tags into tag-filter template tabs", () => {
+    const settings = normalizeSettings({
+      projectSendTagTabs: ["#病", "插件"],
+      projectSendTabOrder: ["search", "custom:插件", "project"]
+    });
+
+    expect(settings.fileTemplateTabs).toEqual([
+      { id: "病", name: "病", type: "tag-filter", tags: ["病"], templatePaths: [] },
+      { id: "插件", name: "插件", type: "tag-filter", tags: ["插件"], templatePaths: [] }
+    ]);
+    expect(settings.projectSendTabOrder).toEqual(["search", "custom:插件", "project", "tag", "recent", "custom:病"]);
   });
 
   it("ignores removed legacy project template fields when creating the default managed template", () => {

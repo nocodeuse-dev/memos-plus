@@ -17,6 +17,16 @@ export interface FileTemplateLibraryItem {
   file?: TFile;
 }
 
+export type FileTemplateTabType = "tag-filter" | "template-group";
+
+export interface FileTemplateTab {
+  id: string;
+  name: string;
+  type: FileTemplateTabType;
+  tags: string[];
+  templatePaths: string[];
+}
+
 export interface FileTemplateLibraryFilter {
   query?: string;
   category?: string;
@@ -28,6 +38,54 @@ export interface FileTemplateLibrarySettings {
   fileTemplateLibraryFavorites: string[];
   fileTemplateLibraryRecent: string[];
   fileTemplateLibraryDefaults: Record<string, string>;
+  fileTemplateTabs?: FileTemplateTab[];
+  enableTemplateTabDrag?: boolean;
+}
+
+export function normalizeFileTemplateTabs(value: unknown): FileTemplateTab[] {
+  const source = Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  return source.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const type: FileTemplateTabType = item.type === "template-group" ? "template-group" : "tag-filter";
+    const tags = type === "tag-filter" ? normalizeFileTemplateTabTags(item.tags) : [];
+    const templatePaths = type === "template-group" ? normalizeFileTemplateLibraryPaths(item.templatePaths) : [];
+    const name = normalizeFileTemplateTabName(item.name, type, tags);
+    if ((type === "tag-filter" && tags.length === 0) || !name) {
+      return [];
+    }
+    const id = normalizeFileTemplateTabId(item.id, type, name, tags, seen);
+    if (!id || seen.has(id)) {
+      return [];
+    }
+    seen.add(id);
+    return [{ id, name, type, tags, templatePaths }];
+  });
+}
+
+export function createTagFilterFileTemplateTab(tagValue: string): FileTemplateTab | null {
+  const tag = normalizeFileTag(tagValue);
+  if (!tag) {
+    return null;
+  }
+  return { id: tag, name: tag, type: "tag-filter", tags: [tag], templatePaths: [] };
+}
+
+export function createTemplateGroupFileTemplateTab(nameValue: string): FileTemplateTab | null {
+  const name = normalizeText(nameValue);
+  if (!name) {
+    return null;
+  }
+  return { id: uniqueTabSeed("group", name), name, type: "template-group", tags: [], templatePaths: [] };
+}
+
+export function legacyProjectSendTagsToFileTemplateTabs(tags: unknown): FileTemplateTab[] {
+  return normalizeFileTemplateTabTags(tags).flatMap((tag) => {
+    const tab = createTagFilterFileTemplateTab(tag);
+    return tab ? [tab] : [];
+  });
 }
 
 export function normalizeFileTemplateLibraryPaths(value: unknown): string[] {
@@ -98,6 +156,47 @@ export function filterFileTemplateLibraryItems(items: FileTemplateLibraryItem[],
     });
 }
 
+export function filterFileTemplateLibraryItemsForTab(
+  items: FileTemplateLibraryItem[],
+  tab: FileTemplateTab,
+  query = ""
+): FileTemplateLibraryItem[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (tab.type === "tag-filter") {
+    const tags = new Set(tab.tags.map((tag) => normalizeFileTag(tag)).filter(Boolean));
+    return filterFileTemplateLibraryItems(items, { query: normalizedQuery, category: "全部" }).filter((item) =>
+      item.tags.some((tag) => tags.has(normalizeFileTag(tag)))
+    );
+  }
+
+  const byPath = new Map(items.map((item) => [normalizeOptionalVaultPath(item.path), item]));
+  return normalizeFileTemplateLibraryPaths(tab.templatePaths)
+    .flatMap((path) => {
+      const item = byPath.get(path);
+      if (!item) {
+        return [];
+      }
+      if (!normalizedQuery) {
+        return [item];
+      }
+      const haystack = `${item.name} ${item.path} ${item.category} ${item.tags.join(" ")}`.toLowerCase();
+      return haystack.includes(normalizedQuery) ? [item] : [];
+    });
+}
+
+export function addTemplatePathToFileTemplateTab(tabs: FileTemplateTab[], tabId: string, templatePath: string): FileTemplateTab[] {
+  const normalizedPath = normalizeOptionalVaultPath(templatePath);
+  if (!normalizedPath) {
+    return normalizeFileTemplateTabs(tabs);
+  }
+  return normalizeFileTemplateTabs(tabs).map((tab) => {
+    if (tab.id !== tabId || tab.type !== "template-group" || tab.templatePaths.includes(normalizedPath)) {
+      return tab;
+    }
+    return { ...tab, templatePaths: [...tab.templatePaths, normalizedPath] };
+  });
+}
+
 export async function scanFileTemplateLibrary(app: App, settings: FileTemplateLibrarySettings): Promise<FileTemplateLibraryItem[]> {
   const folder = normalizeFileTemplateLibraryFolder(settings.fileTemplateLibraryFolder);
   const prefix = folder ? `${folder}/` : "";
@@ -165,6 +264,59 @@ function buildDefaultFileTemplateContent(context: TemplateVariableContext): stri
   const tag = normalizeFileTag(context.tag);
   const frontmatter = tag ? ["---", "tags:", `  - ${tag}`, "---", ""] : [];
   return [...frontmatter, `# ${context.title.trim() || "未命名"}`, "", "## 收集箱", "", context.content?.trim() ?? ""].join("\n");
+}
+
+function normalizeFileTemplateTabTags(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,，\s]+/) : [];
+  const seen = new Set<string>();
+  return source.flatMap((item) => {
+    const tag = normalizeFileTag(item);
+    if (!tag || seen.has(tag)) {
+      return [];
+    }
+    seen.add(tag);
+    return [tag];
+  });
+}
+
+function normalizeFileTemplateTabName(value: unknown, type: FileTemplateTabType, tags: string[]): string {
+  const name = normalizeText(value);
+  if (name) {
+    return name;
+  }
+  if (type === "tag-filter") {
+    return tags[0] ?? "";
+  }
+  return "";
+}
+
+function normalizeFileTemplateTabId(
+  value: unknown,
+  type: FileTemplateTabType,
+  name: string,
+  tags: string[],
+  seen: Set<string>
+): string {
+  const explicit = normalizeText(value);
+  const seed = explicit || (type === "tag-filter" ? tags[0] : uniqueTabSeed("group", name));
+  if (!seed) {
+    return "";
+  }
+  let id = seed.replace(/\s+/g, "-");
+  let index = 2;
+  while (seen.has(id)) {
+    id = `${seed}-${index}`;
+    index += 1;
+  }
+  return id;
+}
+
+function uniqueTabSeed(prefix: string, value: string): string {
+  return `${prefix}-${value.trim().replace(/\s+/g, "-")}`;
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function ensureTagInMarkdown(source: string, rawTag: unknown): string {

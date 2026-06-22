@@ -46,10 +46,16 @@ import {
 import {
   DEFAULT_FILE_TEMPLATE_LIBRARY_FOLDER,
   DEFAULT_FILE_TEMPLATE_LIBRARY_TARGET_FOLDER,
+  createTagFilterFileTemplateTab,
+  createTemplateGroupFileTemplateTab,
+  legacyProjectSendTagsToFileTemplateTabs,
   normalizeFileTemplateDefaults,
   normalizeFileTemplateLibraryDefaultFolder,
   normalizeFileTemplateLibraryFolder,
-  normalizeFileTemplateLibraryPaths
+  normalizeFileTemplateLibraryPaths,
+  normalizeFileTemplateTabs,
+  type FileTemplateTab,
+  type FileTemplateTabType
 } from "./fileTemplateLibrary";
 import { normalizeImageHandlingMode, type ImageHandlingMode } from "./imageHandling";
 import { DEFAULT_LANGUAGE, Language, t } from "./i18n";
@@ -187,6 +193,8 @@ export interface MemosPlusSettings {
   fileTemplateLibraryFavorites: string[];
   fileTemplateLibraryRecent: string[];
   fileTemplateLibraryDefaults: Record<string, string>;
+  fileTemplateTabs: FileTemplateTab[];
+  enableTemplateTabDrag: boolean;
   sendToFileDefaultInsertPosition: FileInsertPosition;
   sendToFileNoHeadingBehavior: NoHeadingBehavior;
   recentFileTargetPaths: string[];
@@ -293,6 +301,8 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   fileTemplateLibraryFavorites: [],
   fileTemplateLibraryRecent: [],
   fileTemplateLibraryDefaults: {},
+  fileTemplateTabs: [],
+  enableTemplateTabDrag: false,
   sendToFileDefaultInsertPosition: "heading-top",
   sendToFileNoHeadingBehavior: "ask",
   recentFileTargetPaths: [],
@@ -365,6 +375,8 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
   const defaultProjectSection = normalizeTextSetting(raw.defaultProjectSection, DEFAULT_SETTINGS.defaultProjectSection);
   const taskDefaultSection = normalizeTextSetting(raw.taskDefaultSection, DEFAULT_SETTINGS.taskDefaultSection);
   const projectSendTagTabs = normalizeProjectSendTagTabs(raw.projectSendTagTabs);
+  const explicitFileTemplateTabs = normalizeFileTemplateTabs(raw.fileTemplateTabs);
+  const fileTemplateTabs = explicitFileTemplateTabs.length > 0 ? explicitFileTemplateTabs : legacyProjectSendTagsToFileTemplateTabs(projectSendTagTabs);
   const projectTag = normalizeProjectTag(raw.projectTag) || DEFAULT_SETTINGS.projectTag;
   const projectFolderPath = normalizeVaultPath(raw.projectFolderPath, DEFAULT_PROJECT_FOLDER);
   const clearAfterSave = typeof raw.clearAfterSave === "boolean" ? raw.clearAfterSave : DEFAULT_SETTINGS.clearAfterSave;
@@ -495,14 +507,16 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     sendToFileDefaultTag: normalizeFileTag(raw.sendToFileDefaultTag),
     sendToFileCommonTags: normalizeSendToFileCommonTags(raw.sendToFileCommonTags),
     projectSendTagTabs,
-    projectSendTabOrder: normalizeProjectSendTabOrder(raw.projectSendTabOrder, projectSendTagTabs),
-    projectSendHiddenTabs: normalizeProjectSendHiddenTabs(raw.projectSendHiddenTabs, projectSendTagTabs),
+    projectSendTabOrder: normalizeProjectSendTabOrder(raw.projectSendTabOrder, fileTemplateTabs),
+    projectSendHiddenTabs: normalizeProjectSendHiddenTabs(raw.projectSendHiddenTabs, fileTemplateTabs),
     managedTemplates,
     fileTemplateLibraryFolder: normalizeFileTemplateLibraryFolder(raw.fileTemplateLibraryFolder),
     fileTemplateLibraryDefaultFolder: normalizeFileTemplateLibraryDefaultFolder(raw.fileTemplateLibraryDefaultFolder),
     fileTemplateLibraryFavorites: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryFavorites),
     fileTemplateLibraryRecent: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryRecent).slice(0, 20),
     fileTemplateLibraryDefaults: normalizeFileTemplateDefaults(raw.fileTemplateLibraryDefaults),
+    fileTemplateTabs,
+    enableTemplateTabDrag: typeof raw.enableTemplateTabDrag === "boolean" ? raw.enableTemplateTabDrag : DEFAULT_SETTINGS.enableTemplateTabDrag,
     sendToFileDefaultInsertPosition: normalizeFileInsertPosition(raw.sendToFileDefaultInsertPosition),
     sendToFileNoHeadingBehavior: normalizeNoHeadingBehavior(raw.sendToFileNoHeadingBehavior),
     recentFileTargetPaths: normalizeRecentProjectPaths(raw.recentFileTargetPaths).slice(0, 10),
@@ -2172,14 +2186,14 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const lang = this.plugin.settings.language;
     this.renderSectionHeader(container, "settings.projectSendTabs", "settings.projectSendTabsDesc");
 
-    const tabIds = normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, this.plugin.settings.projectSendTagTabs);
-    const hiddenTabs = new Set(normalizeProjectSendHiddenTabs(this.plugin.settings.projectSendHiddenTabs, this.plugin.settings.projectSendTagTabs));
+    const tabIds = normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, this.plugin.settings.fileTemplateTabs);
+    const hiddenTabs = new Set(normalizeProjectSendHiddenTabs(this.plugin.settings.projectSendHiddenTabs, this.plugin.settings.fileTemplateTabs));
 
     for (const [index, id] of tabIds.entries()) {
-      const customTag = getProjectSendCustomTag(id);
+      const customTab = getProjectSendCustomTab(id, this.plugin.settings.fileTemplateTabs);
       const setting = new Setting(container)
         .setName(this.getProjectSendTabLabel(id))
-        .setDesc(customTag ? `#${customTag}` : t(lang, "settings.projectSendFixedTabDesc"));
+        .setDesc(customTab ? formatProjectSendCustomTabDesc(customTab) : t(lang, "settings.projectSendFixedTabDesc"));
 
       setting.addToggle((toggle) => {
         toggle.setValue(!hiddenTabs.has(id)).onChange(async (visible) => {
@@ -2189,7 +2203,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           } else {
             nextHidden.add(id);
           }
-          this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs([...nextHidden], this.plugin.settings.projectSendTagTabs);
+          this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs([...nextHidden], this.plugin.settings.fileTemplateTabs);
           await this.plugin.persistSettings();
           this.display();
         });
@@ -2206,20 +2220,20 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         });
       });
 
-      if (customTag) {
+      if (customTab) {
         let renameInput: HTMLInputElement | null = null;
         setting.addText((text) => {
-          text.setValue(customTag).setPlaceholder(customTag);
+          text.setValue(customTab.name).setPlaceholder(customTab.name);
           renameInput = text.inputEl;
         });
         setting.addButton((button) => {
           button.setButtonText(t(lang, "settings.projectSendTabRename")).onClick(async () => {
-            await this.renameProjectSendCustomTab(customTag, renameInput?.value ?? "");
+            await this.renameProjectSendCustomTab(customTab.id, renameInput?.value ?? "");
           });
         });
         setting.addButton((button) => {
           button.setButtonText(t(lang, "settings.projectSendTabDelete")).onClick(async () => {
-            await this.deleteProjectSendCustomTab(customTag);
+            await this.deleteProjectSendCustomTab(customTab.id);
           });
         });
       }
@@ -2242,9 +2256,9 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private getProjectSendTabLabel(id: string): string {
     const lang = this.plugin.settings.language;
-    const customTag = getProjectSendCustomTag(id);
-    if (customTag) {
-      return customTag;
+    const customTab = getProjectSendCustomTab(id, this.plugin.settings.fileTemplateTabs);
+    if (customTab) {
+      return customTab.name;
     }
     if (isProjectSendFixedTab(id)) {
       return t(lang, `fileSend.mode.${id}`);
@@ -2253,7 +2267,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   }
 
   private async moveProjectSendTab(id: string, delta: number): Promise<void> {
-    const order = normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, this.plugin.settings.projectSendTagTabs);
+    const order = normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, this.plugin.settings.fileTemplateTabs);
     const index = order.indexOf(id);
     const target = index + delta;
     if (index < 0 || target < 0 || target >= order.length) {
@@ -2262,7 +2276,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const next = [...order];
     const [item] = next.splice(index, 1);
     next.splice(target, 0, item);
-    this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(next, this.plugin.settings.projectSendTagTabs);
+    this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(next, this.plugin.settings.fileTemplateTabs);
     await this.plugin.persistSettings();
     this.display();
   }
@@ -2272,49 +2286,48 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     if (!tag) {
       return;
     }
-    const tags = normalizeProjectSendTagTabs([...this.plugin.settings.projectSendTagTabs, tag]);
-    this.plugin.settings.projectSendTagTabs = tags;
-    this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(
-      [...this.plugin.settings.projectSendTabOrder, getProjectSendCustomTabId(tag)],
-      tags
-    );
-    this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs(this.plugin.settings.projectSendHiddenTabs, tags);
-    await this.plugin.persistSettings();
-    this.display();
-  }
-
-  private async renameProjectSendCustomTab(oldTag: string, value: string): Promise<void> {
-    const nextTag = normalizeFileTag(value);
-    if (!nextTag || nextTag === oldTag) {
+    const nextTab = createTagFilterFileTemplateTab(tag);
+    if (!nextTab) {
       return;
     }
-    const oldId = getProjectSendCustomTabId(oldTag);
-    const nextId = getProjectSendCustomTabId(nextTag);
-    const tags = normalizeProjectSendTagTabs(this.plugin.settings.projectSendTagTabs.map((tag) => (tag === oldTag ? nextTag : tag)));
-    this.plugin.settings.projectSendTagTabs = tags;
+    const tabs = normalizeFileTemplateTabs([...this.plugin.settings.fileTemplateTabs, nextTab]);
+    this.plugin.settings.fileTemplateTabs = tabs;
+    this.plugin.settings.projectSendTagTabs = projectSendTagTabsFromFileTemplateTabs(tabs);
     this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(
-      this.plugin.settings.projectSendTabOrder.map((id) => (id === oldId ? nextId : id)),
-      tags
+      [...this.plugin.settings.projectSendTabOrder, getProjectSendCustomTabId(nextTab.id)],
+      tabs
     );
-    this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs(
-      this.plugin.settings.projectSendHiddenTabs.map((id) => (id === oldId ? nextId : id)),
-      tags
-    );
+    this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs(this.plugin.settings.projectSendHiddenTabs, tabs);
     await this.plugin.persistSettings();
     this.display();
   }
 
-  private async deleteProjectSendCustomTab(tag: string): Promise<void> {
-    const id = getProjectSendCustomTabId(tag);
-    const tags = this.plugin.settings.projectSendTagTabs.filter((item) => item !== tag);
-    this.plugin.settings.projectSendTagTabs = tags;
+  private async renameProjectSendCustomTab(tabId: string, value: string): Promise<void> {
+    const name = normalizeTextSetting(value, "");
+    if (!name) {
+      return;
+    }
+    const tabs = normalizeFileTemplateTabs(this.plugin.settings.fileTemplateTabs.map((tab) => (tab.id === tabId ? { ...tab, name } : tab)));
+    this.plugin.settings.fileTemplateTabs = tabs;
+    this.plugin.settings.projectSendTagTabs = projectSendTagTabsFromFileTemplateTabs(tabs);
+    this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, tabs);
+    this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs(this.plugin.settings.projectSendHiddenTabs, tabs);
+    await this.plugin.persistSettings();
+    this.display();
+  }
+
+  private async deleteProjectSendCustomTab(tabId: string): Promise<void> {
+    const id = getProjectSendCustomTabId(tabId);
+    const tabs = this.plugin.settings.fileTemplateTabs.filter((item) => item.id !== tabId);
+    this.plugin.settings.fileTemplateTabs = tabs;
+    this.plugin.settings.projectSendTagTabs = projectSendTagTabsFromFileTemplateTabs(tabs);
     this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(
       this.plugin.settings.projectSendTabOrder.filter((item) => item !== id),
-      tags
+      tabs
     );
     this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs(
       this.plugin.settings.projectSendHiddenTabs.filter((item) => item !== id),
-      tags
+      tabs
     );
     await this.plugin.persistSettings();
     this.display();
@@ -2438,6 +2451,8 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         });
       });
 
+    this.renderFileTemplateTabManagement(container);
+
     const advancedLibrary = this.renderSettingsDetails(container, "settings.advancedOptions", "settings.fileTemplateLibraryAdvancedDesc");
     new Setting(advancedLibrary)
       .setName(t(lang, "settings.fileTemplateLibraryDefaults"))
@@ -2452,6 +2467,128 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           });
         text.inputEl.rows = 4;
       });
+  }
+
+  private renderFileTemplateTabManagement(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    const section = container.createDiv({ cls: "memos-plus-file-template-tab-settings" });
+    this.renderSectionHeader(section, "settings.fileTemplateTabs", "settings.fileTemplateTabsDesc");
+
+    new Setting(section)
+      .setName(t(lang, "settings.enableTemplateTabDrag"))
+      .setDesc(t(lang, "settings.enableTemplateTabDragDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.enableTemplateTabDrag).onChange(async (value) => {
+          this.plugin.settings.enableTemplateTabDrag = value;
+          await this.plugin.persistSettings();
+        });
+      });
+
+    for (const tab of this.plugin.settings.fileTemplateTabs) {
+      const tabBox = section.createDiv({ cls: "memos-plus-file-template-tab-setting" });
+      const header = new Setting(tabBox)
+        .setName(tab.name)
+        .setDesc(formatProjectSendCustomTabDesc(tab));
+      header.addText((text) => {
+        text.setValue(tab.name).setPlaceholder(t(lang, "settings.fileTemplateTabName")).onChange(async (value) => {
+          await this.saveFileTemplateTabs(this.plugin.settings.fileTemplateTabs.map((item) => (item.id === tab.id ? { ...item, name: value } : item)));
+        });
+      });
+      header.addDropdown((dropdown) => {
+        dropdown
+          .addOption("tag-filter", t(lang, "settings.fileTemplateTabType.tag-filter"))
+          .addOption("template-group", t(lang, "settings.fileTemplateTabType.template-group"))
+          .setValue(tab.type)
+          .onChange(async (value) => {
+            const type = value === "template-group" ? "template-group" : "tag-filter";
+            const nextTab = convertFileTemplateTabType(tab, type);
+            await this.saveFileTemplateTabs(this.plugin.settings.fileTemplateTabs.map((item) => (item.id === tab.id ? nextTab : item)));
+            this.display();
+          });
+      });
+      header.addButton((button) => {
+        button.setButtonText(t(lang, "settings.projectSendTabDelete")).onClick(async () => {
+          await this.deleteProjectSendCustomTab(tab.id);
+        });
+      });
+
+      if (tab.type === "tag-filter") {
+        new Setting(tabBox)
+          .setName(t(lang, "settings.fileTemplateTabTags"))
+          .setDesc(t(lang, "settings.fileTemplateTabTagsDesc"))
+          .addTextArea((text) => {
+            text.setPlaceholder("病\n项目\n肌肉").setValue(tab.tags.join("\n")).onChange(async (value) => {
+              await this.saveFileTemplateTabs(
+                this.plugin.settings.fileTemplateTabs.map((item) => (item.id === tab.id ? { ...item, tags: parseTaskRuleTags(value) } : item))
+              );
+            });
+            text.inputEl.rows = 3;
+          });
+      } else {
+        new Setting(tabBox)
+          .setName(t(lang, "settings.fileTemplateTabTemplatePaths"))
+          .setDesc(t(lang, "settings.fileTemplateTabTemplatePathsDesc"))
+          .addTextArea((text) => {
+            text.setPlaceholder("我的资源/模板/病历模板.md\n我的资源/模板/项目模板.md").setValue(tab.templatePaths.join("\n")).onChange(async (value) => {
+              await this.saveFileTemplateTabs(
+                this.plugin.settings.fileTemplateTabs.map((item) => ({
+                  ...item,
+                  templatePaths: item.id === tab.id ? normalizeFileTemplateLibraryPaths(value) : item.templatePaths
+                }))
+              );
+            });
+            text.inputEl.rows = 4;
+          });
+      }
+    }
+
+    let addType: FileTemplateTabType = "tag-filter";
+    let addInput: HTMLInputElement | null = null;
+    new Setting(section)
+      .setName(t(lang, "settings.fileTemplateTabAdd"))
+      .setDesc(t(lang, "settings.fileTemplateTabAddDesc"))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("tag-filter", t(lang, "settings.fileTemplateTabType.tag-filter"))
+          .addOption("template-group", t(lang, "settings.fileTemplateTabType.template-group"))
+          .setValue(addType)
+          .onChange((value) => {
+            addType = value === "template-group" ? "template-group" : "tag-filter";
+          });
+      })
+      .addText((text) => {
+        text.setPlaceholder(t(lang, "settings.fileTemplateTabAddPlaceholder"));
+        addInput = text.inputEl;
+      })
+      .addButton((button) => {
+        button.setButtonText(t(lang, "settings.projectSendTabAddButton")).onClick(async () => {
+          await this.addFileTemplateTab(addType, addInput?.value ?? "");
+        });
+      });
+  }
+
+  private async addFileTemplateTab(type: FileTemplateTabType, value: string): Promise<void> {
+    const tab = type === "template-group" ? createTemplateGroupFileTemplateTab(value) : createTagFilterFileTemplateTab(value);
+    if (!tab) {
+      return;
+    }
+    const tabs = normalizeFileTemplateTabs([...this.plugin.settings.fileTemplateTabs, tab]);
+    await this.saveFileTemplateTabs(tabs);
+    this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(
+      [...this.plugin.settings.projectSendTabOrder, getProjectSendCustomTabId(tab.id)],
+      tabs
+    );
+    await this.plugin.persistSettings();
+    this.display();
+  }
+
+  private async saveFileTemplateTabs(tabs: FileTemplateTab[]): Promise<void> {
+    const normalized = normalizeFileTemplateTabs(tabs);
+    this.plugin.settings.fileTemplateTabs = normalized;
+    this.plugin.settings.projectSendTagTabs = projectSendTagTabsFromFileTemplateTabs(normalized);
+    this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, normalized);
+    this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs(this.plugin.settings.projectSendHiddenTabs, normalized);
+    await this.plugin.persistSettings();
   }
 
   private openManagedTemplateModal(template?: ManagedTemplate): void {
@@ -2904,8 +3041,8 @@ function normalizeProjectSendTagTabs(value: unknown): string[] {
 const PROJECT_SEND_FIXED_TAB_IDS = ["project", "tag", "recent", "search"] as const;
 const PROJECT_SEND_CUSTOM_TAB_PREFIX = "custom:";
 
-function normalizeProjectSendTabOrder(value: unknown, customTags: string[]): string[] {
-  const validIds = getProjectSendTabIds(customTags);
+function normalizeProjectSendTabOrder(value: unknown, customTabs: FileTemplateTab[]): string[] {
+  const validIds = getProjectSendTabIds(customTabs);
   const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,，]+/) : DEFAULT_SETTINGS.projectSendTabOrder;
   const seen = new Set<string>();
   const order = source.flatMap((item) => {
@@ -2927,8 +3064,8 @@ function normalizeProjectSendTabOrder(value: unknown, customTags: string[]): str
   return order;
 }
 
-function normalizeProjectSendHiddenTabs(value: unknown, customTags: string[]): string[] {
-  const validIds = getProjectSendTabIds(customTags);
+function normalizeProjectSendHiddenTabs(value: unknown, customTabs: FileTemplateTab[]): string[] {
+  const validIds = getProjectSendTabIds(customTabs);
   const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,，]+/) : [];
   const seen = new Set<string>();
   return source.flatMap((item) => {
@@ -2944,8 +3081,8 @@ function normalizeProjectSendHiddenTabs(value: unknown, customTags: string[]): s
   });
 }
 
-function getProjectSendTabIds(customTags: string[]): string[] {
-  return [...PROJECT_SEND_FIXED_TAB_IDS, ...customTags.map(getProjectSendCustomTabId)];
+function getProjectSendTabIds(customTabs: FileTemplateTab[]): string[] {
+  return [...PROJECT_SEND_FIXED_TAB_IDS, ...customTabs.map((tab) => getProjectSendCustomTabId(tab.id))];
 }
 
 function isProjectSendFixedTab(id: string): id is (typeof PROJECT_SEND_FIXED_TAB_IDS)[number] {
@@ -2956,12 +3093,34 @@ function getProjectSendCustomTabId(tag: string): string {
   return `${PROJECT_SEND_CUSTOM_TAB_PREFIX}${tag}`;
 }
 
-function getProjectSendCustomTag(id: string): string | null {
+function getProjectSendCustomTab(id: string, tabs: FileTemplateTab[]): FileTemplateTab | null {
   if (!id.startsWith(PROJECT_SEND_CUSTOM_TAB_PREFIX)) {
     return null;
   }
-  const tag = normalizeFileTag(id.slice(PROJECT_SEND_CUSTOM_TAB_PREFIX.length));
-  return tag || null;
+  const tabId = id.slice(PROJECT_SEND_CUSTOM_TAB_PREFIX.length).trim();
+  return tabs.find((tab) => tab.id === tabId) ?? null;
+}
+
+function formatProjectSendCustomTabDesc(tab: FileTemplateTab): string {
+  if (tab.type === "template-group") {
+    return `模板分组页 · ${tab.templatePaths.length} 个模板`;
+  }
+  return `标签筛选页 · ${tab.tags.map((tag) => `#${tag}`).join(" ")}`;
+}
+
+function projectSendTagTabsFromFileTemplateTabs(tabs: FileTemplateTab[]): string[] {
+  return normalizeProjectSendTagTabs(tabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : [])));
+}
+
+function convertFileTemplateTabType(tab: FileTemplateTab, type: FileTemplateTabType): FileTemplateTab {
+  if (type === tab.type) {
+    return tab;
+  }
+  if (type === "template-group") {
+    return { ...tab, type, tags: [], templatePaths: tab.templatePaths ?? [] };
+  }
+  const tag = normalizeFileTag(tab.name);
+  return { ...tab, type, tags: tag ? [tag] : tab.tags, templatePaths: [] };
 }
 
 function normalizeRecentProjectPaths(value: unknown): string[] {

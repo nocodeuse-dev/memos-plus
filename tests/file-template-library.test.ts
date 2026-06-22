@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildFileTemplateTargetPath,
+  addTemplatePathToFileTemplateTab,
+  filterFileTemplateLibraryItemsForTab,
   filterFileTemplateLibraryItems,
   normalizeFileTemplateDefaults,
+  normalizeFileTemplateTabs,
   normalizeFileTemplateLibraryPaths,
   renderFileTemplateContent,
   type FileTemplateLibraryItem
@@ -40,6 +43,19 @@ describe("file template library", () => {
     ]);
   });
 
+  it("normalizes tag-filter and template-group tabs", () => {
+    expect(
+      normalizeFileTemplateTabs([
+        { id: " tag-medical ", name: " 病 ", type: "tag-filter", tags: ["#病", " 医学 ", "#病"] },
+        { id: "group-common", name: " 常用模板 ", type: "template-group", templatePaths: [" 我的资源//模板/项目模板.md ", ""] },
+        { name: "空标签页", type: "tag-filter", tags: [] }
+      ])
+    ).toEqual([
+      { id: "tag-medical", name: "病", type: "tag-filter", tags: ["病", "医学"], templatePaths: [] },
+      { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] }
+    ]);
+  });
+
   it("normalizes default template mappings by tag", () => {
     expect(
       normalizeFileTemplateDefaults({
@@ -55,6 +71,49 @@ describe("file template library", () => {
     expect(filterFileTemplateLibraryItems(items, { query: "医学", category: "疾病" }).map((item) => item.name)).toEqual(["疾病模板"]);
     expect(filterFileTemplateLibraryItems(items, { query: "", category: "收藏" }).map((item) => item.name)).toEqual(["疾病模板"]);
     expect(filterFileTemplateLibraryItems(items, { query: "", category: "最近" }).map((item) => item.name)).toEqual(["项目模板"]);
+  });
+
+  it("filters custom tabs by Obsidian tags or explicit template paths", () => {
+    expect(
+      filterFileTemplateLibraryItemsForTab(items, {
+        id: "病",
+        name: "病",
+        type: "tag-filter",
+        tags: ["病"],
+        templatePaths: []
+      }).map((item) => item.path)
+    ).toEqual(["我的资源/模板/疾病/疾病模板.md"]);
+
+    expect(
+      filterFileTemplateLibraryItemsForTab(items, {
+        id: "group-common",
+        name: "常用模板",
+        type: "template-group",
+        tags: [],
+        templatePaths: ["我的资源/模板/项目模板.md", "missing.md", "我的资源/模板/疾病/疾病模板.md"]
+      }).map((item) => item.path)
+    ).toEqual(["我的资源/模板/项目模板.md", "我的资源/模板/疾病/疾病模板.md"]);
+  });
+
+  it("adds template paths to template-group tabs without duplicates", () => {
+    expect(
+      addTemplatePathToFileTemplateTab(
+        [
+          { id: "病", name: "病", type: "tag-filter", tags: ["病"], templatePaths: [] },
+          { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] }
+        ],
+        "group-common",
+        " 我的资源//模板/项目模板.md "
+      )[1].templatePaths
+    ).toEqual(["我的资源/模板/项目模板.md"]);
+
+    expect(
+      addTemplatePathToFileTemplateTab(
+        [{ id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: [] }],
+        "group-common",
+        "我的资源/模板/疾病/疾病模板.md"
+      )[0].templatePaths
+    ).toEqual(["我的资源/模板/疾病/疾病模板.md"]);
   });
 
   it("renders markdown template variables without exposing code in the UI layer", () => {

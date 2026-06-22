@@ -38,25 +38,30 @@ describe("project send modal source", () => {
   });
 
   it("supports persisted custom tag tabs in the project send modal", () => {
-    expect(modalSource).toContain("customTagTabs");
+    expect(modalSource).toContain("fileTemplateTabs");
+    expect(modalSource).toContain("template-group");
+    expect(modalSource).toContain("tag-filter");
+    expect(modalSource).toContain("enableTemplateTabDrag");
     expect(modalSource).toContain("tabOrder");
     expect(modalSource).toContain("hiddenTabs");
     expect(modalSource).toContain("projectSend.addTagTab");
-    expect(modalSource).toContain("class ProjectTagTabModal extends Modal");
-    expect(modalSource).toContain("new ProjectTagTabModal");
-    expect(modalSource).toContain("await this.onSubmit(value)");
+    expect(modalSource).toContain("class ProjectTemplateTabModal extends Modal");
+    expect(modalSource).toContain("new ProjectTemplateTabModal");
+    expect(modalSource).toContain("await this.onSubmit(value,");
     expect(modalSource).not.toContain("prompt(t(lang, \"projectSend.addTagTabPrompt\")");
-    expect(modalSource).toContain("renderCustomTagFiles");
+    expect(modalSource).toContain("renderFileTemplateTab");
+    expect(modalSource).toContain("renderTemplateGroupTab");
     expect(modalSource).toContain("draggable: \"true\"");
     expect(modalSource).toContain("dropTab(event: DragEvent");
     expect(modalSource).toContain("memos-plus-project-send-tab-close");
-    expect(modalSource).toContain("renameCustomTagTab");
-    expect(modalSource).toContain("removeCustomTagTab");
+    expect(modalSource).toContain("renameFileTemplateTab");
+    expect(modalSource).toContain("removeFileTemplateTab");
     expect(modalSource).not.toContain("contentEl.createEl(\"h2\", { text: title });");
-    expect(deliverySource).toContain("customTagTabs: host.settings.projectSendTagTabs");
+    expect(deliverySource).toContain("fileTemplateTabs: host.settings.fileTemplateTabs");
+    expect(deliverySource).toContain("enableTemplateTabDrag: host.settings.enableTemplateTabDrag");
     expect(deliverySource).toContain("tabOrder: host.settings.projectSendTabOrder");
     expect(deliverySource).toContain("hiddenTabs: host.settings.projectSendHiddenTabs");
-    expect(deliverySource).toContain("onSaveCustomTagTabs");
+    expect(deliverySource).toContain("onSaveFileTemplateTabs");
     expect(deliverySource).toContain("onSaveTabPreferences");
   });
 
@@ -77,6 +82,10 @@ describe("project send modal source", () => {
     expect(modalSource).toContain("onCreateFromFileTemplate");
     expect(modalSource).toContain("onToggleFileTemplateFavorite");
     expect(modalSource).toContain("onDeleteFileTemplate");
+    expect(modalSource).toContain("filterFileTemplateLibraryItemsForTab");
+    expect(modalSource).toContain("addTemplatePathToFileTemplateTab");
+    expect(modalSource).toContain("fileTemplateLibrary.emptyGroup");
+    expect(modalSource).toContain("notice.fileTemplateTabAdded");
     expect(modalSource).toContain("this.listEl.createDiv({");
     expect(modalSource).toContain('row.setAttr("role", "button")');
     expect(modalSource).not.toContain('this.listEl.createEl("button", {\n        cls: `memos-plus-file-template-item');

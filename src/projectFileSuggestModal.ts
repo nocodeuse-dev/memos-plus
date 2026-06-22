@@ -10,7 +10,18 @@ import {
   type NoHeadingBehavior,
   type TaggedFileInfo
 } from "./fileSend";
-import { filterFileTemplateLibraryItems, type FileTemplateLibraryItem } from "./fileTemplateLibrary";
+import {
+  addTemplatePathToFileTemplateTab,
+  createTagFilterFileTemplateTab,
+  createTemplateGroupFileTemplateTab,
+  filterFileTemplateLibraryItems,
+  filterFileTemplateLibraryItemsForTab,
+  legacyProjectSendTagsToFileTemplateTabs,
+  normalizeFileTemplateTabs,
+  type FileTemplateLibraryItem,
+  type FileTemplateTab,
+  type FileTemplateTabType
+} from "./fileTemplateLibrary";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
@@ -55,7 +66,9 @@ interface ProjectSendModalOptions {
   taskSettings: ProjectSendTaskSettings;
   enableFileTargets: boolean;
   commonFileTags: string[];
-  customTagTabs: string[];
+  customTagTabs?: string[];
+  fileTemplateTabs: FileTemplateTab[];
+  enableTemplateTabDrag: boolean;
   tabOrder: string[];
   hiddenTabs: string[];
   templates: ManagedTemplate[];
@@ -77,19 +90,21 @@ interface ProjectSendModalOptions {
   onLoadTaggedFiles: (tagQuery: string) => Promise<TaggedFileInfo[]>;
   onSearchFiles: (query: string) => Promise<TaggedFileInfo[]>;
   onLoadHeadings: (file: TFile) => Promise<FileHeadingInfo[]>;
-  onSaveCustomTagTabs: (tags: string[]) => Promise<void>;
+  onSaveCustomTagTabs?: (tags: string[]) => Promise<void>;
+  onSaveFileTemplateTabs: (tabs: FileTemplateTab[]) => Promise<void>;
   onSaveTabPreferences: (state: { tabOrder: string[]; hiddenTabs: string[] }) => Promise<void>;
   onSaveDefault?: () => Promise<void>;
   onChoose: (choice: ProjectSendChoice | null) => void;
 }
 
-class ProjectTagTabModal extends Modal {
+class ProjectTemplateTabModal extends Modal {
   private input!: HTMLInputElement;
+  private typeSelect!: HTMLSelectElement;
 
   constructor(
     app: App,
     private readonly language: Language,
-    private readonly onSubmit: (value: string) => Promise<void>,
+    private readonly onSubmit: (value: string, type: FileTemplateTabType) => Promise<void>,
     private readonly initialValue = "",
     private readonly titleKey = "projectSend.addTagTab",
     private readonly submitKey = "projectSend.addTagTab"
@@ -98,11 +113,15 @@ class ProjectTagTabModal extends Modal {
   }
 
   onOpen(): void {
-    registerMemosPlusModalOpen(this, "ProjectTagTabModal");
+    registerMemosPlusModalOpen(this, "ProjectTemplateTabModal");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("memos-plus-modal");
     contentEl.createEl("h2", { text: t(this.language, this.titleKey) });
+    this.typeSelect = createSelectField(contentEl, t(this.language, "projectSend.addTemplateTabType"), [
+      ["tag-filter", t(this.language, "settings.fileTemplateTabType.tag-filter")],
+      ["template-group", t(this.language, "settings.fileTemplateTabType.template-group")]
+    ]);
     this.input = contentEl.createEl("input", {
       cls: "memos-plus-project-name-input",
       attr: {
@@ -131,7 +150,7 @@ class ProjectTagTabModal extends Modal {
   }
 
   onClose(): void {
-    registerMemosPlusModalClose(this, "ProjectTagTabModal");
+    registerMemosPlusModalClose(this, "ProjectTemplateTabModal");
     this.contentEl.empty();
   }
 
@@ -143,7 +162,7 @@ class ProjectTagTabModal extends Modal {
     }
     button.disabled = true;
     try {
-      await this.onSubmit(value);
+      await this.onSubmit(value, this.typeSelect.value === "template-group" ? "template-group" : "tag-filter");
       this.close();
     } finally {
       if (button.isConnected) {
@@ -153,19 +172,23 @@ class ProjectTagTabModal extends Modal {
   }
 }
 
-function promptForProjectTagTab(
+function promptForProjectTemplateTab(
   app: App,
   language: Language,
-  onSubmit: (value: string) => Promise<void>,
+  onSubmit: (value: string, type: FileTemplateTabType) => Promise<void>,
   initialValue = "",
   titleKey = "projectSend.addTagTab",
   submitKey = "projectSend.addTagTab"
 ): Promise<void> {
   if (Platform.isMobile) {
-    const value = window.prompt(t(language, titleKey), initialValue)?.trim() ?? "";
-    return value ? onSubmit(value) : Promise.resolve();
+    const value = window.prompt(`${t(language, titleKey)}\n${t(language, "projectSend.addTagTabPrompt")}；${t(language, "settings.fileTemplateTabType.template-group")}可输入“分组:常用模板”`, initialValue)?.trim() ?? "";
+    if (!value) {
+      return Promise.resolve();
+    }
+    const groupMatch = value.match(/^(?:分组|group)\s*[:：]\s*(.+)$/i);
+    return groupMatch?.[1]?.trim() ? onSubmit(groupMatch[1].trim(), "template-group") : onSubmit(value, "tag-filter");
   }
-  new ProjectTagTabModal(app, language, onSubmit, initialValue, titleKey, submitKey).open();
+  new ProjectTemplateTabModal(app, language, onSubmit, initialValue, titleKey, submitKey).open();
   return Promise.resolve();
 }
 
@@ -185,15 +208,20 @@ class FileTemplateLibraryModal extends Modal {
       initialTitle: string;
       initialTag?: string;
       preferredPath?: string;
+      initialActiveTabId?: string;
+      fileTemplateTabs: FileTemplateTab[];
+      enableTemplateTabDrag: boolean;
       onLoad: () => Promise<FileTemplateLibraryItem[]>;
       onCreate: (template: FileTemplateLibraryItem, title: string) => Promise<void>;
       onToggleFavorite: (templatePath: string) => Promise<void>;
       onDelete: (templatePath: string) => Promise<void>;
+      onSaveTabs: (tabs: FileTemplateTab[]) => Promise<void>;
     }
   ) {
     super(app);
     this.selectedPath = options.preferredPath ?? "";
     this.query = options.initialTag ?? "";
+    this.activeCategory = options.initialActiveTabId ? getCustomTabId(options.initialActiveTabId) : "全部";
   }
 
   onOpen(): void {
@@ -298,24 +326,41 @@ class FileTemplateLibraryModal extends Modal {
         this.render();
       });
     }
+    for (const tab of this.options.fileTemplateTabs) {
+      const id = getCustomTabId(tab.id);
+      const button = tabs.createEl("button", {
+        cls: `memos-plus-file-template-tab${id === this.activeCategory ? " is-active" : ""}`,
+        attr: { type: "button", "aria-pressed": String(id === this.activeCategory) },
+        text: tab.name
+      });
+      button.addEventListener("click", () => {
+        this.activeCategory = id;
+        this.render();
+      });
+      if (this.options.enableTemplateTabDrag && !Platform.isMobile && tab.type === "template-group") {
+        button.addClass("is-drop-target");
+        button.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          button.addClass("is-drag-over");
+        });
+        button.addEventListener("dragleave", () => button.removeClass("is-drag-over"));
+        button.addEventListener("drop", (event) => void this.dropTemplateOnTab(event, tab.id, button));
+      }
+    }
     const add = tabs.createEl("button", {
       cls: "memos-plus-file-template-tab memos-plus-file-template-tab-add",
-      attr: { type: "button", title: t(lang, "fileTemplateLibrary.category.custom") }
+      attr: { type: "button", title: t(lang, "projectSend.addTagTab") }
     });
     setIcon(add, "plus");
     add.addEventListener("click", () => {
-      void withMobileClickLock(add, () => promptForProjectTagTab(
+      void withMobileClickLock(add, () => promptForProjectTemplateTab(
         this.app,
         lang,
-        async (value) => {
-          const category = value.trim();
-          if (category) {
-            this.activeCategory = category;
-            this.render();
-          }
+        async (value, type) => {
+          await this.addTemplateTab(value, type);
         },
         "",
-        "fileTemplateLibrary.category.custom",
+        "projectSend.addTagTab",
         "projectSend.addTagTab"
       ));
     });
@@ -327,9 +372,17 @@ class FileTemplateLibraryModal extends Modal {
     }
     const lang = this.options.language;
     this.listEl.empty();
-    const items = filterFileTemplateLibraryItems(this.items, { query: this.query, category: this.activeCategory }).slice(0, mobileModalResultLimit());
+    const activeTab = getCustomTabFromTabId(this.activeCategory, this.options.fileTemplateTabs);
+    const items = (
+      activeTab
+        ? filterFileTemplateLibraryItemsForTab(this.items, activeTab, this.query)
+        : filterFileTemplateLibraryItems(this.items, { query: this.query, category: this.activeCategory })
+    ).slice(0, mobileModalResultLimit());
     if (items.length === 0) {
-      this.listEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileTemplateLibrary.empty") });
+      this.listEl.createDiv({
+        cls: "memos-plus-project-empty",
+        text: activeTab?.type === "template-group" ? t(lang, "fileTemplateLibrary.emptyGroup") : t(lang, "fileTemplateLibrary.empty")
+      });
       return;
     }
     for (const item of items) {
@@ -339,6 +392,16 @@ class FileTemplateLibraryModal extends Modal {
       row.setAttr("role", "button");
       row.setAttr("tabindex", "0");
       row.setAttr("aria-pressed", String(item.path === this.selectedPath));
+      if (this.options.enableTemplateTabDrag && !Platform.isMobile) {
+        row.setAttr("draggable", "true");
+        row.addEventListener("dragstart", (event) => {
+          event.dataTransfer?.setData("application/x-memos-plus-template-path", item.path);
+          event.dataTransfer?.setData("text/plain", item.path);
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "copy";
+          }
+        });
+      }
       const info = row.createDiv({ cls: "memos-plus-file-template-item-info" });
       const title = info.createDiv({ cls: "memos-plus-file-template-item-title" });
       setIcon(title.createSpan({ cls: "memos-plus-file-template-icon" }), "file-plus");
@@ -384,6 +447,38 @@ class FileTemplateLibraryModal extends Modal {
         }
       });
     }
+  }
+
+  private async addTemplateTab(value: string, type: FileTemplateTabType): Promise<void> {
+    const tab = type === "template-group" ? createTemplateGroupFileTemplateTab(value) : createTagFilterFileTemplateTab(value);
+    if (!tab) {
+      return;
+    }
+    const tabs = normalizeFileTemplateTabs([...this.options.fileTemplateTabs, tab]);
+    await this.saveTemplateTabs(tabs);
+    this.activeCategory = getCustomTabId(tab.id);
+    this.render();
+  }
+
+  private async dropTemplateOnTab(event: DragEvent, tabId: string, button: HTMLButtonElement): Promise<void> {
+    event.preventDefault();
+    button.removeClass("is-drag-over");
+    const path = event.dataTransfer?.getData("application/x-memos-plus-template-path") || event.dataTransfer?.getData("text/plain") || "";
+    const before = this.options.fileTemplateTabs.find((tab) => tab.id === tabId)?.templatePaths.length ?? 0;
+    const tabs = addTemplatePathToFileTemplateTab(this.options.fileTemplateTabs, tabId, path);
+    const target = tabs.find((tab) => tab.id === tabId);
+    if (!target || target.templatePaths.length === before) {
+      return;
+    }
+    await this.saveTemplateTabs(tabs);
+    new Notice(t(this.options.language, "notice.fileTemplateTabAdded").replace("{name}", target.name));
+    this.activeCategory = getCustomTabId(tabId);
+    this.render();
+  }
+
+  private async saveTemplateTabs(tabs: FileTemplateTab[]): Promise<void> {
+    this.options.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
+    await this.options.onSaveTabs(this.options.fileTemplateTabs);
   }
 
   private async toggleFavorite(path: string): Promise<void> {
@@ -463,10 +558,10 @@ export class ProjectSendModal extends Modal {
   private tagQuery = "";
   private fileQuery = "";
   private tagOptions: string[] = [];
-  private customTagTabs: string[] = [];
+  private fileTemplateTabs: FileTemplateTab[] = [];
   private tabOrder: string[] = [];
   private hiddenTabs: string[] = [];
-  private activeCustomTag = "";
+  private activeFileTemplateTabId = "";
   private currentTemplateId = "";
   private tagsLoaded = false;
   private tagsLoading = false;
@@ -487,9 +582,12 @@ export class ProjectSendModal extends Modal {
     this.mode = options.initialMode ?? "project";
     this.currentTemplateId = options.initialTemplateId ?? options.templates[0]?.id ?? "";
     this.tagQuery = options.defaultFileTag;
-    this.customTagTabs = uniqueTags(options.customTagTabs);
-    this.tabOrder = normalizeTabOrder(options.tabOrder, this.customTagTabs);
-    this.hiddenTabs = normalizeHiddenTabs(options.hiddenTabs, this.customTagTabs);
+    this.fileTemplateTabs = normalizeFileTemplateTabs(options.fileTemplateTabs);
+    if (this.fileTemplateTabs.length === 0 && options.customTagTabs) {
+      this.fileTemplateTabs = legacyProjectSendTagsToFileTemplateTabs(options.customTagTabs);
+    }
+    this.tabOrder = normalizeTabOrder(options.tabOrder, this.fileTemplateTabs);
+    this.hiddenTabs = normalizeHiddenTabs(options.hiddenTabs, this.fileTemplateTabs);
     this.applyCurrentTemplateDefaults();
   }
 
@@ -618,8 +716,8 @@ export class ProjectSendModal extends Modal {
       void this.renderFixedFileTemplate(template);
       return;
     }
-    if (this.mode === "custom-tag" && this.activeCustomTag) {
-      void this.renderCustomTagFiles(this.activeCustomTag);
+    if (this.mode === "custom-tag" && this.activeFileTemplateTabId) {
+      void this.renderFileTemplateTab(this.activeFileTemplateTabId);
       return;
     }
     if (this.mode === "tag") {
@@ -687,14 +785,15 @@ export class ProjectSendModal extends Modal {
     }
     if (template.targetSource === "project-tag") {
       this.mode = "project";
-      this.activeCustomTag = "";
+      this.activeFileTemplateTabId = "";
       return;
     }
     if (template.targetSource === "specific-tag") {
       const tag = template.recognitionTag || template.defaultTags[0] || "";
       if (tag) {
+        const tab = this.findTagFilterTab(tag) ?? createTagFilterFileTemplateTab(tag);
         this.mode = "custom-tag";
-        this.activeCustomTag = tag;
+        this.activeFileTemplateTabId = tab?.id ?? tag;
         this.tagQuery = tag;
         return;
       }
@@ -703,14 +802,22 @@ export class ProjectSendModal extends Modal {
     }
     if (template.targetSource === "recent-file") {
       this.mode = "recent";
-      this.activeCustomTag = "";
+      this.activeFileTemplateTabId = "";
       return;
     }
     if (template.targetSource === "vault-search" || template.targetSource === "fixed-file" || template.targetSource === "new-file") {
       this.mode = "search";
-      this.activeCustomTag = "";
+      this.activeFileTemplateTabId = "";
       return;
     }
+  }
+
+  private findTagFilterTab(tagValue: string): FileTemplateTab | undefined {
+    const tag = normalizeFileTag(tagValue);
+    if (!tag) {
+      return undefined;
+    }
+    return this.fileTemplateTabs.find((tab) => tab.type === "tag-filter" && tab.tags.includes(tag));
   }
 
   private renderModeTabs(container: HTMLElement): void {
@@ -727,17 +834,17 @@ export class ProjectSendModal extends Modal {
         }
       });
       button.createSpan({ cls: "memos-plus-project-send-tab-label", text: this.tabLabel(id) });
-      const customTag = getCustomTagFromTabId(id);
-      if (customTag) {
+      const customTab = getCustomTabFromTabId(id, this.fileTemplateTabs);
+      if (customTab) {
         button.setAttr("title", t(lang, "projectSend.removeTagTabHint"));
         const close = button.createSpan({ cls: "memos-plus-project-send-tab-close", attr: { "aria-label": t(lang, "projectSend.removeTagTab") } });
         setIcon(close, "x");
       close.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        void withMobileClickLock(close, () => this.removeCustomTagTab(customTag));
+        void withMobileClickLock(close, () => this.removeFileTemplateTab(customTab.id));
       });
-      button.addEventListener("contextmenu", (event) => this.openCustomTagTabMenu(event, customTag));
+      button.addEventListener("contextmenu", (event) => this.openFileTemplateTabMenu(event, customTab));
     }
       button.addEventListener("click", () => void withMobileClickLock(button, () => this.openTab(id)));
       button.addEventListener("dragstart", (event) => this.startTabDrag(event, id, button));
@@ -756,28 +863,28 @@ export class ProjectSendModal extends Modal {
         attr: { type: "button", "aria-label": t(lang, "projectSend.addTagTab"), title: t(lang, "projectSend.addTagTab") }
       });
       setIcon(add, "plus");
-      add.addEventListener("click", () => void withMobileClickLock(add, () => this.addCustomTagTab()));
+      add.addEventListener("click", () => void withMobileClickLock(add, () => this.addFileTemplateTab()));
     }
   }
 
   private visibleTabIds(): string[] {
     const hidden = new Set(this.hiddenTabs);
-    const ids = normalizeTabOrder(this.tabOrder, this.customTagTabs).filter((id) => !hidden.has(id));
-    const available = ids.filter((id) => id === "project" || this.options.enableFileTargets || getCustomTagFromTabId(id));
+    const ids = normalizeTabOrder(this.tabOrder, this.fileTemplateTabs).filter((id) => !hidden.has(id));
+    const available = ids.filter((id) => id === "project" || this.options.enableFileTargets || getCustomTabFromTabId(id, this.fileTemplateTabs));
     return available.length > 0 ? available : ["project"];
   }
 
   private activeTabId(): string {
-    if (this.mode === "custom-tag" && this.activeCustomTag) {
-      return getCustomTabId(this.activeCustomTag);
+    if (this.mode === "custom-tag" && this.activeFileTemplateTabId) {
+      return getCustomTabId(this.activeFileTemplateTabId);
     }
     return this.mode;
   }
 
   private tabLabel(id: string): string {
-    const customTag = getCustomTagFromTabId(id);
-    if (customTag) {
-      return customTag;
+    const customTab = getCustomTabFromTabId(id, this.fileTemplateTabs);
+    if (customTab) {
+      return customTab.name;
     }
     if (isFixedSendMode(id)) {
       return t(this.options.language, `fileSend.mode.${id}`);
@@ -792,27 +899,27 @@ export class ProjectSendModal extends Modal {
       return;
     }
     const fallback = visible[0] ?? "project";
-    const customTag = getCustomTagFromTabId(fallback);
-    if (customTag) {
+    const customTab = getCustomTabFromTabId(fallback, this.fileTemplateTabs);
+    if (customTab) {
       this.mode = "custom-tag";
-      this.activeCustomTag = customTag;
+      this.activeFileTemplateTabId = customTab.id;
       return;
     }
     this.mode = isFixedSendMode(fallback) ? fallback : "project";
-    this.activeCustomTag = "";
+    this.activeFileTemplateTabId = "";
   }
 
   private async openTab(id: string): Promise<void> {
-    const customTag = getCustomTagFromTabId(id);
-    if (customTag) {
-      await this.openCustomTagTab(customTag);
+    const customTab = getCustomTabFromTabId(id, this.fileTemplateTabs);
+    if (customTab) {
+      await this.openFileTemplateTab(customTab.id);
       return;
     }
     if (!isFixedSendMode(id)) {
       return;
     }
     this.mode = id;
-    this.activeCustomTag = "";
+    this.activeFileTemplateTabId = "";
     if (id === "project") {
       this.renderProjectList();
     } else if (id === "tag") {
@@ -840,7 +947,7 @@ export class ProjectSendModal extends Modal {
     if (!sourceId || sourceId === targetId) {
       return;
     }
-    const order = normalizeTabOrder(this.tabOrder, this.customTagTabs);
+    const order = normalizeTabOrder(this.tabOrder, this.fileTemplateTabs);
     const from = order.indexOf(sourceId);
     const to = order.indexOf(targetId);
     if (from < 0 || to < 0) {
@@ -849,14 +956,14 @@ export class ProjectSendModal extends Modal {
     const next = [...order];
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);
-    this.tabOrder = normalizeTabOrder(next, this.customTagTabs);
+    this.tabOrder = normalizeTabOrder(next, this.fileTemplateTabs);
     await this.persistTabPreferences();
     this.renderCurrentMode();
   }
 
   private async persistTabPreferences(): Promise<void> {
-    this.tabOrder = normalizeTabOrder(this.tabOrder, this.customTagTabs);
-    this.hiddenTabs = normalizeHiddenTabs(this.hiddenTabs, this.customTagTabs);
+    this.tabOrder = normalizeTabOrder(this.tabOrder, this.fileTemplateTabs);
+    this.hiddenTabs = normalizeHiddenTabs(this.hiddenTabs, this.fileTemplateTabs);
     await this.options.onSaveTabPreferences({ tabOrder: [...this.tabOrder], hiddenTabs: [...this.hiddenTabs] });
   }
 
@@ -974,23 +1081,94 @@ export class ProjectSendModal extends Modal {
     this.renderFileList(files, `${t(lang, "fileSend.selectFile")} · #${tag}`, () => void this.renderTaggedFiles(tag), () => this.renderTagPicker(), tag);
   }
 
-  private async renderCustomTagFiles(tag: string): Promise<void> {
+  private async renderFileTemplateTab(tabId: string): Promise<void> {
+    const tab = this.fileTemplateTabs.find((item) => item.id === tabId);
+    if (!tab) {
+      this.mode = "tag";
+      this.activeFileTemplateTabId = "";
+      void this.ensureTagsLoaded();
+      this.renderTagPicker();
+      return;
+    }
+    if (tab.type === "template-group") {
+      await this.renderTemplateGroupTab(tab);
+      return;
+    }
+    await this.renderCustomTagFiles(tab);
+  }
+
+  private async renderCustomTagFiles(tab: FileTemplateTab): Promise<void> {
     const lang = this.options.language;
     this.mode = "custom-tag";
-    this.activeCustomTag = tag;
-    this.tagQuery = tag;
-    const title = `${t(lang, "fileSend.selectFile")} · #${tag}`;
+    this.activeFileTemplateTabId = tab.id;
+    this.tagQuery = tab.tags[0] ?? tab.name;
+    const title = `${t(lang, "fileSend.selectFile")} · ${tab.tags.map((tag) => `#${tag}`).join(" / ")}`;
     this.renderShell().createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
     let files: TaggedFileInfo[] = [];
     try {
-      files = await this.loadTaggedFilesCached(tag);
+      files = await this.loadTaggedFileTabResults(tab);
     } catch (error) {
       console.error("[Memos Plus] Failed to load custom tag files", error);
     }
-    if (this.mode !== "custom-tag" || this.activeCustomTag !== tag) {
+    if (this.mode !== "custom-tag" || this.activeFileTemplateTabId !== tab.id) {
       return;
     }
-    this.renderFileList(files, title, () => void this.renderCustomTagFiles(tag), undefined, tag);
+    this.renderFileList(files, title, () => void this.renderFileTemplateTab(tab.id), undefined, tab.tags[0] ?? "");
+  }
+
+  private async renderTemplateGroupTab(tab: FileTemplateTab): Promise<void> {
+    const lang = this.options.language;
+    this.mode = "custom-tag";
+    this.activeFileTemplateTabId = tab.id;
+    const contentEl = this.renderShell();
+    contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
+    let templates: FileTemplateLibraryItem[] = [];
+    try {
+      templates = await this.options.onLoadFileTemplates();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load template group tab", error);
+    }
+    if (this.mode !== "custom-tag" || this.activeFileTemplateTabId !== tab.id || this.closed) {
+      return;
+    }
+    const list = this.renderShell().createDiv({ cls: "memos-plus-file-template-list memos-plus-template-group-tab-list" });
+    const items = filterFileTemplateLibraryItemsForTab(templates, tab).slice(0, mobileModalResultLimit());
+    if (items.length === 0) {
+      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileTemplateLibrary.emptyGroup") });
+    }
+    for (const item of items) {
+      const row = this.renderTemplateGroupOption(list, item);
+      row.addEventListener("click", () => void withMobileClickLock(row, () => this.openFileTemplateLibraryModal("file", "", tab.id, item.path)));
+    }
+    const footer = this.contentEl.createDiv({ cls: "memos-plus-project-footer" });
+    if (this.options.onSaveDefault) {
+      this.renderDirectSendButton(footer);
+    }
+  }
+
+  private async loadTaggedFileTabResults(tab: FileTemplateTab): Promise<TaggedFileInfo[]> {
+    const byPath = new Map<string, TaggedFileInfo>();
+    for (const tag of tab.tags) {
+      for (const file of await this.loadTaggedFilesCached(tag)) {
+        byPath.set(file.path, file);
+      }
+    }
+    return [...byPath.values()].sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
+  }
+
+  private renderTemplateGroupOption(container: HTMLElement, item: FileTemplateLibraryItem): HTMLElement {
+    const row = container.createDiv({ cls: "memos-plus-file-template-item" });
+    row.setAttr("role", "button");
+    row.setAttr("tabindex", "0");
+    const info = row.createDiv({ cls: "memos-plus-file-template-item-info" });
+    const title = info.createDiv({ cls: "memos-plus-file-template-item-title" });
+    setIcon(title.createSpan({ cls: "memos-plus-file-template-icon" }), "file-plus");
+    title.createSpan({ cls: "memos-plus-file-template-item-name", text: item.name });
+    info.createDiv({
+      cls: "memos-plus-file-template-item-meta",
+      text: [item.category, item.tags.map((tag) => `#${tag}`).join(" "), formatUpdatedAt(item.updatedAt, this.options.language)].filter(Boolean).join(" · ")
+    });
+    return row;
   }
 
   private renderRecentFiles(): void {
@@ -1393,16 +1571,22 @@ export class ProjectSendModal extends Modal {
     labelEl?.setText(label);
   }
 
-  private openFileTemplateLibraryModal(target: "project" | "file", tag = ""): void {
+  private openFileTemplateLibraryModal(target: "project" | "file", tag = "", activeTabId = "", preferredPathOverride = ""): void {
     const deliveryTemplate = this.currentTemplate();
     new FileTemplateLibraryModal(this.app, {
       language: this.options.language,
       initialTitle: this.templateCreateTitle(target, tag),
       initialTag: tag,
-      preferredPath: this.options.getPreferredFileTemplatePath?.(tag) || this.options.preferredFileTemplatePath,
+      preferredPath: preferredPathOverride || this.options.getPreferredFileTemplatePath?.(tag) || this.options.preferredFileTemplatePath,
+      initialActiveTabId: activeTabId,
+      fileTemplateTabs: this.fileTemplateTabs,
+      enableTemplateTabDrag: this.options.enableTemplateTabDrag,
       onLoad: this.options.onLoadFileTemplates,
       onToggleFavorite: this.options.onToggleFileTemplateFavorite,
       onDelete: this.options.onDeleteFileTemplate,
+      onSaveTabs: async (tabs) => {
+        await this.saveFileTemplateTabs(tabs);
+      },
       onCreate: async (template, title) => {
         const file = await this.options.onCreateFromFileTemplate(template.path, title, tag);
         if (!file) {
@@ -1559,87 +1743,90 @@ export class ProjectSendModal extends Modal {
     }
   }
 
-  private async openCustomTagTab(tag: string): Promise<void> {
+  private async openFileTemplateTab(tabId: string): Promise<void> {
     this.mode = "custom-tag";
-    this.activeCustomTag = tag;
-    await this.renderCustomTagFiles(tag);
+    this.activeFileTemplateTabId = tabId;
+    await this.renderFileTemplateTab(tabId);
   }
 
-  private addCustomTagTab(): Promise<void> {
-    return promptForProjectTagTab(this.app, this.options.language, async (value) => {
-      const tag = normalizeFileTag(value);
-      if (!tag) {
+  private addFileTemplateTab(): Promise<void> {
+    return promptForProjectTemplateTab(this.app, this.options.language, async (value, type) => {
+      const tab = type === "template-group" ? createTemplateGroupFileTemplateTab(value) : createTagFilterFileTemplateTab(value);
+      if (!tab) {
         return;
       }
-      if (!this.customTagTabs.includes(tag)) {
-        this.customTagTabs = uniqueTags([...this.customTagTabs, tag]);
-        this.tabOrder = normalizeTabOrder([...this.tabOrder, getCustomTabId(tag)], this.customTagTabs);
-        await this.options.onSaveCustomTagTabs([...this.customTagTabs]);
+      if (!this.fileTemplateTabs.some((item) => item.id === tab.id)) {
+        this.fileTemplateTabs = normalizeFileTemplateTabs([...this.fileTemplateTabs, tab]);
+        this.tabOrder = normalizeTabOrder([...this.tabOrder, getCustomTabId(tab.id)], this.fileTemplateTabs);
+        await this.saveFileTemplateTabs(this.fileTemplateTabs);
         await this.persistTabPreferences();
       }
-      await this.openCustomTagTab(tag);
+      await this.openFileTemplateTab(tab.id);
     });
   }
 
-  private openCustomTagTabMenu(event: MouseEvent, tag: string): void {
+  private openFileTemplateTabMenu(event: MouseEvent, tab: FileTemplateTab): void {
     event.preventDefault();
     const menu = new Menu();
     menu.addItem((item) => {
       item.setTitle(t(this.options.language, "projectSend.renameTagTab"))
         .setIcon("pencil")
-        .onClick(() => void this.renameCustomTagTab(tag));
+        .onClick(() => void this.renameFileTemplateTab(tab));
     });
     menu.addItem((item) => {
       item.setTitle(t(this.options.language, "projectSend.removeTagTab"))
         .setIcon("x")
-        .onClick(() => void this.removeCustomTagTab(tag));
+        .onClick(() => void this.removeFileTemplateTab(tab.id));
     });
     menu.showAtMouseEvent(event);
   }
 
-  private renameCustomTagTab(tag: string): Promise<void> {
-    return promptForProjectTagTab(
+  private renameFileTemplateTab(tab: FileTemplateTab): Promise<void> {
+    return promptForProjectTemplateTab(
       this.app,
       this.options.language,
       async (value) => {
-        const nextTag = normalizeFileTag(value);
-        if (!nextTag || nextTag === tag) {
+        const name = value.trim();
+        if (!name || name === tab.name) {
           return;
         }
-        const oldId = getCustomTabId(tag);
-        const nextId = getCustomTabId(nextTag);
-        this.customTagTabs = uniqueTags(this.customTagTabs.map((item) => (item === tag ? nextTag : item)));
-        this.tabOrder = normalizeTabOrder(this.tabOrder.map((id) => (id === oldId ? nextId : id)), this.customTagTabs);
-        this.hiddenTabs = normalizeHiddenTabs(this.hiddenTabs.map((id) => (id === oldId ? nextId : id)), this.customTagTabs);
-        await this.options.onSaveCustomTagTabs([...this.customTagTabs]);
-        await this.persistTabPreferences();
-        if (this.mode === "custom-tag" && this.activeCustomTag === tag) {
-          await this.openCustomTagTab(nextTag);
+        this.fileTemplateTabs = normalizeFileTemplateTabs(this.fileTemplateTabs.map((item) => (item.id === tab.id ? { ...item, name } : item)));
+        await this.saveFileTemplateTabs(this.fileTemplateTabs);
+        if (this.mode === "custom-tag" && this.activeFileTemplateTabId === tab.id) {
+          await this.openFileTemplateTab(tab.id);
           return;
         }
         this.renderCurrentMode();
       },
-      tag,
+      tab.name,
       "projectSend.renameTagTab",
       "projectSend.renameTagTab"
     );
   }
 
-  private async removeCustomTagTab(tag: string): Promise<void> {
-    const id = getCustomTabId(tag);
-    this.customTagTabs = this.customTagTabs.filter((item) => item !== tag);
-    this.tabOrder = normalizeTabOrder(this.tabOrder.filter((item) => item !== id), this.customTagTabs);
-    this.hiddenTabs = normalizeHiddenTabs(this.hiddenTabs.filter((item) => item !== id), this.customTagTabs);
-    await this.options.onSaveCustomTagTabs([...this.customTagTabs]);
+  private async removeFileTemplateTab(tabId: string): Promise<void> {
+    const id = getCustomTabId(tabId);
+    this.fileTemplateTabs = this.fileTemplateTabs.filter((item) => item.id !== tabId);
+    this.tabOrder = normalizeTabOrder(this.tabOrder.filter((item) => item !== id), this.fileTemplateTabs);
+    this.hiddenTabs = normalizeHiddenTabs(this.hiddenTabs.filter((item) => item !== id), this.fileTemplateTabs);
+    await this.saveFileTemplateTabs(this.fileTemplateTabs);
     await this.persistTabPreferences();
-    if (this.mode === "custom-tag" && this.activeCustomTag === tag) {
+    if (this.mode === "custom-tag" && this.activeFileTemplateTabId === tabId) {
       this.mode = "tag";
-      this.activeCustomTag = "";
+      this.activeFileTemplateTabId = "";
       void this.ensureTagsLoaded();
       this.renderTagPicker();
       return;
     }
     this.renderCurrentMode();
+  }
+
+  private async saveFileTemplateTabs(tabs: FileTemplateTab[]): Promise<void> {
+    this.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
+    this.tabOrder = normalizeTabOrder(this.tabOrder, this.fileTemplateTabs);
+    this.hiddenTabs = normalizeHiddenTabs(this.hiddenTabs, this.fileTemplateTabs);
+    await this.options.onSaveFileTemplateTabs([...this.fileTemplateTabs]);
+    await this.options.onSaveCustomTagTabs?.(projectSendTagTabsFromFileTemplateTabs(this.fileTemplateTabs));
   }
 }
 
@@ -1655,8 +1842,8 @@ function uniqueTags(tags: string[]): string[] {
   });
 }
 
-function normalizeTabOrder(value: string[], customTags: string[]): string[] {
-  const validIds = getTabIds(customTags);
+function normalizeTabOrder(value: string[], customTabs: FileTemplateTab[]): string[] {
+  const validIds = getTabIds(customTabs);
   const seen = new Set<string>();
   const order = value.flatMap((item) => {
     const id = item.trim();
@@ -1674,8 +1861,8 @@ function normalizeTabOrder(value: string[], customTags: string[]): string[] {
   return order;
 }
 
-function normalizeHiddenTabs(value: string[], customTags: string[]): string[] {
-  const validIds = getTabIds(customTags);
+function normalizeHiddenTabs(value: string[], customTabs: FileTemplateTab[]): string[] {
+  const validIds = getTabIds(customTabs);
   const seen = new Set<string>();
   return value.flatMap((item) => {
     const id = item.trim();
@@ -1687,20 +1874,24 @@ function normalizeHiddenTabs(value: string[], customTags: string[]): string[] {
   });
 }
 
-function getTabIds(customTags: string[]): string[] {
-  return [...FIXED_SEND_TABS, ...customTags.map(getCustomTabId)];
+function getTabIds(customTabs: FileTemplateTab[]): string[] {
+  return [...FIXED_SEND_TABS, ...customTabs.map((tab) => getCustomTabId(tab.id))];
 }
 
-function getCustomTabId(tag: string): string {
-  return `${CUSTOM_TAB_PREFIX}${tag}`;
+function getCustomTabId(tabId: string): string {
+  return `${CUSTOM_TAB_PREFIX}${tabId}`;
 }
 
-function getCustomTagFromTabId(id: string): string | null {
+function getCustomTabFromTabId(id: string, tabs: FileTemplateTab[]): FileTemplateTab | null {
   if (!id.startsWith(CUSTOM_TAB_PREFIX)) {
     return null;
   }
-  const tag = normalizeFileTag(id.slice(CUSTOM_TAB_PREFIX.length));
-  return tag || null;
+  const tabId = id.slice(CUSTOM_TAB_PREFIX.length).trim();
+  return tabs.find((tab) => tab.id === tabId) ?? null;
+}
+
+function projectSendTagTabsFromFileTemplateTabs(tabs: FileTemplateTab[]): string[] {
+  return uniqueTags(tabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : [])));
 }
 
 function projectInfoToTaggedFileInfo(project: ProjectInfo): TaggedFileInfo {
