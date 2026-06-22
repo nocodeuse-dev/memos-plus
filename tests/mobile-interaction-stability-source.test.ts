@@ -60,6 +60,17 @@ describe("mobile interaction stability source", () => {
   });
 
   it("records diagnostic evidence that distinguishes plugin reloads from view recreation and WebView restarts", () => {
+    expect(diagnosticsSource).toContain("MAX_DIAGNOSTIC_ENTRIES = 200");
+    expect(diagnosticsSource).toContain("memos-plus-diagnostic-log-v1");
+    expect(diagnosticsSource).toContain("getMemosPlusDiagnosticEntries");
+    expect(diagnosticsSource).toContain("exportMemosPlusDiagnosticLog");
+    expect(diagnosticsSource).toContain("setMemosPlusDiagnosticState");
+    expect(diagnosticsSource).toContain("currentPage");
+    expect(diagnosticsSource).toContain("currentModal");
+    expect(diagnosticsSource).toContain("inputFocused");
+    expect(diagnosticsSource).toContain("inputContentLength");
+    expect(diagnosticsSource).toContain("isRendering");
+    expect(diagnosticsSource).toContain("isSaving");
     expect(diagnosticsSource).toContain("createMemosPlusSessionId");
     expect(diagnosticsSource).toContain("memos-plus:onload");
     expect(diagnosticsSource).toContain("memos-plus:onunload");
@@ -71,16 +82,37 @@ describe("mobile interaction stability source", () => {
     expect(diagnosticsSource).toContain("settings:save");
     expect(diagnosticsSource).toContain("settings:persist");
     expect(diagnosticsSource).toContain("view:render");
+    expect(diagnosticsSource).toContain("view:render-start");
+    expect(diagnosticsSource).toContain("view:render-end");
+    expect(diagnosticsSource).toContain("main:render-start");
+    expect(diagnosticsSource).toContain("main:render-end");
+    expect(diagnosticsSource).toContain("sidebar:render-start");
+    expect(diagnosticsSource).toContain("sidebar:render-end");
     expect(diagnosticsSource).toContain("view:refresh");
     expect(diagnosticsSource).toContain("workspace:layout-change");
     expect(diagnosticsSource).toContain("visualViewport:resize");
+    expect(diagnosticsSource).toContain("window:resize");
+    expect(diagnosticsSource).toContain("data:load");
+    expect(diagnosticsSource).toContain("data:save");
+    expect(diagnosticsSource).toContain("modal:option-click");
     expect(diagnosticsSource).toContain("input:focus");
     expect(diagnosticsSource).toContain("input:blur");
     expect(diagnosticsSource).toContain("window:error");
     expect(diagnosticsSource).toContain("window:unhandledrejection");
     expect(mainSource).toContain("registerMemosPlusDiagnostics");
+    expect(mainSource).toContain("exportMemosPlusDiagnosticLog");
+    expect(mainSource).toContain('id: "export-diagnostic-log"');
+    expect(mainSource).toContain("logMemosPlusDiagnostic(\"data:load\"");
+    expect(mainSource).toContain("logMemosPlusDiagnostic(\"data:save\"");
     expect(mainSource).toContain("logMemosPlusDiagnostic(\"memos-plus:onload\"");
     expect(mainSource).toContain("logMemosPlusDiagnostic(\"memos-plus:onunload\"");
+    expect(viewSource).toContain("setMemosPlusDiagnosticState({ isRendering: true");
+    expect(viewSource).toContain("setMemosPlusDiagnosticState({ isRendering: false");
+    expect(viewSource).toContain("logMemosPlusDiagnostic(\"main:render-start\"");
+    expect(viewSource).toContain("logMemosPlusDiagnostic(\"main:render-end\"");
+    expect(viewSource).toContain("logMemosPlusDiagnostic(\"sidebar:render-start\"");
+    expect(viewSource).toContain("logMemosPlusDiagnostic(\"sidebar:render-end\"");
+    expect(modalSafetySource).toContain("logMemosPlusDiagnostic(\"modal:option-click\"");
   });
 
   it("wraps every Memos Plus modal in mobile lifecycle diagnostics and a duplicate-click guard", () => {

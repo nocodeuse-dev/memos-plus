@@ -15,8 +15,10 @@ import { viewLayoutsNeedData, type ViewLayoutsSettings } from "./src/displayModu
 import {
   configureMemosPlusDiagnostics,
   createMemosPlusSessionId,
+  exportMemosPlusDiagnosticLog,
   logMemosPlusDiagnostic,
-  registerMemosPlusDiagnostics
+  registerMemosPlusDiagnostics,
+  setMemosPlusDiagnosticState
 } from "./src/diagnostics";
 
 export default class MemosPlusPlugin extends Plugin {
@@ -34,7 +36,22 @@ export default class MemosPlusPlugin extends Plugin {
       version: this.manifest.version
     });
     logMemosPlusDiagnostic("memos-plus:onload", { phase: "start" });
-    this.settings = normalizeSettings(await this.loadData());
+    logMemosPlusDiagnostic("data:load", { phase: "start" });
+    let savedSettings: unknown;
+    try {
+      savedSettings = await this.loadData();
+      logMemosPlusDiagnostic("data:load", {
+        phase: "end",
+        hasData: Boolean(savedSettings)
+      });
+    } catch (error) {
+      logMemosPlusDiagnostic("data:load", {
+        phase: "error",
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+      });
+      throw error;
+    }
+    this.settings = normalizeSettings(savedSettings);
     configureMemosPlusDiagnostics({
       enabled: Platform.isMobile || this.settings.performanceDebugMode,
       sessionId: this.diagnosticSessionId,
@@ -110,6 +127,15 @@ export default class MemosPlusPlugin extends Plugin {
         if (leaf?.view instanceof MemosPlusView) {
           leaf.view.focusComposer();
         }
+      }
+    });
+
+    this.addCommand({
+      id: "export-diagnostic-log",
+      name: t(this.settings.language, "command.exportDiagnosticLog"),
+      callback: async () => {
+        const path = await exportMemosPlusDiagnosticLog(this.app);
+        new Notice(t(this.settings.language, "notice.diagnosticLogExported") + path);
       }
     });
 
@@ -224,7 +250,7 @@ export default class MemosPlusPlugin extends Plugin {
     logMemosPlusDiagnostic("settings:save", {
       refreshViews: true
     });
-    await this.saveData(this.settings);
+    await this.savePluginData("saveSettings");
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
     this.maybeScheduleTaskIndexBuild(0);
     await this.refreshViews();
@@ -234,8 +260,26 @@ export default class MemosPlusPlugin extends Plugin {
     logMemosPlusDiagnostic("settings:persist", {
       refreshViews: false
     });
-    await this.saveData(this.settings);
+    await this.savePluginData("persistSettings");
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
+  }
+
+  private async savePluginData(source: string): Promise<void> {
+    setMemosPlusDiagnosticState({ isSaving: true });
+    logMemosPlusDiagnostic("data:save", { phase: "start", source });
+    try {
+      await this.saveData(this.settings);
+      logMemosPlusDiagnostic("data:save", { phase: "end", source });
+    } catch (error) {
+      logMemosPlusDiagnostic("data:save", {
+        phase: "error",
+        source,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+      });
+      throw error;
+    } finally {
+      setMemosPlusDiagnosticState({ isSaving: false });
+    }
   }
 
   async refreshViews(): Promise<void> {

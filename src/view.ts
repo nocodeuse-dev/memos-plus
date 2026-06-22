@@ -40,7 +40,7 @@ import { filterTaskIndexItems, getTaskIndexOrganizerCounts, type TaskIndexItem, 
 import { resolveTemplateAfterTransferAction } from "./templateManager";
 import { VaultSavedSearchIndex, type VaultSearchResult } from "./vaultSearch";
 import { hasSidebarDirectoryModules, resolveViewLayoutDataNeeds, resolveViewLayoutModules, type DisplayModuleDataNeed, type DisplayModuleId } from "./displayModules";
-import { logMemosPlusDiagnostic } from "./diagnostics";
+import { logMemosPlusDiagnostic, setMemosPlusDiagnosticState } from "./diagnostics";
 
 export const MEMOS_PLUS_VIEW_TYPE = "memos-plus-view";
 
@@ -139,31 +139,39 @@ export class MemosPlusView extends ItemView {
 
   async render(): Promise<void> {
     logMemosPlusDiagnostic("view:render", { type: MEMOS_PLUS_VIEW_TYPE });
-    await this.profiler().measure("render view time", async () => {
-      this.cancelScheduledTimelineRender();
-      this.clearMemoSearchCaches();
-      const container = this.containerEl.children[1];
-      this.composerSession?.destroy();
-      this.composerSession = null;
-      this.timelineEl = null;
-      container.empty();
-      container.addClass("memos-plus-view");
+    logMemosPlusDiagnostic("view:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
+    setMemosPlusDiagnosticState({ isRendering: true });
+    try {
+      await this.profiler().measure("render view time", async () => {
+        this.cancelScheduledTimelineRender();
+        this.clearMemoSearchCaches();
+        const container = this.containerEl.children[1];
+        this.composerSession?.destroy();
+        this.composerSession = null;
+        this.timelineEl = null;
+        container.empty();
+        container.addClass("memos-plus-view");
 
-      const shell = container.createDiv({ cls: this.shouldRenderMobileLightHome() ? "memos-plus-mobile-light-shell" : "memos-plus-shell" });
-      if (this.shouldRenderMobileLightHome()) {
-        await this.renderMobileLightHome(shell);
-        return;
-      }
-      const homeModules = this.homeLayoutModules();
-      if (this.shouldRenderDisplaySidebar(homeModules)) {
-        this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(homeModules));
-      }
-      await this.renderMain(shell, homeModules);
-      this.renderMobileFab(shell);
-    });
+        const shell = container.createDiv({ cls: this.shouldRenderMobileLightHome() ? "memos-plus-mobile-light-shell" : "memos-plus-shell" });
+        if (this.shouldRenderMobileLightHome()) {
+          await this.renderMobileLightHome(shell);
+          return;
+        }
+        const homeModules = this.homeLayoutModules();
+        if (this.shouldRenderDisplaySidebar(homeModules)) {
+          this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(homeModules));
+        }
+        await this.renderMain(shell, homeModules);
+        this.renderMobileFab(shell);
+      });
+    } finally {
+      logMemosPlusDiagnostic("view:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
+      setMemosPlusDiagnosticState({ isRendering: false });
+    }
   }
 
   private renderSidebar(shell: Element, options: SidebarRenderOptions = {}): void {
+    logMemosPlusDiagnostic("sidebar:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
     const renderOptions = {
       showAllNotes: options.showAllNotes ?? true,
       showStats: options.showStats ?? true,
@@ -210,33 +218,39 @@ export class MemosPlusView extends ItemView {
     if (renderOptions.showCustomDirectory) {
       this.renderCustomDirectory(sidebar);
     }
+    logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
   }
 
   private async renderMain(shell: Element, modules: Set<DisplayModuleId> = this.homeLayoutModules()): Promise<void> {
-    const lang = this.plugin.settings.language;
-    const main = shell.createDiv({ cls: "memos-plus-main" });
-    const header = main.createDiv({ cls: "memos-plus-main-header" });
-    const titleWrap = header.createDiv();
-    titleWrap.createDiv({ cls: "memos-plus-title", text: t(lang, "app.name") });
-    titleWrap.createDiv({ cls: "memos-plus-subtitle", text: this.plugin.settings.memoFolderPath });
+    logMemosPlusDiagnostic("main:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
+    try {
+      const lang = this.plugin.settings.language;
+      const main = shell.createDiv({ cls: "memos-plus-main" });
+      const header = main.createDiv({ cls: "memos-plus-main-header" });
+      const titleWrap = header.createDiv();
+      titleWrap.createDiv({ cls: "memos-plus-title", text: t(lang, "app.name") });
+      titleWrap.createDiv({ cls: "memos-plus-subtitle", text: this.plugin.settings.memoFolderPath });
 
-    const toolbar = this.renderHomeToolbar(header, modules);
-    if (toolbar) {
-      if (
-        Platform.isMobile &&
-        this.plugin.settings.mobilePerformanceMode &&
-        this.plugin.settings.mobileLightHomeEnabled &&
-        this.mobileLayoutMode() !== "full" &&
-        this.mobileLightFullWorkbench
-      ) {
-        this.renderMobileLightCompactButton(toolbar);
+      const toolbar = this.renderHomeToolbar(header, modules);
+      if (toolbar) {
+        if (
+          Platform.isMobile &&
+          this.plugin.settings.mobilePerformanceMode &&
+          this.plugin.settings.mobileLightHomeEnabled &&
+          this.mobileLayoutMode() !== "full" &&
+          this.mobileLightFullWorkbench
+        ) {
+          this.renderMobileLightCompactButton(toolbar);
+        }
       }
-    }
 
-    if (modules.has("quickInput")) {
-      this.renderComposer(main);
+      if (modules.has("quickInput")) {
+        this.renderComposer(main);
+      }
+      await this.renderHomeResults(main, modules);
+    } finally {
+      logMemosPlusDiagnostic("main:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
     }
-    await this.renderHomeResults(main, modules);
   }
 
   private homeLayoutModules(): Set<DisplayModuleId> {

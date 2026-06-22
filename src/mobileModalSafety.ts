@@ -1,7 +1,8 @@
 import { Platform, type Modal } from "obsidian";
-import { logMemosPlusDiagnostic } from "./diagnostics";
+import { logMemosPlusDiagnostic, setMemosPlusDiagnosticState } from "./diagnostics";
 
 const activeMobileModals = new Set<Modal>();
+const activeMobileModalNames = new Map<Modal, string>();
 
 export function isMobileModalSafeMode(): boolean {
   return Platform.isMobile;
@@ -13,6 +14,8 @@ export function mobileModalResultLimit(isMobile = Platform.isMobile): number {
 
 export function registerMemosPlusModalOpen(modal: Modal, name: string): void {
   activeMobileModals.add(modal);
+  activeMobileModalNames.set(modal, name);
+  setMemosPlusDiagnosticState({ currentModal: name });
   logMemosPlusDiagnostic("modal:onOpen", {
     name,
     activeModalCount: activeMobileModals.size
@@ -27,6 +30,9 @@ export function registerMemosPlusModalOpen(modal: Modal, name: string): void {
 
 export function registerMemosPlusModalClose(modal: Modal, name: string): void {
   activeMobileModals.delete(modal);
+  activeMobileModalNames.delete(modal);
+  const remainingNames = Array.from(activeMobileModalNames.values());
+  setMemosPlusDiagnosticState({ currentModal: remainingNames[remainingNames.length - 1] ?? "" });
   logMemosPlusDiagnostic("modal:onClose", {
     name,
     activeModalCount: activeMobileModals.size
@@ -35,6 +41,11 @@ export function registerMemosPlusModalClose(modal: Modal, name: string): void {
 
 export async function withMobileClickLock(target: HTMLElement | null | undefined, action: () => void | Promise<void>): Promise<void> {
   const shouldLock = Platform.isMobile && Boolean(target);
+  logMemosPlusDiagnostic("modal:option-click", {
+    target: target ? target.tagName.toLowerCase() : "",
+    text: target?.textContent?.trim().slice(0, 40) ?? "",
+    locked: target?.dataset.memosPlusClickLocked === "true"
+  });
   if (shouldLock && target?.dataset.memosPlusClickLocked === "true") {
     logMemosPlusDiagnostic("modal:duplicate-click-blocked", {
       target: target.tagName.toLowerCase()

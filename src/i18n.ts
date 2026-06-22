@@ -4,6 +4,7 @@ export const DEFAULT_LANGUAGE: Language = "zh";
 
 const zh = {
   "app.name": "Memos Plus",
+  "command.exportDiagnosticLog": "导出 Memos Plus 调试日志",
   "command.focusComposer": "聚焦输入框",
   "command.linkCaptureDefault": "收集剪贴板链接到 Memos",
   "command.open": "打开 Memos Plus",
@@ -51,6 +52,7 @@ const zh = {
   "notice.excalidrawFailed": "Excalidraw 创建失败",
   "notice.imageFailed": "图片保存失败",
   "notice.imageSaved": "图片已保存",
+  "notice.diagnosticLogExported": "Memos Plus 调试日志已写入：",
   "notice.noMemo": "没有可回顾的笔记",
   "notice.noProjectFiles": "没有找到带有项目标签的文件",
   "notice.projectHeadingMissing": "没有找到标题：",
@@ -896,6 +898,7 @@ const zh = {
 
 const en: Record<keyof typeof zh, string> = {
   "app.name": "Memos Plus",
+  "command.exportDiagnosticLog": "Export Memos Plus debug log",
   "command.focusComposer": "Focus composer",
   "command.linkCaptureDefault": "Capture clipboard link to Memos",
   "command.open": "Open Memos Plus",
@@ -943,6 +946,7 @@ const en: Record<keyof typeof zh, string> = {
   "notice.excalidrawFailed": "Could not create Excalidraw",
   "notice.imageFailed": "Could not save image",
   "notice.imageSaved": "Image saved",
+  "notice.diagnosticLogExported": "Memos Plus debug log written to: ",
   "notice.noMemo": "No memo available",
   "notice.noProjectFiles": "No files with the project tag were found",
   "notice.projectHeadingMissing": "Heading not found: ",
