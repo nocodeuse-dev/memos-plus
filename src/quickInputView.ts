@@ -123,6 +123,7 @@ export class MemosPlusQuickInputView extends ItemView {
         resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text)
       },
       {
+        surface: "sidebar",
         defaultSendAction: () => sendActionForQuickInput(this.plugin.settings),
         initialContent: this.plugin.settings.quickInputPreserveDraft ? this.plugin.settings.quickInputDraft : undefined,
         initialContentMode: "auto",

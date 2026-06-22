@@ -71,4 +71,30 @@ describe("task options prompt helpers", () => {
       )
     ).toBe("- [ ] 详情");
   });
+
+  it("renders the same normalized task line for every composer task entry", () => {
+    const task = {
+      isTask: true,
+      priority: "highest",
+      startDate: "2026-06-22",
+      addCreatedDate: true,
+      createdDate: "2026-06-22",
+      contentMode: "task-only"
+    } as const;
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      tasksFormatEnabled: true,
+      taskAddProjectTag: false,
+      taskDefaultScheduledDate: "",
+      taskDefaultDueDate: "",
+      taskDefaultRecurrence: "none" as const,
+      taskAddCreatedDate: false
+    };
+
+    const outputs = ["home", "project-send", "quick-capture"].map(() => renderTaskContentWithOptions("- * [ ] 测试任务", task, settings));
+
+    expect(new Set(outputs).size).toBe(1);
+    expect(outputs[0]).toBe("- [ ] 测试任务 🔺 🛫 2026-06-22 ➕ 2026-06-22");
+    expect(outputs[0]).not.toMatch(/- - \[ \]|- \* \[ \]|\[ \] - \[ \]/);
+  });
 });

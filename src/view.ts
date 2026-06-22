@@ -1,6 +1,7 @@
 import { ItemView, MarkdownRenderer, Menu, Notice, Platform, TFile, WorkspaceLeaf, getAllTags as getAllCacheTags, setIcon } from "obsidian";
 import type MemosPlusPlugin from "../main";
 import { createComposerSession, type ComposerSession } from "./composerSession";
+import type { ComposerSurface } from "./composerWidget";
 import { filterMemos, getAllTags, todayString } from "./filter";
 import type { MemoViewMode } from "./filter";
 import { IconPickerModal } from "./iconPicker";
@@ -245,7 +246,7 @@ export class MemosPlusView extends ItemView {
       }
 
       if (modules.has("quickInput")) {
-        this.renderComposer(main);
+        this.renderComposer(main, Platform.isMobile ? "mobileHome" : "home");
       }
       await this.renderHomeResults(main, modules);
     } finally {
@@ -300,7 +301,7 @@ export class MemosPlusView extends ItemView {
     }
 
     if (modules.has("quickInput")) {
-      this.renderComposer(home);
+      this.renderComposer(home, "mobileHome");
     }
     if (modules.has("quickInput") && modules.has("sendButton") && this.plugin.settings.mobileLightHomeShowLaterButton) {
       const actions = home.createDiv({ cls: "memos-plus-mobile-light-actions" });
@@ -462,7 +463,7 @@ export class MemosPlusView extends ItemView {
     await this.renderTimeline(this.timelineEl);
   }
 
-  private renderComposer(main: Element): void {
+  private renderComposer(main: Element, surface: ComposerSurface = "home"): void {
     this.composerSession = createComposerSession({
       app: this.app,
       parent: main,
@@ -472,6 +473,8 @@ export class MemosPlusView extends ItemView {
       refreshViews: () => this.reload(),
       registerCleanup: (cleanup) => this.register(cleanup),
       resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text)
+    }, {
+      surface
     });
   }
 

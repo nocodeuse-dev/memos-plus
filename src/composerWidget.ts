@@ -34,9 +34,11 @@ export interface ComposerWidgetOptions {
   sendActionTitle?: () => MemosPlusSettings["defaultSendAction"];
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
   onClearDraft?: () => void | Promise<void>;
+  surface?: ComposerSurface;
 }
 
 export type ComposerInputChangeSource = "quick-input-paste" | "clipboard-fill" | "clipboard-append" | "selection-fill" | "selection-append";
+export type ComposerSurface = "home" | "mobileHome" | "sidebar" | "quickCaptureModal";
 type ComposerInputChangeAction = Extract<QuickCaptureContentAction, "replace" | "append"> | "insert";
 
 interface ComposerInputChangeOptions {
@@ -55,6 +57,7 @@ interface KeyboardAwareSurfaces {
 export class ComposerWidget {
   readonly element: HTMLElement;
   private readonly composer: NativeMarkdownComposer;
+  private readonly surface: ComposerSurface;
   private readonly mobileKeyboardCleanups: Array<() => void> = [];
   private readonly mobileKeyboardScrollTimers: number[] = [];
   private mobileKeyboardViewportTimer: number | null = null;
@@ -65,6 +68,7 @@ export class ComposerWidget {
   private clearButton: HTMLButtonElement | null = null;
 
   constructor(private readonly options: ComposerWidgetOptions) {
+    this.surface = this.options.surface ?? "home";
     const settings = this.options.settings();
     this.element = this.options.parent.createDiv({ cls: "memos-plus-composer" });
     this.applyAppearanceSettings(settings);
@@ -423,20 +427,33 @@ export class ComposerWidget {
   }
 
   private getKeyboardAwareSurfaces(): KeyboardAwareSurfaces {
-    const modalContent = this.element.closest<HTMLElement>(".memos-plus-quick-capture-modal");
-    if (modalContent) {
-      return {
-        content: modalContent,
-        shell: modalContent.closest<HTMLElement>(".modal"),
-        modalShell: true
-      };
+    switch (this.surface) {
+      case "quickCaptureModal": {
+        const content = this.element.closest<HTMLElement>(".memos-plus-quick-capture-modal");
+        return {
+          content,
+          shell: content?.closest<HTMLElement>(".modal") ?? null,
+          modalShell: true
+        };
+      }
+      case "sidebar": {
+        const content = this.element.closest<HTMLElement>(".memos-plus-quick-input-view");
+        return {
+          content,
+          shell: content,
+          modalShell: false
+        };
+      }
+      case "mobileHome":
+      case "home": {
+        const content = this.element.closest<HTMLElement>(".memos-plus-view");
+        return {
+          content,
+          shell: this.element.closest<HTMLElement>(".memos-plus-shell, .memos-plus-mobile-light-shell"),
+          modalShell: false
+        };
+      }
     }
-    const content = this.element.closest<HTMLElement>(".memos-plus-view");
-    return {
-      content,
-      shell: this.element.closest<HTMLElement>(".memos-plus-shell, .memos-plus-mobile-light-shell"),
-      modalShell: false
-    };
   }
 
   private renderFooter(): void {

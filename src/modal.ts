@@ -46,6 +46,7 @@ export class QuickCaptureModal extends Modal {
       registerCleanup: (cleanup) => this.cleanups.push(cleanup),
       resolveMarkdownLink: this.options.resolveMarkdownLink
     }, {
+      surface: "quickCaptureModal",
       initialContent: this.options.initialContent,
       initialContentMode: this.options.initialContentMode ?? "auto",
       showClipboardEmptyNotice: this.options.showClipboardEmptyNotice,

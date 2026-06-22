@@ -17,8 +17,9 @@ import { focusOnDesktopOnly } from "./modalFocus";
 import { mobileModalResultLimit, registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import { debounce } from "./performance";
 import type { ProjectInfo } from "./projectSend";
+import { createTaskOptionsForm } from "./taskOptionsForm";
 import { resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
-import { normalizeTaskDate, normalizeTaskPriority, normalizeTaskRecurrence, type ProjectTaskOptions, type TaskContentMode, type TaskPriority, type TaskRecurrence } from "./tasksFormat";
+import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
 
 type SendMode = "project" | "tag" | "recent" | "search" | "custom-tag";
 type FixedSendMode = Exclude<SendMode, "custom-tag">;
@@ -1343,84 +1344,18 @@ export class ProjectSendModal extends Modal {
     const contentEl = this.renderFileStepHeader(t(lang, "projectSend.taskOptions"), backAction);
     contentEl.createDiv({ cls: "memos-plus-project-section-hint", text: title });
 
-    const form = contentEl.createDiv({ cls: "memos-plus-task-options" });
-
-    const asTask = createCheckboxField(form, t(lang, "projectSend.asTask"), defaultAsTask);
-    const contentModeField =
-      taskContentMode === "ask"
-        ? createSelectField(form, t(lang, "projectSend.taskContentMode"), [
-            ["task-with-detail", t(lang, "projectSend.taskContentMode.task-with-detail")],
-            ["task-only", t(lang, "projectSend.taskContentMode.task-only")]
-          ])
-        : null;
-    if (contentModeField) {
-      contentModeField.value = "task-with-detail";
-    }
-    const selectedContentMode = (): TaskContentMode => (contentModeField ? (contentModeField.value as TaskContentMode) : taskContentMode);
-    let buildTaskOptions = (): ProjectTaskOptions | undefined => (asTask.checked ? { isTask: true, contentMode: selectedContentMode() } : undefined);
-
-    if (this.options.taskSettings.enabled) {
-      const priority = createSelectField(form, t(lang, "projectSend.priority"), [
-        ["none", t(lang, "taskPriority.none")],
-        ["highest", t(lang, "taskPriority.highest")],
-        ["high", t(lang, "taskPriority.high")],
-        ["medium", t(lang, "taskPriority.medium")],
-        ["low", t(lang, "taskPriority.low")],
-        ["lowest", t(lang, "taskPriority.lowest")]
-      ]);
-      priority.value = this.options.taskSettings.defaultPriority;
-
-      const startDate = createDateField(form, t(lang, "projectSend.startDate"));
-      const scheduledDate = createDateField(form, t(lang, "projectSend.scheduledDate"));
-      scheduledDate.value = this.options.taskSettings.defaultScheduledDate;
-      const dueDate = createDateField(form, t(lang, "projectSend.dueDate"));
-      dueDate.value = this.options.taskSettings.defaultDueDate;
-      const doneDate = createDateField(form, t(lang, "projectSend.doneDate"));
-
-      const recurrence = createSelectField(form, t(lang, "projectSend.recurrence"), [
-        ["none", t(lang, "taskRecurrence.none")],
-        ["daily", t(lang, "taskRecurrence.daily")],
-        ["weekly", t(lang, "taskRecurrence.weekly")],
-        ["monthly", t(lang, "taskRecurrence.monthly")],
-        ["yearly", t(lang, "taskRecurrence.yearly")],
-        ["custom", t(lang, "taskRecurrence.custom")]
-      ]);
-      recurrence.value = this.options.taskSettings.defaultRecurrence;
-      const customRecurrence = createTextField(form, t(lang, "projectSend.customRecurrence"), "every 2 weeks");
-      const addCreatedDate = createCheckboxField(form, t(lang, "projectSend.addCreatedDate"), this.options.taskSettings.addCreatedDate);
-
-      const updateDisabledState = (): void => {
-        const disabled = !asTask.checked;
-        for (const control of [priority, startDate, scheduledDate, dueDate, doneDate, recurrence, customRecurrence, addCreatedDate]) {
-          control.toggleAttribute("disabled", disabled);
-        }
-        customRecurrence.toggleAttribute("disabled", disabled || recurrence.value !== "custom");
-      };
-      asTask.addEventListener("change", updateDisabledState);
-      recurrence.addEventListener("change", updateDisabledState);
-      updateDisabledState();
-
-      buildTaskOptions = (): ProjectTaskOptions | undefined =>
-        asTask.checked
-          ? {
-              isTask: true,
-              priority: normalizeTaskPriority(priority.value),
-              startDate: normalizeTaskDate(startDate.value),
-              scheduledDate: normalizeTaskDate(scheduledDate.value),
-              dueDate: normalizeTaskDate(dueDate.value),
-              doneDate: normalizeTaskDate(doneDate.value),
-              recurrence: normalizeTaskRecurrence(recurrence.value),
-              customRecurrence: customRecurrence.value.trim(),
-              addCreatedDate: addCreatedDate.checked,
-              contentMode: selectedContentMode()
-            }
-          : undefined;
-    }
+    const taskOptionsForm = createTaskOptionsForm(contentEl, {
+      language: lang,
+      taskSettings: this.options.taskSettings,
+      defaultAsTask,
+      taskContentMode,
+      renderMetadataOptions: this.options.taskSettings.enabled
+    });
 
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
     const confirm = footer.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "projectSend.confirm") });
     confirm.addEventListener("click", () => {
-      void withMobileClickLock(confirm, () => onConfirm(buildTaskOptions()));
+      void withMobileClickLock(confirm, () => onConfirm(taskOptionsForm.value()));
     });
   }
 
@@ -1788,18 +1723,6 @@ function createField(container: HTMLElement, labelText: string): HTMLElement {
   const field = container.createDiv({ cls: "memos-plus-task-option-field" });
   field.createEl("label", { text: labelText });
   return field;
-}
-
-function createCheckboxField(container: HTMLElement, labelText: string, checked: boolean): HTMLInputElement {
-  const field = createField(container, labelText);
-  const input = field.createEl("input", { attr: { type: "checkbox" } });
-  input.checked = checked;
-  return input;
-}
-
-function createDateField(container: HTMLElement, labelText: string): HTMLInputElement {
-  const field = createField(container, labelText);
-  return field.createEl("input", { attr: { type: "date" } });
 }
 
 function createTextField(container: HTMLElement, labelText: string, placeholder: string): HTMLInputElement {

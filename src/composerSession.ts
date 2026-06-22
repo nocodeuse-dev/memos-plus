@@ -1,7 +1,7 @@
 import { Notice, Platform, type App } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { createComposerActions, type ComposerActions, type ComposerActionsOptions, type ComposerProjectMode } from "./composerActions";
-import { ComposerWidget, type ComposerInputChangeSource } from "./composerWidget";
+import { ComposerWidget, type ComposerInputChangeSource, type ComposerSurface } from "./composerWidget";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
 import {
@@ -29,6 +29,7 @@ export interface ComposerSessionHost {
 }
 
 export interface ComposerSessionOptions extends ComposerActionsOptions {
+  surface?: ComposerSurface;
   defaultSendAction?: () => DefaultSendAction;
   initialContent?: string;
   initialContentMode?: QuickCaptureInitialContentMode;
@@ -70,7 +71,8 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     registerCleanup: host.registerCleanup,
     sendActionTitle: options.defaultSendAction,
     resolveMarkdownLink: host.resolveMarkdownLink,
-    onClearDraft: () => clearComposerDraftCaches(host, options)
+    onClearDraft: () => clearComposerDraftCaches(host, options),
+    surface: options.surface ?? "home"
   });
 
   const initialContent = resolveComposerInitialContent(host.settings, options.initialContent);

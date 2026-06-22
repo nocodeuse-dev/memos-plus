@@ -364,6 +364,54 @@ describe("MemosPlusStore year files", () => {
     }
   });
 
+  it("keeps home, project-send, and quick-capture task options aligned for wrapped task output", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 22, 15, 30));
+    try {
+      const sharedTaskOptions = {
+        isTask: true,
+        priority: "highest",
+        startDate: "2026-06-22",
+        addCreatedDate: true,
+        createdDate: "2026-06-22",
+        contentMode: "task-with-detail"
+      } as const;
+      const expected = "- [ ] 2026-06-22 15:30\n\t- [ ] 测试任务 🔺 🛫 2026-06-22 ➕ 2026-06-22";
+
+      for (const entry of ["home", "project-send", "quick-capture"]) {
+        const { store, files } = createStore(
+          {
+            "项目/A.md": "# A\n\n## 待办\n\n旧任务\n"
+          },
+          {
+            tasksFormatEnabled: true,
+            taskAddProjectTag: false,
+            taskDefaultScheduledDate: "",
+            taskDefaultDueDate: "",
+            taskDefaultRecurrence: "none",
+            taskAddCreatedDate: false
+          }
+        );
+        const file = makeTFile("项目/A.md");
+
+        await store.sendToProjectFile(file, "- * [ ] 测试任务", "待办", { ...sharedTaskOptions }, {
+          template: {
+            ...DEFAULT_SETTINGS.managedTemplates[0],
+            insertFormat: "custom",
+            advancedContentTemplate: "- [ ] {{date}} {{time}}\n\t- {{content}}",
+            taskContentMode: "task-with-detail"
+          }
+        });
+
+        const content = files.get("项目/A.md")?.content ?? "";
+        expect(content, entry).toContain(expected);
+        expect(content, entry).not.toMatch(/- - \[ \]|- \* \[ \]|\[ \] - \[ \]/);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("sends normal content to an arbitrary file heading", async () => {
     const { store, files } = createStore({
       "医学/肩袖损伤.md": "# 肩袖损伤\n\n## 临床表现\n\n旧内容\n"
