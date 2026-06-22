@@ -10,23 +10,25 @@ describe("mobile light home source integration", () => {
     expect(viewSource).toContain("shouldRenderMobileLightHome");
     expect(viewSource).toContain("renderMobileLightHome");
     expect(viewSource).toContain("showFullWorkbench");
-    expect(viewSource).toContain('resolveViewLayoutModules(this.plugin.settings.mobileLayout, "mobile")');
+    expect(viewSource).toContain('const mobileLayout = this.layoutForSurface("mobile")');
+    expect(viewSource).toContain('resolveLayoutSurfaceModules(mobileLayout, "mobile")');
 
     const renderBlock = viewSource.slice(viewSource.indexOf("async render()"), viewSource.indexOf("private renderSidebar"));
     expect(renderBlock).toContain("this.shouldRenderMobileLightHome()");
-    expect(renderBlock.indexOf("this.renderMobileLightHome")).toBeLessThan(renderBlock.indexOf("const homeModules = this.homeLayoutModules()"));
+    expect(renderBlock.indexOf("this.renderMobileLightHome")).toBeLessThan(renderBlock.indexOf("const activeSurface: DisplaySurface"));
   });
 
   it("uses mobile layout modules for the mobile workbench, even when the light home is not active", () => {
     const renderBlock = viewSource.slice(viewSource.indexOf("async render()"), viewSource.indexOf("private renderSidebar"));
     const dataNeedsBlock = viewSource.match(/private activeLayoutDataNeeds\(\): Set<DisplayModuleDataNeed> \{([\s\S]*?)\n {2}\}/)?.[1] ?? "";
 
-    expect(renderBlock).toContain("const homeModules = this.homeLayoutModules()");
-    expect(renderBlock).toContain("const surfaceModules = Platform.isMobile ? this.mobileLayoutModules() : homeModules");
+    expect(renderBlock).toContain('const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home"');
+    expect(renderBlock).toContain("const activeLayout = this.layoutForSurface(activeSurface)");
+    expect(renderBlock).toContain("const surfaceModules = this.layoutModulesForSurface(activeSurface)");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
-    expect(renderBlock).toContain("this.renderMain(shell, surfaceModules)");
+    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout)");
     expect(dataNeedsBlock).toContain("Platform.isMobile");
-    expect(dataNeedsBlock).toContain("this.plugin.settings.mobileLayout");
+    expect(dataNeedsBlock).toContain("this.layoutForSurface(surface)");
   });
 
   it("only renders the light home shell while mobile performance mode is enabled", () => {
@@ -38,8 +40,10 @@ describe("mobile light home source integration", () => {
 
   it("renders mobile display modules conditionally instead of using the legacy mobile layout resolver", () => {
     const mobileBlock = viewSource.match(/private async renderMobileLightHome\(shell: Element\): Promise<void> \{([\s\S]*?)\n {2}\}/)?.[1] ?? "";
-    expect(mobileBlock).toContain("const modules = this.mobileLayoutModules()");
-    expect(mobileBlock).toContain('modules.has("quickInput")');
+    expect(mobileBlock).toContain('const mobileLayout = this.layoutForSurface("mobile")');
+    expect(mobileBlock).toContain('resolveLayoutSurfaceModules(mobileLayout, "mobile")');
+    expect(mobileBlock).toContain("renderLayoutSurface({");
+    expect(mobileBlock).toContain("COMPOSER_LAYOUT_GROUP");
     expect(mobileBlock).toContain('modules.has("fileList")');
     expect(mobileBlock).toContain("this.shouldRenderDisplaySidebar(modules)");
     expect(mobileBlock).toContain("this.sidebarOptionsForDisplayModules(modules)");

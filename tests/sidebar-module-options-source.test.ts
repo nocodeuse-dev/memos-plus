@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const displayModulesSource = readFileSync("src/displayModules.ts", "utf8");
+const layoutRendererSource = readFileSync("src/layoutRenderer.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
 const quickInputSource = readFileSync("src/quickInputView.ts", "utf8");
 
@@ -9,7 +10,8 @@ describe("sidebar display module option helpers", () => {
   it("centralizes directory module detection in the display module registry", () => {
     expect(displayModulesSource).toContain("export function isSidebarDirectoryModule");
     expect(displayModulesSource).toContain("export function hasSidebarDirectoryModules");
-    expect(quickInputSource).toContain("isSidebarDirectoryModule");
+    expect(layoutRendererSource).toContain("QUICK_INPUT_DIRECTORY_LAYOUT_GROUP");
+    expect(quickInputSource).toContain("QUICK_INPUT_DIRECTORY_LAYOUT_GROUP");
     expect(quickInputSource).not.toContain("function isSidebarDirectoryModule");
   });
 
@@ -19,7 +21,8 @@ describe("sidebar display module option helpers", () => {
 
     expect(viewSource).toContain("private shouldRenderDisplaySidebar");
     expect(viewSource).toContain("private sidebarOptionsForDisplayModules");
-    expect(renderBlock).toContain("const surfaceModules = Platform.isMobile ? this.mobileLayoutModules() : homeModules");
+    expect(renderBlock).toContain('const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home"');
+    expect(renderBlock).toContain("const surfaceModules = this.layoutModulesForSurface(activeSurface)");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
     expect(renderBlock).toContain("this.sidebarOptionsForDisplayModules(surfaceModules)");
     expect(mobileBlock).toContain("this.shouldRenderDisplaySidebar(modules)");

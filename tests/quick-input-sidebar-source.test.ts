@@ -109,7 +109,9 @@ describe("quick input sidebar view", () => {
   });
 
   it("uses sidebar display modules to gate composer, directory, result list, and counts", () => {
-    expect(quickInputSource).toContain('resolveViewLayoutModules(this.plugin.settings.sidebarLayout, "sidebar")');
+    expect(quickInputSource).toContain('resolveLayoutSurfaceModules(this.plugin.settings.sidebarLayout, "sidebar")');
+    expect(quickInputSource).toContain("renderLayoutSurface({");
+    expect(quickInputSource).toContain("QUICK_INPUT_DIRECTORY_LAYOUT_GROUP");
     expect(quickInputSource).toContain("shouldRenderSidebarQuickInput");
     expect(quickInputSource).toContain("shouldRenderSidebarDirectory");
     expect(quickInputSource).toContain("shouldRenderSidebarFileList");

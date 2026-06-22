@@ -40,8 +40,22 @@ import { computeMemoStats } from "./stats";
 import { filterTaskIndexItems, getTaskIndexOrganizerCounts, type TaskIndexItem, type TaskIndexStatus } from "./taskIndex";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
 import { VaultSavedSearchIndex, type VaultSearchResult } from "./vaultSearch";
-import { hasSidebarDirectoryModules, resolveViewLayoutDataNeeds, resolveViewLayoutModules, type DisplayModuleDataNeed, type DisplayModuleId } from "./displayModules";
+import {
+  hasSidebarDirectoryModules,
+  resolveViewLayoutDataNeeds,
+  type DisplayModuleDataNeed,
+  type DisplayModuleId,
+  type DisplaySurface,
+  type ViewLayoutSettings
+} from "./displayModules";
 import { logMemosPlusDiagnostic, setMemosPlusDiagnosticState } from "./diagnostics";
+import {
+  COMPOSER_LAYOUT_GROUP,
+  HOME_RESULTS_LAYOUT_GROUP,
+  HOME_TOOLBAR_LAYOUT_GROUP,
+  renderLayoutSurface,
+  resolveLayoutSurfaceModules
+} from "./layoutRenderer";
 
 export const MEMOS_PLUS_VIEW_TYPE = "memos-plus-view";
 
@@ -158,12 +172,13 @@ export class MemosPlusView extends ItemView {
           await this.renderMobileLightHome(shell);
           return;
         }
-        const homeModules = this.homeLayoutModules();
-        const surfaceModules = Platform.isMobile ? this.mobileLayoutModules() : homeModules;
+        const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home";
+        const activeLayout = this.layoutForSurface(activeSurface);
+        const surfaceModules = this.layoutModulesForSurface(activeSurface);
         if (this.shouldRenderDisplaySidebar(surfaceModules)) {
           this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceModules));
         }
-        await this.renderMain(shell, surfaceModules);
+        await this.renderMain(shell, activeSurface, activeLayout);
         this.renderMobileFab(shell);
       });
     } finally {
@@ -223,9 +238,10 @@ export class MemosPlusView extends ItemView {
     logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
   }
 
-  private async renderMain(shell: Element, modules: Set<DisplayModuleId> = this.homeLayoutModules()): Promise<void> {
+  private async renderMain(shell: Element, activeSurface: DisplaySurface, layout: ViewLayoutSettings): Promise<void> {
     logMemosPlusDiagnostic("main:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
     try {
+      const { modules } = resolveLayoutSurfaceModules(layout, activeSurface);
       const lang = this.plugin.settings.language;
       const main = shell.createDiv({ cls: "memos-plus-main" });
       const header = main.createDiv({ cls: "memos-plus-main-header" });
@@ -233,35 +249,45 @@ export class MemosPlusView extends ItemView {
       titleWrap.createDiv({ cls: "memos-plus-title", text: t(lang, "app.name") });
       titleWrap.createDiv({ cls: "memos-plus-subtitle", text: this.plugin.settings.memoFolderPath });
 
-      const toolbar = this.renderHomeToolbar(header, modules);
-      if (toolbar) {
-        if (
-          Platform.isMobile &&
-          this.plugin.settings.mobilePerformanceMode &&
-          this.plugin.settings.mobileLightHomeEnabled &&
-          this.mobileLayoutMode() !== "full" &&
-          this.mobileLightFullWorkbench
-        ) {
-          this.renderMobileLightCompactButton(toolbar);
+      let toolbar: HTMLElement | null = null;
+      await renderLayoutSurface({
+        surface: activeSurface,
+        layout,
+        groups: {
+          composer: COMPOSER_LAYOUT_GROUP,
+          toolbar: HOME_TOOLBAR_LAYOUT_GROUP,
+          results: HOME_RESULTS_LAYOUT_GROUP
+        },
+        renderGroup: async ({ groupId }) => {
+          if (groupId === "toolbar") {
+            toolbar = this.renderHomeToolbar(header, modules);
+            this.renderMobileLightCompactButtonIfNeeded(toolbar);
+            return;
+          }
+          if (groupId === "composer" && modules.has("quickInput")) {
+            this.renderComposer(main, activeSurface === "mobile" ? "mobileHome" : "home", modules);
+            return;
+          }
+          if (groupId === "results") {
+            await this.renderHomeResults(main, modules);
+          }
+        },
+        renderModule: () => undefined
+      });
+      if (!toolbar) {
+        toolbar = this.renderHomeToolbar(header, modules);
+        if (toolbar) {
+          this.renderMobileLightCompactButtonIfNeeded(toolbar);
         }
       }
-
-      if (modules.has("quickInput")) {
-        this.renderComposer(main, Platform.isMobile ? "mobileHome" : "home", modules);
-      }
-      await this.renderHomeResults(main, modules);
     } finally {
       logMemosPlusDiagnostic("main:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
     }
   }
 
-  private homeLayoutModules(): Set<DisplayModuleId> {
-    return new Set(resolveViewLayoutModules(this.plugin.settings.homeLayout, "home"));
-  }
-
   private activeLayoutDataNeeds(): Set<DisplayModuleDataNeed> {
-    const layout = Platform.isMobile ? this.plugin.settings.mobileLayout : this.plugin.settings.homeLayout;
-    const surface = Platform.isMobile ? "mobile" : "home";
+    const surface: DisplaySurface = Platform.isMobile ? "mobile" : "home";
+    const layout = this.layoutForSurface(surface);
     return new Set(
       this.shouldRenderMobileLightHome()
         ? resolveViewLayoutDataNeeds(this.plugin.settings.mobileLayout, "mobile")
@@ -269,11 +295,11 @@ export class MemosPlusView extends ItemView {
     );
   }
 
-  private shouldRenderDisplaySidebar(modules: Set<DisplayModuleId>): boolean {
+  private shouldRenderDisplaySidebar(modules: ReadonlySet<DisplayModuleId>): boolean {
     return hasSidebarDirectoryModules(modules) || modules.has("statsCards") || modules.has("heatmap");
   }
 
-  private sidebarOptionsForDisplayModules(modules: Set<DisplayModuleId>): SidebarRenderOptions {
+  private sidebarOptionsForDisplayModules(modules: ReadonlySet<DisplayModuleId>): SidebarRenderOptions {
     return {
       showAllNotes: modules.has("allNotes"),
       showStats: modules.has("statsCards"),
@@ -286,7 +312,8 @@ export class MemosPlusView extends ItemView {
 
   private async renderMobileLightHome(shell: Element): Promise<void> {
     const lang = this.plugin.settings.language;
-    const modules = this.mobileLayoutModules();
+    const mobileLayout = this.layoutForSurface("mobile");
+    const { modules } = resolveLayoutSurfaceModules(mobileLayout, "mobile");
     const home = shell.createDiv({ cls: "memos-plus-mobile-light-home" });
     const header = home.createDiv({ cls: "memos-plus-mobile-light-header" });
     const titleWrap = header.createDiv({ cls: "memos-plus-mobile-light-title-wrap" });
@@ -299,36 +326,47 @@ export class MemosPlusView extends ItemView {
     });
     full.addEventListener("click", () => this.showFullWorkbench());
 
-    if (this.shouldRenderDisplaySidebar(modules)) {
-      this.renderSidebar(home, this.sidebarOptionsForDisplayModules(modules));
-    }
-
-    if (modules.has("quickInput")) {
-      this.renderComposer(home, "mobileHome", modules);
-    }
-    if (modules.has("quickInput") && modules.has("sendButton") && this.plugin.settings.mobileLightHomeShowLaterButton) {
-      const actions = home.createDiv({ cls: "memos-plus-mobile-light-actions" });
-      const later = actions.createEl("button", { cls: "memos-plus-mobile-light-later", text: t(lang, "mobileLightHome.saveLater") });
-      setIcon(later.createSpan({ cls: "memos-plus-mobile-light-button-icon" }), "inbox");
-      later.addEventListener("click", () => {
-        void this.composerSession?.actions.saveDefault();
-      });
-    }
-
-    if (modules.has("fileList")) {
-      await this.renderMobileHomeMemoList(home, modules);
-    } else if (modules.has("fileCount")) {
-      this.renderMobileHomeFileCount(home);
-    }
+    await renderLayoutSurface({
+      surface: "mobile",
+      layout: mobileLayout,
+      groups: {
+        composer: COMPOSER_LAYOUT_GROUP,
+        navigation: ["allNotes", "projectDirectory", "projectFilters", "organizeDirectory", "taskDirectory", "tagFilters", "statsCards", "heatmap"],
+        results: HOME_RESULTS_LAYOUT_GROUP
+      },
+      renderGroup: async ({ groupId }) => {
+        if (groupId === "navigation") {
+          if (this.shouldRenderDisplaySidebar(modules)) {
+            this.renderSidebar(home, this.sidebarOptionsForDisplayModules(modules));
+          }
+          return;
+        }
+        if (groupId === "composer") {
+          if (modules.has("quickInput")) {
+            this.renderComposer(home, "mobileHome", modules);
+            this.renderMobileLightLaterButtonIfNeeded(home, modules);
+          }
+          return;
+        }
+        if (groupId === "results") {
+          if (modules.has("fileList")) {
+            await this.renderMobileHomeMemoList(home, modules);
+          } else if (modules.has("fileCount")) {
+            this.renderMobileHomeFileCount(home);
+          }
+        }
+      },
+      renderModule: () => undefined
+    });
   }
 
-  private async renderMobileHomeMemoList(container: Element, modules: Set<DisplayModuleId>): Promise<void> {
+  private async renderMobileHomeMemoList(container: Element, modules: ReadonlySet<DisplayModuleId>): Promise<void> {
     const listWrap = container.createDiv({ cls: "memos-plus-mobile-home-list memos-plus-main" });
     this.renderHomeToolbar(listWrap, modules, "memos-plus-mobile-home-toolbar");
     await this.renderHomeResults(listWrap, modules);
   }
 
-  private async renderHomeResults(container: Element, modules: Set<DisplayModuleId>): Promise<void> {
+  private async renderHomeResults(container: Element, modules: ReadonlySet<DisplayModuleId>): Promise<void> {
     if (modules.has("fileList")) {
       this.timelineEl = container.createDiv({ cls: "memos-plus-timeline-region" });
       await this.renderTimeline(this.timelineEl);
@@ -339,7 +377,7 @@ export class MemosPlusView extends ItemView {
     }
   }
 
-  private renderHomeToolbar(container: Element, modules: Set<DisplayModuleId>, extraClass = ""): HTMLElement | null {
+  private renderHomeToolbar(container: Element, modules: ReadonlySet<DisplayModuleId>, extraClass = ""): HTMLElement | null {
     const lang = this.plugin.settings.language;
     const showDiagnosticButton = Platform.isMobile || this.plugin.settings.performanceDebugMode;
     if (!modules.has("searchBox") && !modules.has("settingsButton") && !modules.has("refreshButton") && !showDiagnosticButton) {
@@ -418,6 +456,32 @@ export class MemosPlusView extends ItemView {
     });
   }
 
+  private renderMobileLightCompactButtonIfNeeded(toolbar: Element | null): void {
+    if (
+      toolbar &&
+      Platform.isMobile &&
+      this.plugin.settings.mobilePerformanceMode &&
+      this.plugin.settings.mobileLightHomeEnabled &&
+      this.mobileLayoutMode() !== "full" &&
+      this.mobileLightFullWorkbench
+    ) {
+      this.renderMobileLightCompactButton(toolbar);
+    }
+  }
+
+  private renderMobileLightLaterButtonIfNeeded(home: Element, modules: ReadonlySet<DisplayModuleId>): void {
+    if (!modules.has("sendButton") || !this.plugin.settings.mobileLightHomeShowLaterButton) {
+      return;
+    }
+    const lang = this.plugin.settings.language;
+    const actions = home.createDiv({ cls: "memos-plus-mobile-light-actions" });
+    const later = actions.createEl("button", { cls: "memos-plus-mobile-light-later", text: t(lang, "mobileLightHome.saveLater") });
+    setIcon(later.createSpan({ cls: "memos-plus-mobile-light-button-icon" }), "inbox");
+    later.addEventListener("click", () => {
+      void this.composerSession?.actions.saveDefault();
+    });
+  }
+
   private openMemosSettings(): void {
     const setting = (this.app as unknown as { setting?: ObsidianSettingApi }).setting;
     setting?.open?.();
@@ -438,8 +502,18 @@ export class MemosPlusView extends ItemView {
     return this.plugin.settings.mobileLayout.mode;
   }
 
-  private mobileLayoutModules(): Set<DisplayModuleId> {
-    return new Set(resolveViewLayoutModules(this.plugin.settings.mobileLayout, "mobile"));
+  private layoutForSurface(surface: DisplaySurface): ViewLayoutSettings {
+    if (surface === "home") {
+      return this.plugin.settings.homeLayout;
+    }
+    if (surface === "sidebar") {
+      return this.plugin.settings.sidebarLayout;
+    }
+    return this.plugin.settings.mobileLayout;
+  }
+
+  private layoutModulesForSurface(surface: DisplaySurface): Set<DisplayModuleId> {
+    return new Set(resolveLayoutSurfaceModules(this.layoutForSurface(surface), surface).orderedModules);
   }
 
   private scheduleTimelineRender(): void {

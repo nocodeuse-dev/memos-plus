@@ -7,7 +7,7 @@ describe("home result rendering source", () => {
   it("shares file count and file list rendering between desktop home and mobile home list", () => {
     expect(viewSource).toContain("private async renderHomeResults");
 
-    const renderMainBlock = viewSource.slice(viewSource.indexOf("private async renderMain"), viewSource.indexOf("private homeLayoutModules"));
+    const renderMainBlock = viewSource.slice(viewSource.indexOf("private async renderMain"), viewSource.indexOf("private activeLayoutDataNeeds"));
     const mobileListBlock = viewSource.slice(viewSource.indexOf("private async renderMobileHomeMemoList"), viewSource.indexOf("private renderHomeToolbar"));
 
     expect(renderMainBlock).toContain("await this.renderHomeResults(main, modules)");

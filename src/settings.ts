@@ -27,13 +27,13 @@ import {
   getDisplayModule,
   modulesForSurface,
   normalizeViewLayout,
-  resolveViewLayoutModules,
   sameViewLayoutForAllSurfaces,
   type DisplayModuleDefinition,
   type DisplayModuleId,
   type DisplaySurface,
   type ViewLayoutSettings
 } from "./displayModules";
+import { resolveLayoutSurfaceModules } from "./layoutRenderer";
 import {
   DEFAULT_SEND_TO_FILE_COMMON_TAGS,
   normalizeFileInsertPosition,
@@ -1379,12 +1379,12 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   }
 
   private isDisplayModuleVisible(surface: DisplaySurface, moduleId: DisplayModuleId): boolean {
-    return resolveViewLayoutModules(this.getViewLayout(surface), surface).includes(moduleId);
+    return resolveLayoutSurfaceModules(this.getViewLayout(surface), surface).modules.has(moduleId);
   }
 
   private async setDisplayModuleVisible(surface: DisplaySurface, moduleId: DisplayModuleId, visible: boolean): Promise<void> {
     const layout = this.getViewLayout(surface);
-    const current = new Set(resolveViewLayoutModules(layout, surface));
+    const current = new Set(resolveLayoutSurfaceModules(layout, surface).orderedModules);
     if (visible) {
       current.add(moduleId);
     } else {
@@ -1572,7 +1572,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         .addToggle((toggle) => {
           toggle.setValue(visible.has(module.id)).onChange(async (value) => {
             const currentLayout = this.getViewLayout(surface);
-            const next = new Set(resolveViewLayoutModules(currentLayout, surface));
+            const next = new Set(resolveLayoutSurfaceModules(currentLayout, surface).orderedModules);
             if (value) {
               next.add(module.id);
             } else {

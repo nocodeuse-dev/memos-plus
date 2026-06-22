@@ -16,8 +16,9 @@ import { createSidebarGroup, type SidebarItem } from "./sidebar";
 import type { DefaultSendAction, MemosPlusSettings } from "./settings";
 import { todayString } from "./filter";
 import { VaultSavedSearchIndex } from "./vaultSearch";
-import { hasSidebarDirectoryModules, isSidebarDirectoryModule, resolveViewLayoutModules, type DisplayModuleId } from "./displayModules";
+import { hasSidebarDirectoryModules, type DisplayModuleId } from "./displayModules";
 import { logMemosPlusDiagnostic } from "./diagnostics";
+import { QUICK_INPUT_DIRECTORY_LAYOUT_GROUP, renderLayoutSurface, resolveLayoutSurfaceModules } from "./layoutRenderer";
 
 export const MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE = "memos-plus-quick-input-view";
 
@@ -67,7 +68,7 @@ export class MemosPlusQuickInputView extends ItemView {
     this.registerEvent(this.app.vault.on("modify", () => this.scheduleDirectoryRefresh()));
     this.registerEvent(this.app.vault.on("create", () => this.scheduleDirectoryRefresh()));
     this.registerEvent(this.app.vault.on("delete", () => this.scheduleDirectoryRefresh()));
-    this.render();
+    await this.render();
   }
 
   async onClose(): Promise<void> {
@@ -83,14 +84,14 @@ export class MemosPlusQuickInputView extends ItemView {
   async reload(): Promise<void> {
     const transientDraft = this.composerSession?.widget.getValue();
     this.clearDirectoryCache();
-    this.render({ initialContent: transientDraft });
+    await this.render({ initialContent: transientDraft });
   }
 
   focusComposer(): void {
     this.composerSession?.focus();
   }
 
-  private render(options: { initialContent?: string } = {}): void {
+  private async render(options: { initialContent?: string } = {}): Promise<void> {
     logMemosPlusDiagnostic("view:render", { type: MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE });
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
@@ -109,18 +110,25 @@ export class MemosPlusQuickInputView extends ItemView {
     }
     this.renderHeaderActions(header, modules);
 
-    let directoryRendered = false;
-    for (const moduleId of resolveViewLayoutModules(this.plugin.settings.sidebarLayout, "sidebar")) {
-      if (moduleId === "quickInput" && this.shouldRenderSidebarQuickInput(modules)) {
-        this.renderQuickInputComposer(container, modules, options.initialContent);
-        continue;
-      }
-      if (!directoryRendered && isSidebarDirectoryModule(moduleId) && this.shouldRenderSidebarDirectory(modules)) {
-        directoryRendered = true;
+    await renderLayoutSurface({
+      surface: "sidebar",
+      layout: this.plugin.settings.sidebarLayout,
+      groups: {
+        directory: QUICK_INPUT_DIRECTORY_LAYOUT_GROUP
+      },
+      renderGroup: ({ groupId }) => {
+        if (groupId !== "directory" || !this.shouldRenderSidebarDirectory(modules)) {
+          return;
+        }
         this.directoryContainerEl = container.createDiv({ cls: "memos-plus-quick-directory" });
         void this.renderDirectoryArea();
+      },
+      renderModule: ({ moduleId }) => {
+        if (moduleId === "quickInput" && this.shouldRenderSidebarQuickInput(modules)) {
+          this.renderQuickInputComposer(container, modules, options.initialContent);
+        }
       }
-    }
+    });
   }
 
   private renderQuickInputComposer(parent: HTMLElement, modules: ReadonlySet<DisplayModuleId>, initialContent?: string): void {
@@ -185,7 +193,7 @@ export class MemosPlusQuickInputView extends ItemView {
   }
 
   private sidebarModules(): Set<DisplayModuleId> {
-    return new Set(resolveViewLayoutModules(this.plugin.settings.sidebarLayout, "sidebar"));
+    return new Set(resolveLayoutSurfaceModules(this.plugin.settings.sidebarLayout, "sidebar").orderedModules);
   }
 
   private shouldRenderSidebarQuickInput(modules = this.sidebarModules()): boolean {
