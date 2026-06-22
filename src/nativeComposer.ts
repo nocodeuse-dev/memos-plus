@@ -38,6 +38,9 @@ interface MarkdownEmbed {
 
 type MarkdownEmbedFactory = (context: { app: App; containerEl: HTMLElement }, file: unknown, sourcePath: string) => MarkdownEmbed;
 
+const MOBILE_TEXTAREA_MIN_HEIGHT = 120;
+const MOBILE_TEXTAREA_MAX_HEIGHT = 280;
+
 export function createNativeMarkdownComposer(options: NativeMarkdownComposerOptions): NativeMarkdownComposer {
   const native = tryCreateNativeComposer(options);
   return native ?? createTextareaComposer(options);
@@ -203,11 +206,33 @@ class TextareaMarkdownComposer implements NativeMarkdownComposer {
       return;
     }
     element.style.height = "auto";
-    const scrollHeight = element.scrollHeight ?? 0;
-    if (scrollHeight > 0) {
-      element.style.height = `${scrollHeight}px`;
+    if (!Platform.isMobile) {
+      const scrollHeight = element.scrollHeight ?? 0;
+      if (scrollHeight > 0) {
+        element.style.height = `${scrollHeight}px`;
+      }
+      return;
     }
+    const { minHeight, maxHeight } = composerAutoResizeBounds(element);
+    const measuredHeight = element.value.trim() ? element.scrollHeight ?? minHeight : minHeight;
+    const nextHeight = Math.max(minHeight, Math.min(measuredHeight, maxHeight));
+    element.style.height = `${nextHeight}px`;
+    element.style.overflowY = measuredHeight > maxHeight ? "auto" : "hidden";
   }
+}
+
+function composerAutoResizeBounds(element: HTMLElement): { minHeight: number; maxHeight: number } {
+  const computed = window.getComputedStyle?.(element);
+  const minHeight = parseCssPixelValue(computed?.getPropertyValue("--memos-plus-mobile-composer-min-height")) ?? parseCssPixelValue(computed?.minHeight) ?? MOBILE_TEXTAREA_MIN_HEIGHT;
+  const visualHeight = Math.round(window.visualViewport?.height ?? window.innerHeight ?? 700);
+  const viewportBound = Math.min(Math.round(visualHeight * 0.4), MOBILE_TEXTAREA_MAX_HEIGHT);
+  const maxHeight = Math.max(minHeight, parseCssPixelValue(computed?.maxHeight) ?? viewportBound);
+  return { minHeight, maxHeight };
+}
+
+function parseCssPixelValue(value: string | undefined): number | null {
+  const parsed = Number.parseFloat(value ?? "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function createTextareaComposer(options: NativeMarkdownComposerOptions): NativeMarkdownComposer {

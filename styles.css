@@ -1366,6 +1366,7 @@
 .memos-plus-composer .memos-plus-save-button {
   min-height: 28px;
   padding: 4px 12px;
+  white-space: nowrap;
 }
 
 .memos-plus-quick-capture-modal .memos-plus-composer {
@@ -1920,6 +1921,17 @@
   background: var(--memos-plus-accent);
   color: var(--text-on-accent);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 8;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.memos-plus-shell.is-composer-focused .memos-plus-fab,
+.memos-plus-shell.is-keyboard-open .memos-plus-fab,
+.memos-plus-mobile-light-shell.is-composer-focused .memos-plus-fab,
+.memos-plus-mobile-light-shell.is-keyboard-open .memos-plus-fab {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
 }
 
 .memos-plus-project-file-title {
@@ -2438,6 +2450,11 @@
     margin-bottom: 10px;
   }
 
+  .memos-plus-view .memos-plus-composer {
+    --memos-plus-mobile-composer-min-height: 120px;
+    --memos-plus-mobile-composer-max-height: min(40vh, 280px);
+  }
+
   .memos-plus-native-editor-host,
   .memos-plus-native-editor-host .markdown-source-view,
   .memos-plus-native-editor-host .markdown-source-view.mod-cm6,
@@ -2448,15 +2465,44 @@
     max-height: min(180px, 32vh);
   }
 
+  .memos-plus-view .memos-plus-native-editor-host,
+  .memos-plus-view .memos-plus-native-editor-host .markdown-source-view,
+  .memos-plus-view .memos-plus-native-editor-host .markdown-source-view.mod-cm6,
+  .memos-plus-view .memos-plus-native-editor-host .cm-editor,
+  .memos-plus-view .memos-plus-native-editor-host .cm-scroller,
+  .memos-plus-view .memos-plus-composer-input {
+    min-height: var(--memos-plus-mobile-composer-min-height);
+    max-height: var(--memos-plus-mobile-composer-max-height);
+    align-items: flex-start;
+  }
+
+  .memos-plus-view .memos-plus-native-editor-host .cm-scroller,
+  .memos-plus-view .memos-plus-composer-input {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .memos-plus-native-editor-host .cm-content,
   .memos-plus-composer-input {
     min-height: 56px;
     padding: 9px 10px;
   }
 
+  .memos-plus-view .memos-plus-native-editor-host .cm-content,
+  .memos-plus-view .memos-plus-composer-input {
+    box-sizing: border-box;
+    min-height: var(--memos-plus-mobile-composer-min-height);
+    padding: 12px;
+    line-height: var(--line-height-normal);
+    text-align: left;
+    vertical-align: top;
+  }
+
   .memos-plus-composer-footer {
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
+    gap: 6px;
     padding: 5px 6px;
   }
 
@@ -2483,6 +2529,20 @@
   .memos-plus-composer .memos-plus-save-button {
     flex: 0 0 auto;
     padding: 4px 10px;
+  }
+
+  .memos-plus-view.is-keyboard-open {
+    padding-bottom: calc(var(--memos-plus-keyboard-inset, 0px) + env(safe-area-inset-bottom, 0px) + 12px);
+    scroll-padding-bottom: calc(var(--memos-plus-keyboard-inset, 0px) + env(safe-area-inset-bottom, 0px) + 24px);
+  }
+
+  .memos-plus-shell.is-keyboard-open,
+  .memos-plus-mobile-light-shell.is-keyboard-open {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  }
+
+  .memos-plus-view.is-keyboard-open .memos-plus-composer {
+    --memos-plus-mobile-composer-max-height: max(140px, min(35vh, 240px, calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 176px)));
   }
 
   .memos-plus-quick-capture-modal {

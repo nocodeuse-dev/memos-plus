@@ -18,11 +18,16 @@ class FakeElement {
   value = "";
   selectionStart = 0;
   selectionEnd = 0;
+  scrollHeight = 0;
   className = "";
   textContent = "";
   attrs = new Map<string, string>();
   parentElement: FakeElement | null = null;
   listeners = new Map<string, Array<{ listener: (event: Event) => void; capture: boolean }>>();
+  style = {
+    height: "",
+    overflowY: ""
+  };
   classList = {
     add: (...names: string[]) => {
       this.className = Array.from(new Set([...this.className.split(" ").filter(Boolean), ...names])).join(" ");
@@ -210,5 +215,38 @@ describe("createNativeMarkdownComposer", () => {
 
     composer.clear();
     expect(composer.getValue()).toBe("");
+  });
+
+  it("clamps mobile textarea fallback autoresize for empty and overflowing content", () => {
+    Platform.isMobile = true;
+    installFakeDocument();
+    vi.stubGlobal("window", {
+      innerHeight: 800,
+      visualViewport: { height: 700 },
+      getComputedStyle: () => ({
+        getPropertyValue: (name: string) => (name === "--memos-plus-mobile-composer-min-height" ? "120px" : ""),
+        minHeight: "120px",
+        maxHeight: "280px"
+      })
+    });
+    const container = new FakeElement("div");
+
+    const composer = createNativeMarkdownComposer({
+      app: {} as never,
+      container: container as never,
+      placeholder: "此刻，你在想什么？",
+      sourcePath: "Memos/memos.md"
+    });
+
+    const textarea = composer.element as unknown as FakeElement;
+    textarea.scrollHeight = 900;
+    composer.setValue("");
+    expect(textarea.style.height).toBe("120px");
+    expect(textarea.style.overflowY).toBe("hidden");
+
+    textarea.scrollHeight = 900;
+    composer.setValue("line\n".repeat(80));
+    expect(textarea.style.height).toBe("280px");
+    expect(textarea.style.overflowY).toBe("auto");
   });
 });

@@ -45,6 +45,12 @@ interface ComposerInputChangeOptions {
   analyzeLinks?: boolean;
 }
 
+interface KeyboardAwareSurfaces {
+  content: HTMLElement | null;
+  shell: HTMLElement | null;
+  modalShell: boolean;
+}
+
 export class ComposerWidget {
   readonly element: HTMLElement;
   private readonly composer: NativeMarkdownComposer;
@@ -121,6 +127,7 @@ export class ComposerWidget {
   }
 
   destroy(): void {
+    this.setMobileComposerFocusState(false);
     this.clearMobileKeyboardScrollTimers();
     this.clearMobileKeyboardViewportTimer();
     for (const cleanup of this.mobileKeyboardCleanups.splice(0)) {
@@ -178,6 +185,7 @@ export class ComposerWidget {
         return;
       }
       this.mobileKeyboardActive = true;
+      this.setMobileComposerFocusState(true);
       if (!window.visualViewport) {
         this.applyFallbackMobileKeyboardInset();
       } else {
@@ -196,6 +204,7 @@ export class ComposerWidget {
       window.setTimeout(() => {
         if (!this.element.contains(document.activeElement)) {
           this.mobileKeyboardActive = false;
+          this.setMobileComposerFocusState(false);
           this.clearVisualViewportKeyboardInset();
         }
       }, 120);
@@ -217,6 +226,7 @@ export class ComposerWidget {
       }
       if (!this.element.contains(target)) {
         this.mobileKeyboardActive = false;
+        this.setMobileComposerFocusState(false);
         this.clearMobileKeyboardScrollTimers();
         this.clearMobileKeyboardViewportTimer();
         this.clearVisualViewportKeyboardInset();
@@ -309,7 +319,7 @@ export class ComposerWidget {
       return;
     }
     const target = this.composer.element || this.element;
-    target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+    target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
     const { content } = this.getKeyboardAwareSurfaces();
     if (content) {
       const modalRect = content.getBoundingClientRect();
@@ -362,6 +372,7 @@ export class ComposerWidget {
   private applyKeyboardSurfaceState(content: HTMLElement, shell: HTMLElement | null, keyboardInset: number, viewportHeight: number, viewportTop: number): void {
     const isKeyboardOpen = keyboardInset > 80 || (this.element.contains(document.activeElement) && viewportHeight < this.mobileViewportBaselineHeight - 80);
     const keyboardShift = isKeyboardOpen ? Math.min(180, Math.max(96, Math.round(keyboardInset * 0.45))) : 0;
+    const { modalShell } = this.getKeyboardAwareSurfaces();
     for (const surface of [content, shell].filter((item): item is HTMLElement => item instanceof HTMLElement)) {
       surface.style.setProperty("--memos-plus-keyboard-inset", `${keyboardInset}px`);
       surface.style.setProperty("--memos-plus-keyboard-shift", `${keyboardShift}px`);
@@ -369,11 +380,13 @@ export class ComposerWidget {
       surface.style.setProperty("--memos-plus-mobile-viewport-top", `${viewportTop}px`);
       surface.classList.toggle("is-keyboard-open", isKeyboardOpen);
     }
-    shell?.classList.add("memos-plus-quick-capture-keyboard-shell");
+    if (modalShell) {
+      shell?.classList.add("memos-plus-quick-capture-keyboard-shell");
+    }
   }
 
   private clearVisualViewportKeyboardInset(): void {
-    const { content, shell } = this.getKeyboardAwareSurfaces();
+    const { content, shell, modalShell } = this.getKeyboardAwareSurfaces();
     for (const surface of [content, shell].filter((item): item is HTMLElement => item instanceof HTMLElement)) {
       surface.style.removeProperty("--memos-plus-keyboard-inset");
       surface.style.removeProperty("--memos-plus-keyboard-shift");
@@ -381,14 +394,35 @@ export class ComposerWidget {
       surface.style.removeProperty("--memos-plus-mobile-viewport-top");
       surface.classList.remove("is-keyboard-open");
     }
-    shell?.classList.remove("memos-plus-quick-capture-keyboard-shell");
+    if (modalShell) {
+      shell?.classList.remove("memos-plus-quick-capture-keyboard-shell");
+    }
   }
 
-  private getKeyboardAwareSurfaces(): { content: HTMLElement | null; shell: HTMLElement | null } {
-    const content = this.element.closest<HTMLElement>(".memos-plus-quick-capture-modal");
+  private setMobileComposerFocusState(focused: boolean): void {
+    if (!Platform.isMobile) {
+      return;
+    }
+    const { content, shell } = this.getKeyboardAwareSurfaces();
+    for (const surface of [content, shell].filter((item): item is HTMLElement => item instanceof HTMLElement)) {
+      surface.classList.toggle("is-composer-focused", focused);
+    }
+  }
+
+  private getKeyboardAwareSurfaces(): KeyboardAwareSurfaces {
+    const modalContent = this.element.closest<HTMLElement>(".memos-plus-quick-capture-modal");
+    if (modalContent) {
+      return {
+        content: modalContent,
+        shell: modalContent.closest<HTMLElement>(".modal"),
+        modalShell: true
+      };
+    }
+    const content = this.element.closest<HTMLElement>(".memos-plus-view");
     return {
       content,
-      shell: content?.closest<HTMLElement>(".modal") ?? null
+      shell: this.element.closest<HTMLElement>(".memos-plus-shell, .memos-plus-mobile-light-shell"),
+      modalShell: false
     };
   }
 

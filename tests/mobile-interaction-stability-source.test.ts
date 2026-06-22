@@ -2,8 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const mainSource = readFileSync("main.ts", "utf8");
+const viewSource = readFileSync("src/view.ts", "utf8");
 const composerWidgetSource = readFileSync("src/composerWidget.ts", "utf8");
 const nativeComposerSource = readFileSync("src/nativeComposer.ts", "utf8");
+const stylesSource = readFileSync("styles.css", "utf8");
 const quickCaptureSource = readFileSync("src/modal.ts", "utf8");
 const quickCaptureContentSource = readFileSync("src/quickCaptureContent.ts", "utf8");
 const quickInputSource = readFileSync("src/quickInputView.ts", "utf8");
@@ -117,5 +119,36 @@ describe("mobile interaction stability source", () => {
     expect(projectSendModalSource).not.toContain(".slice(0, 100)");
     expect(templateManagerModalSource).toContain("mobileModalResultLimit");
     expect(templateManagerModalSource).not.toContain(".slice(0, 120)");
+  });
+
+  it("keeps the mobile home composer bounded, top-aligned, and internally scrollable", () => {
+    expect(stylesSource).toContain("--memos-plus-mobile-composer-min-height: 120px");
+    expect(stylesSource).toContain("--memos-plus-mobile-composer-max-height: min(40vh, 280px)");
+    expect(stylesSource).toContain(".memos-plus-view .memos-plus-native-editor-host");
+    expect(stylesSource).toContain("min-height: var(--memos-plus-mobile-composer-min-height)");
+    expect(stylesSource).toContain("max-height: var(--memos-plus-mobile-composer-max-height)");
+    expect(stylesSource).toContain("overflow-y: auto");
+    expect(stylesSource).toContain("align-items: flex-start");
+    expect(stylesSource).toContain("box-sizing: border-box");
+    expect(stylesSource).toContain(".memos-plus-view.is-keyboard-open");
+  });
+
+  it("clamps textarea autoresize on mobile instead of trusting a raw scrollHeight", () => {
+    expect(nativeComposerSource).toContain("composerAutoResizeBounds");
+    expect(nativeComposerSource).toContain("Platform.isMobile");
+    expect(nativeComposerSource).toContain("Math.min");
+    expect(nativeComposerSource).toContain("Math.max");
+    expect(nativeComposerSource).toContain("element.value.trim() ? element.scrollHeight");
+    expect(nativeComposerSource).toContain("element.style.overflowY");
+  });
+
+  it("hides the mobile floating action button while the home composer is focused", () => {
+    expect(composerWidgetSource).toContain("setMobileComposerFocusState");
+    expect(composerWidgetSource).toContain('".memos-plus-view"');
+    expect(composerWidgetSource).toContain('".memos-plus-shell, .memos-plus-mobile-light-shell"');
+    expect(stylesSource).toContain(".memos-plus-shell.is-composer-focused .memos-plus-fab");
+    expect(stylesSource).toContain("pointer-events: none");
+    expect(viewSource).toContain("renderMobileFab(shell)");
+    expect(viewSource).not.toContain("renderMobileFab(shell);\n        return;");
   });
 });
