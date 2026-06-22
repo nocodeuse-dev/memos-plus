@@ -137,7 +137,11 @@ export function renderFileTemplateContent(templateSource: string, context: Templ
   const rendered = templateSource.trim()
     ? renderTemplateVariables(templateSource, { ...context, title })
     : buildDefaultFileTemplateContent({ ...context, title });
-  return ensureTrailingNewline(ensureTagInMarkdown(rendered, context.tag));
+  return finalizeFileTemplateContent(rendered, context.tag);
+}
+
+export function finalizeFileTemplateContent(source: string, tag?: string): string {
+  return ensureTrailingNewline(ensureTagInMarkdown(source, tag));
 }
 
 export function updateRecentFileTemplatePaths(paths: string[], path: string): string[] {

@@ -9,6 +9,7 @@ import {
 } from "./fileSend";
 import {
   buildFileTemplateTargetPath,
+  finalizeFileTemplateContent,
   renderFileTemplateContent,
   type FileTemplateLibraryItem
 } from "./fileTemplateLibrary";
@@ -38,6 +39,7 @@ import {
   type ProjectInsertResult
 } from "./projectSend";
 import { renderTaskContentWithDetail } from "./taskContent";
+import { findTemplaterPlugin, renderWithTemplater } from "./templaterAdapter";
 import { normalizeTaskProjectTag, type ProjectTaskOptions } from "./tasksFormat";
 import { buildTemplateFileContent, buildTemplateFilePath, renderTemplateVariables, type ManagedTemplate } from "./templateManager";
 import { VaultMetadataIndex } from "./vaultIndex";
@@ -187,17 +189,27 @@ export class MemosPlusStore {
     const basePath = buildFileTemplateTargetPath(settings.fileTemplateLibraryDefaultFolder, title);
     const path = this.uniqueMarkdownPath(basePath);
     await this.ensureFolder(parentFolder(path));
-    const templateSource = await this.readTemplateSource(templatePath);
-    return this.app.vault.create(
-      path,
-      renderFileTemplateContent(templateSource, {
-        title: title.trim() || "未命名",
-        content: options.content ?? "",
-        tag: options.tag,
-        folder: parentFolder(path),
-        now
-      })
-    );
+    const templateFile = this.getTemplateFile(templatePath);
+    const templateSource = templateFile ? await this.app.vault.read(templateFile) : "";
+    const context = {
+      title: title.trim() || "未命名",
+      content: options.content ?? "",
+      tag: options.tag,
+      folder: parentFolder(path),
+      now
+    };
+    const fallbackContent = renderFileTemplateContent(templateSource, context);
+    if (!findTemplaterPlugin(this.app)) {
+      return this.app.vault.create(path, fallbackContent);
+    }
+    const file = await this.app.vault.create(path, "");
+    const templaterContent = await renderWithTemplater(this.app, {
+      templateFile,
+      targetFile: file,
+      templateSource: fallbackContent
+    });
+    await this.app.vault.modify(file, templaterContent === null ? fallbackContent : finalizeFileTemplateContent(templaterContent, options.tag));
+    return file;
   }
 
   async deleteFileTemplate(templatePath: string): Promise<void> {
@@ -354,15 +366,17 @@ export class MemosPlusStore {
   }
 
   private async readTemplateSource(path: string): Promise<string> {
+    const file = this.getTemplateFile(path);
+    return file ? this.app.vault.read(file) : "";
+  }
+
+  private getTemplateFile(path: string): TFile | null {
     const normalized = normalizePath(path);
     if (!normalized) {
-      return "";
+      return null;
     }
     const file = this.app.vault.getAbstractFileByPath(normalized);
-    if (file instanceof TFile) {
-      return this.app.vault.read(file);
-    }
-    return "";
+    return file instanceof TFile ? file : null;
   }
 
   private uniqueMarkdownPath(path: string): string {

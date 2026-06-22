@@ -2,6 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
+- 新建文件模板库支持第三方 Templater 渲染：选择模板创建文件时，如果 `templater-obsidian` 已安装且启用，会优先用 Templater 的运行时解析 `<% ... %>` / `<%* ... %>`，并为 `tp.file.title`、`tp.file.creation_date()` 等函数提供真实目标文件上下文；Templater 不可用或执行失败时会提示并回退到 Memos Plus 现有 `{{title}}`、`{{content}}`、`{{tag}}`、`{{source}}`、`{{folder}}`、`{{date}}`、`{{time}}` 变量替换。
 - 输入框架构做最小稳定性收口：主页、移动端主页、侧边栏和快速记录弹窗继续共用现有 `createComposerSession → ComposerWidget → createNativeMarkdownComposer` 链路，但现在显式传入 `home` / `mobileHome` / `sidebar` / `quickCaptureModal` surface，移动端键盘避让不再靠猜测容器来选择策略。
 - 抽出共享 `TaskOptionsForm`：输入框任务按钮和“发送到”弹窗任务选项现在共用同一套优先级、开始日期、计划日期、截止日期、完成日期、重复和创建日期开关表单，并继续复用原有任务 Markdown 生成逻辑，避免不同入口出现 `- - [ ]`、`- * [ ]` 等重复任务前缀。
 - 将红色“侧边栏启动设置”同步放进“界面布局 > 侧边栏 > 快速输入框”的右侧区域设置顶部：点击预览里的快速输入框后也能直接看到“启用侧边栏快速输入”和“自动打开侧边栏”，不再只依赖侧边栏布局页顶部入口。

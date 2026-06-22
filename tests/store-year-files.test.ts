@@ -63,6 +63,9 @@ function createApp(initialFiles: Record<string, string>) {
         addParentFolders(path, folders);
         return makeTFile(path);
       }),
+      modify: vi.fn(async (file: TFile, content: string) => {
+        files.set(file.path, { path: file.path, name: file.name, content });
+      }),
       process: vi.fn(async (file: TFile, updater: (source: string) => string) => {
         processed.push(file.path);
         const current = files.get(file.path)?.content ?? "";
@@ -147,6 +150,59 @@ describe("MemosPlusStore year files", () => {
 
     expect(files.get("我的资源/Memos/2026.md")?.content).toContain("- 2026-06-13 12:30\n  > [!note]- 标题\n  > 长内容");
     expect(files.get("我的资源/Memos/2026.md")?.content).not.toContain("- > [!note]- 标题");
+  });
+
+  it("uses Templater to render new file library templates when the plugin is enabled", async () => {
+    const { store, files, app } = createStore({
+      "我的资源/模板/Templater.md": "# <% tp.file.title %>\n\n{{content}}\n"
+    });
+    const parseTemplate = vi.fn(async (config: { target_file: TFile }, source: string) => source.replace("<% tp.file.title %>", config.target_file.basename));
+    Object.assign(app, {
+      plugins: {
+        enabledPlugins: new Set(["templater-obsidian"]),
+        plugins: {
+          "templater-obsidian": {
+            templater: {
+              create_running_config: (templateFile: TFile, targetFile: TFile, runMode: number) => ({
+                template_file: templateFile,
+                target_file: targetFile,
+                run_mode: runMode
+              }),
+              parse_template: parseTemplate
+            }
+          }
+        }
+      }
+    });
+
+    await store.createFileFromLibraryTemplate("我的资源/模板/Templater.md", "今日记录", { content: "正文" });
+
+    expect(parseTemplate).toHaveBeenCalledWith(expect.objectContaining({ target_file: expect.objectContaining({ basename: "今日记录" }) }), "# <% tp.file.title %>\n\n正文\n");
+    expect(files.get("我的资源/Memos/今日记录.md")?.content).toBe("# 今日记录\n\n正文\n");
+  });
+
+  it("falls back to Memos Plus template variables when Templater rendering fails", async () => {
+    const { store, files, app } = createStore({
+      "我的资源/模板/Templater.md": "# {{title}}\n\n{{content}}\n"
+    });
+    Object.assign(app, {
+      plugins: {
+        enabledPlugins: new Set(["templater-obsidian"]),
+        plugins: {
+          "templater-obsidian": {
+            templater: {
+              parse_template: vi.fn(async () => {
+                throw new Error("Templater failed");
+              })
+            }
+          }
+        }
+      }
+    });
+
+    await store.createFileFromLibraryTemplate("我的资源/模板/Templater.md", "回退测试", { content: "正文" });
+
+    expect(files.get("我的资源/Memos/回退测试.md")?.content).toBe("# 回退测试\n\n正文\n");
   });
 
   it("writes new memos to a configured project file using the Memos block format", async () => {
