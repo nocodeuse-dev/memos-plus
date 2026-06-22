@@ -134,8 +134,7 @@ export default class MemosPlusPlugin extends Plugin {
       id: "export-diagnostic-log",
       name: t(this.settings.language, "command.exportDiagnosticLog"),
       callback: async () => {
-        const path = await exportMemosPlusDiagnosticLog(this.app);
-        new Notice(t(this.settings.language, "notice.diagnosticLogExported") + path);
+        await this.exportDiagnosticLog();
       }
     });
 
@@ -244,6 +243,11 @@ export default class MemosPlusPlugin extends Plugin {
       return;
     }
     this.openQuickCaptureWithContentSource("auto");
+  }
+
+  async exportDiagnosticLog(): Promise<void> {
+    const path = await exportMemosPlusDiagnosticLog(this.app);
+    new Notice(t(this.settings.language, "notice.diagnosticLogExported") + path);
   }
 
   async saveSettings(): Promise<void> {

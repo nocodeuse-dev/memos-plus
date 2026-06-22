@@ -102,6 +102,7 @@ describe("mobile interaction stability source", () => {
     expect(mainSource).toContain("registerMemosPlusDiagnostics");
     expect(mainSource).toContain("exportMemosPlusDiagnosticLog");
     expect(mainSource).toContain('id: "export-diagnostic-log"');
+    expect(mainSource).toContain("async exportDiagnosticLog()");
     expect(mainSource).toContain("logMemosPlusDiagnostic(\"data:load\"");
     expect(mainSource).toContain("logMemosPlusDiagnostic(\"data:save\"");
     expect(mainSource).toContain("logMemosPlusDiagnostic(\"memos-plus:onload\"");
@@ -112,6 +113,8 @@ describe("mobile interaction stability source", () => {
     expect(viewSource).toContain("logMemosPlusDiagnostic(\"main:render-end\"");
     expect(viewSource).toContain("logMemosPlusDiagnostic(\"sidebar:render-start\"");
     expect(viewSource).toContain("logMemosPlusDiagnostic(\"sidebar:render-end\"");
+    expect(viewSource).toContain("showDiagnosticButton");
+    expect(viewSource).toContain("this.plugin.exportDiagnosticLog()");
     expect(modalSafetySource).toContain("logMemosPlusDiagnostic(\"modal:option-click\"");
   });
 

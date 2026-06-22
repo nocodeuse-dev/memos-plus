@@ -337,7 +337,8 @@ export class MemosPlusView extends ItemView {
 
   private renderHomeToolbar(container: Element, modules: Set<DisplayModuleId>, extraClass = ""): HTMLElement | null {
     const lang = this.plugin.settings.language;
-    if (!modules.has("searchBox") && !modules.has("settingsButton") && !modules.has("refreshButton")) {
+    const showDiagnosticButton = Platform.isMobile || this.plugin.settings.performanceDebugMode;
+    if (!modules.has("searchBox") && !modules.has("settingsButton") && !modules.has("refreshButton") && !showDiagnosticButton) {
       return null;
     }
     const toolbar = container.createDiv({ cls: ["memos-plus-toolbar", extraClass].filter(Boolean).join(" ") });
@@ -369,6 +370,16 @@ export class MemosPlusView extends ItemView {
       setIcon(reload, "refresh-cw");
       reload.addEventListener("click", () => {
         void this.reload();
+      });
+    }
+    if (showDiagnosticButton) {
+      const diagnostics = toolbar.createEl("button", {
+        cls: "memos-plus-icon-button",
+        attr: { "aria-label": t(lang, "command.exportDiagnosticLog"), title: t(lang, "command.exportDiagnosticLog") }
+      });
+      setIcon(diagnostics, "bug");
+      diagnostics.addEventListener("click", () => {
+        void this.plugin.exportDiagnosticLog();
       });
     }
     return toolbar;
