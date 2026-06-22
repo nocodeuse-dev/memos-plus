@@ -1330,8 +1330,9 @@
   overflow-wrap: break-word;
 }
 
-.memos-plus-native-editor-host .cm-cursor {
-  border-left-color: var(--text-normal);
+.memos-plus-native-editor-host .cm-cursor,
+.memos-plus-native-editor-host .cm-cursor-primary {
+  border-left-color: var(--text-normal) !important;
 }
 
 .memos-plus-native-editor-host:focus-within {
