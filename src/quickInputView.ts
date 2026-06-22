@@ -21,6 +21,11 @@ import { logMemosPlusDiagnostic } from "./diagnostics";
 
 export const MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE = "memos-plus-quick-input-view";
 
+interface ObsidianSettingApi {
+  open?: () => void;
+  openTabById?: (id: string) => void;
+}
+
 export function sendActionForQuickInput(settings: MemosPlusSettings): DefaultSendAction {
   return settings.quickInputDefaultSendAction;
 }
@@ -91,10 +96,12 @@ export class MemosPlusQuickInputView extends ItemView {
     const modules = this.sidebarModules();
     const lang = this.plugin.settings.language;
     const header = container.createDiv({ cls: "memos-plus-quick-input-header" });
-    header.createDiv({ cls: "memos-plus-quick-input-title", text: t(lang, "quickInput.title") });
+    const heading = header.createDiv({ cls: "memos-plus-quick-input-heading" });
+    heading.createDiv({ cls: "memos-plus-quick-input-title", text: t(lang, "quickInput.title") });
     if (this.shouldRenderSidebarQuickInput(modules)) {
-      header.createDiv({ cls: "memos-plus-quick-input-subtitle", text: t(lang, `sendAction.${sendActionForQuickInput(this.plugin.settings)}`) });
+      heading.createDiv({ cls: "memos-plus-quick-input-subtitle", text: t(lang, `sendAction.${sendActionForQuickInput(this.plugin.settings)}`) });
     }
+    this.renderHeaderActions(header, modules);
 
     let directoryRendered = false;
     for (const moduleId of resolveViewLayoutModules(this.plugin.settings.sidebarLayout, "sidebar")) {
@@ -134,6 +141,40 @@ export class MemosPlusQuickInputView extends ItemView {
       }
     );
     void this.composerSession.applyInitialContent();
+  }
+
+  private renderHeaderActions(header: HTMLElement, modules: Set<DisplayModuleId>): void {
+    if (!modules.has("settingsButton") && !modules.has("refreshButton")) {
+      return;
+    }
+    const lang = this.plugin.settings.language;
+    const actions = header.createDiv({ cls: "memos-plus-quick-input-header-actions" });
+    if (modules.has("settingsButton")) {
+      const settingsButton = actions.createEl("button", {
+        cls: "memos-plus-icon-button",
+        attr: { type: "button", "aria-label": t(lang, "settings.openMemosSettings"), title: t(lang, "settings.openMemosSettings") }
+      });
+      setIcon(settingsButton, "settings");
+      settingsButton.addEventListener("click", () => this.openMemosSettings());
+    }
+    if (modules.has("refreshButton")) {
+      const reload = actions.createEl("button", {
+        cls: "memos-plus-icon-button",
+        attr: { type: "button", "aria-label": t(lang, "common.reload"), title: t(lang, "common.reload") }
+      });
+      setIcon(reload, "refresh-cw");
+      reload.addEventListener("click", () => this.refreshSidebarData());
+    }
+  }
+
+  private openMemosSettings(): void {
+    const setting = (this.app as unknown as { setting?: ObsidianSettingApi }).setting;
+    setting?.open?.();
+    setting?.openTabById?.(this.plugin.manifest.id);
+  }
+
+  private refreshSidebarData(): void {
+    this.clearDirectoryCache();
   }
 
   private sidebarModules(): Set<DisplayModuleId> {

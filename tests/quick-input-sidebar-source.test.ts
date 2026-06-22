@@ -118,4 +118,14 @@ describe("quick input sidebar view", () => {
     expect(quickInputSource).toContain("if (!this.shouldRenderSidebarFileList(this.sidebarModules()))");
     expect(quickInputSource).toContain("is-compact-layout");
   });
+
+  it("renders sidebar settings and refresh buttons when the layout enables those modules", () => {
+    expect(quickInputSource).toContain("renderHeaderActions(header, modules)");
+    expect(quickInputSource).toContain('modules.has("settingsButton")');
+    expect(quickInputSource).toContain('modules.has("refreshButton")');
+    expect(quickInputSource).toContain("openMemosSettings()");
+    expect(quickInputSource).toContain("refreshSidebarData()");
+    expect(quickInputSource).toContain('setIcon(settingsButton, "settings")');
+    expect(quickInputSource).toContain('setIcon(reload, "refresh-cw")');
+  });
 });

@@ -1062,19 +1062,36 @@
 }
 
 .memos-plus-quick-input-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 10px;
+}
+
+.memos-plus-quick-input-heading {
+  min-width: 0;
 }
 
 .memos-plus-quick-input-title {
   font-size: 15px;
   font-weight: 700;
   color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .memos-plus-quick-input-subtitle {
   margin-top: 2px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.memos-plus-quick-input-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
 }
 
 .memos-plus-quick-input-view .memos-plus-native-editor-host,
