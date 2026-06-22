@@ -44,16 +44,19 @@ import {
   type NoHeadingBehavior
 } from "./fileSend";
 import {
+  DEFAULT_FILE_TEMPLATE_TAB_INTERACTION,
   DEFAULT_FILE_TEMPLATE_LIBRARY_FOLDER,
   DEFAULT_FILE_TEMPLATE_LIBRARY_TARGET_FOLDER,
   createTagFilterFileTemplateTab,
   createTemplateGroupFileTemplateTab,
   legacyProjectSendTagsToFileTemplateTabs,
   normalizeFileTemplateDefaults,
+  normalizeFileTemplateTabInteraction,
   normalizeFileTemplateLibraryDefaultFolder,
   normalizeFileTemplateLibraryFolder,
   normalizeFileTemplateLibraryPaths,
   normalizeFileTemplateTabs,
+  type FileTemplateTabInteractionSettings,
   type FileTemplateTab,
   type FileTemplateTabType
 } from "./fileTemplateLibrary";
@@ -194,7 +197,7 @@ export interface MemosPlusSettings {
   fileTemplateLibraryRecent: string[];
   fileTemplateLibraryDefaults: Record<string, string>;
   fileTemplateTabs: FileTemplateTab[];
-  enableTemplateTabDrag: boolean;
+  fileTemplateTabInteraction: FileTemplateTabInteractionSettings;
   sendToFileDefaultInsertPosition: FileInsertPosition;
   sendToFileNoHeadingBehavior: NoHeadingBehavior;
   recentFileTargetPaths: string[];
@@ -302,7 +305,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   fileTemplateLibraryRecent: [],
   fileTemplateLibraryDefaults: {},
   fileTemplateTabs: [],
-  enableTemplateTabDrag: false,
+  fileTemplateTabInteraction: DEFAULT_FILE_TEMPLATE_TAB_INTERACTION,
   sendToFileDefaultInsertPosition: "heading-top",
   sendToFileNoHeadingBehavior: "ask",
   recentFileTargetPaths: [],
@@ -516,7 +519,7 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     fileTemplateLibraryRecent: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryRecent).slice(0, 20),
     fileTemplateLibraryDefaults: normalizeFileTemplateDefaults(raw.fileTemplateLibraryDefaults),
     fileTemplateTabs,
-    enableTemplateTabDrag: typeof raw.enableTemplateTabDrag === "boolean" ? raw.enableTemplateTabDrag : DEFAULT_SETTINGS.enableTemplateTabDrag,
+    fileTemplateTabInteraction: normalizeFileTemplateTabInteraction(raw.fileTemplateTabInteraction, raw.enableTemplateTabDrag),
     sendToFileDefaultInsertPosition: normalizeFileInsertPosition(raw.sendToFileDefaultInsertPosition),
     sendToFileNoHeadingBehavior: normalizeNoHeadingBehavior(raw.sendToFileNoHeadingBehavior),
     recentFileTargetPaths: normalizeRecentProjectPaths(raw.recentFileTargetPaths).slice(0, 10),
@@ -2474,13 +2477,57 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const section = container.createDiv({ cls: "memos-plus-file-template-tab-settings" });
     this.renderSectionHeader(section, "settings.fileTemplateTabs", "settings.fileTemplateTabsDesc");
 
+    this.renderSectionHeader(section, "settings.fileTemplateTabInteraction", "settings.fileTemplateTabInteractionDesc");
+    const saveInteraction = async (next: Partial<FileTemplateTabInteractionSettings>): Promise<void> => {
+      this.plugin.settings.fileTemplateTabInteraction = normalizeFileTemplateTabInteraction({
+        ...this.plugin.settings.fileTemplateTabInteraction,
+        ...next
+      });
+      await this.plugin.persistSettings();
+    };
     new Setting(section)
-      .setName(t(lang, "settings.enableTemplateTabDrag"))
-      .setDesc(t(lang, "settings.enableTemplateTabDragDesc"))
+      .setName(t(lang, "settings.fileTemplateTabDesktopDrag"))
+      .setDesc(t(lang, "settings.fileTemplateTabDesktopDragDesc"))
       .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.enableTemplateTabDrag).onChange(async (value) => {
-          this.plugin.settings.enableTemplateTabDrag = value;
-          await this.plugin.persistSettings();
+        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.enableDesktopDrag).onChange(async (value) => {
+          await saveInteraction({ enableDesktopDrag: value });
+        });
+      });
+    new Setting(section)
+      .setName(t(lang, "settings.fileTemplateTabMobileReadOnly"))
+      .setDesc(t(lang, "settings.fileTemplateTabMobileReadOnlyDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly).onChange(async (value) => {
+          await saveInteraction({
+            mobileReadOnly: value,
+            enableMobileDrag: value ? false : this.plugin.settings.fileTemplateTabInteraction.enableMobileDrag,
+            enableMobileReorder: value ? false : this.plugin.settings.fileTemplateTabInteraction.enableMobileReorder
+          });
+          this.display();
+        });
+      });
+    new Setting(section)
+      .setName(t(lang, "settings.fileTemplateTabMobileDrag"))
+      .setDesc(t(lang, "settings.fileTemplateTabMobileDragDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.enableMobileDrag).onChange(async (value) => {
+          await saveInteraction({
+            mobileReadOnly: value ? false : this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly,
+            enableMobileDrag: value
+          });
+          this.display();
+        });
+      });
+    new Setting(section)
+      .setName(t(lang, "settings.fileTemplateTabMobileReorder"))
+      .setDesc(t(lang, "settings.fileTemplateTabMobileReorderDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.enableMobileReorder).onChange(async (value) => {
+          await saveInteraction({
+            mobileReadOnly: value ? false : this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly,
+            enableMobileReorder: value
+          });
+          this.display();
         });
       });
 

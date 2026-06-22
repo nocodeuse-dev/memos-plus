@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_FILE_TEMPLATE_TAB_INTERACTION,
   buildFileTemplateTargetPath,
   addTemplatePathToFileTemplateTab,
   filterFileTemplateLibraryItemsForTab,
   filterFileTemplateLibraryItems,
   normalizeFileTemplateDefaults,
+  normalizeFileTemplateTabInteraction,
   normalizeFileTemplateTabs,
   normalizeFileTemplateLibraryPaths,
   renderFileTemplateContent,
@@ -54,6 +56,27 @@ describe("file template library", () => {
       { id: "tag-medical", name: "病", type: "tag-filter", tags: ["病", "医学"], templatePaths: [] },
       { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] }
     ]);
+  });
+
+  it("keeps template tab data shared while normalizing per-surface interaction switches", () => {
+    expect(DEFAULT_FILE_TEMPLATE_TAB_INTERACTION).toEqual({
+      enableDesktopDrag: true,
+      enableMobileDrag: false,
+      enableMobileReorder: false,
+      mobileReadOnly: true
+    });
+    expect(normalizeFileTemplateTabInteraction({ enableDesktopDrag: false, enableMobileDrag: true, enableMobileReorder: true, mobileReadOnly: false })).toEqual({
+      enableDesktopDrag: false,
+      enableMobileDrag: true,
+      enableMobileReorder: true,
+      mobileReadOnly: false
+    });
+    expect(normalizeFileTemplateTabInteraction({}, true)).toEqual({
+      enableDesktopDrag: true,
+      enableMobileDrag: false,
+      enableMobileReorder: false,
+      mobileReadOnly: true
+    });
   });
 
   it("normalizes default template mappings by tag", () => {

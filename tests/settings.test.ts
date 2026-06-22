@@ -180,7 +180,12 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.fileTemplateLibraryRecent).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaults).toEqual({});
     expect(DEFAULT_SETTINGS.fileTemplateTabs).toEqual([]);
-    expect(DEFAULT_SETTINGS.enableTemplateTabDrag).toBe(false);
+    expect(DEFAULT_SETTINGS.fileTemplateTabInteraction).toEqual({
+      enableDesktopDrag: true,
+      enableMobileDrag: false,
+      enableMobileReorder: false,
+      mobileReadOnly: true
+    });
     expect(DEFAULT_SETTINGS.sendToFileDefaultInsertPosition).toBe("heading-top");
     expect(DEFAULT_SETTINGS.sendToFileNoHeadingBehavior).toBe("ask");
     expect(DEFAULT_SETTINGS.recentFileTargetPaths).toEqual([]);
@@ -531,7 +536,12 @@ describe("normalizeSettings", () => {
           { id: " tag-medical ", name: " 病 ", type: "tag-filter", tags: ["#病", "医学", "#病"] },
           { id: "group-common", name: " 常用模板 ", type: "template-group", templatePaths: [" 我的资源//模板/项目模板.md ", ""] }
         ],
-        enableTemplateTabDrag: true
+        fileTemplateTabInteraction: {
+          enableDesktopDrag: false,
+          enableMobileDrag: true,
+          enableMobileReorder: true,
+          mobileReadOnly: false
+        }
     })
   ).toMatchObject({
       projectTag: "项目",
@@ -576,7 +586,12 @@ describe("normalizeSettings", () => {
         { id: "tag-medical", name: "病", type: "tag-filter", tags: ["病", "医学"], templatePaths: [] },
         { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] }
       ],
-      enableTemplateTabDrag: true
+      fileTemplateTabInteraction: {
+        enableDesktopDrag: false,
+        enableMobileDrag: true,
+        enableMobileReorder: true,
+        mobileReadOnly: false
+      }
     });
   });
 

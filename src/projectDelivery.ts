@@ -98,7 +98,7 @@ async function selectProjectTarget(
       commonFileTags: host.settings.sendToFileCommonTags,
       customTagTabs: host.settings.projectSendTagTabs,
       fileTemplateTabs: host.settings.fileTemplateTabs,
-      enableTemplateTabDrag: host.settings.enableTemplateTabDrag,
+      fileTemplateTabInteraction: host.settings.fileTemplateTabInteraction,
       tabOrder: host.settings.projectSendTabOrder,
       hiddenTabs: host.settings.projectSendHiddenTabs,
       templates,

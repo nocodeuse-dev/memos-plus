@@ -27,6 +27,20 @@ export interface FileTemplateTab {
   templatePaths: string[];
 }
 
+export interface FileTemplateTabInteractionSettings {
+  enableDesktopDrag: boolean;
+  enableMobileDrag: boolean;
+  enableMobileReorder: boolean;
+  mobileReadOnly: boolean;
+}
+
+export const DEFAULT_FILE_TEMPLATE_TAB_INTERACTION: FileTemplateTabInteractionSettings = {
+  enableDesktopDrag: true,
+  enableMobileDrag: false,
+  enableMobileReorder: false,
+  mobileReadOnly: true
+};
+
 export interface FileTemplateLibraryFilter {
   query?: string;
   category?: string;
@@ -39,7 +53,7 @@ export interface FileTemplateLibrarySettings {
   fileTemplateLibraryRecent: string[];
   fileTemplateLibraryDefaults: Record<string, string>;
   fileTemplateTabs?: FileTemplateTab[];
-  enableTemplateTabDrag?: boolean;
+  fileTemplateTabInteraction?: FileTemplateTabInteractionSettings;
 }
 
 export function normalizeFileTemplateTabs(value: unknown): FileTemplateTab[] {
@@ -63,6 +77,30 @@ export function normalizeFileTemplateTabs(value: unknown): FileTemplateTab[] {
     seen.add(id);
     return [{ id, name, type, tags, templatePaths }];
   });
+}
+
+export function normalizeFileTemplateTabInteraction(value: unknown, legacyEnableTemplateTabDrag?: unknown): FileTemplateTabInteractionSettings {
+  const raw = isRecord(value) ? value : {};
+  const mobileReadOnly = typeof raw.mobileReadOnly === "boolean" ? raw.mobileReadOnly : DEFAULT_FILE_TEMPLATE_TAB_INTERACTION.mobileReadOnly;
+  return {
+    enableDesktopDrag:
+      typeof raw.enableDesktopDrag === "boolean"
+        ? raw.enableDesktopDrag
+        : typeof legacyEnableTemplateTabDrag === "boolean"
+          ? legacyEnableTemplateTabDrag
+          : DEFAULT_FILE_TEMPLATE_TAB_INTERACTION.enableDesktopDrag,
+    enableMobileDrag: mobileReadOnly
+      ? false
+      : typeof raw.enableMobileDrag === "boolean"
+        ? raw.enableMobileDrag
+        : DEFAULT_FILE_TEMPLATE_TAB_INTERACTION.enableMobileDrag,
+    enableMobileReorder: mobileReadOnly
+      ? false
+      : typeof raw.enableMobileReorder === "boolean"
+        ? raw.enableMobileReorder
+        : DEFAULT_FILE_TEMPLATE_TAB_INTERACTION.enableMobileReorder,
+    mobileReadOnly
+  };
 }
 
 export function createTagFilterFileTemplateTab(tagValue: string): FileTemplateTab | null {

@@ -19,6 +19,7 @@ import {
   legacyProjectSendTagsToFileTemplateTabs,
   normalizeFileTemplateTabs,
   type FileTemplateLibraryItem,
+  type FileTemplateTabInteractionSettings,
   type FileTemplateTab,
   type FileTemplateTabType
 } from "./fileTemplateLibrary";
@@ -68,7 +69,7 @@ interface ProjectSendModalOptions {
   commonFileTags: string[];
   customTagTabs?: string[];
   fileTemplateTabs: FileTemplateTab[];
-  enableTemplateTabDrag: boolean;
+  fileTemplateTabInteraction: FileTemplateTabInteractionSettings;
   tabOrder: string[];
   hiddenTabs: string[];
   templates: ManagedTemplate[];
@@ -210,7 +211,7 @@ class FileTemplateLibraryModal extends Modal {
       preferredPath?: string;
       initialActiveTabId?: string;
       fileTemplateTabs: FileTemplateTab[];
-      enableTemplateTabDrag: boolean;
+      fileTemplateTabInteraction: FileTemplateTabInteractionSettings;
       onLoad: () => Promise<FileTemplateLibraryItem[]>;
       onCreate: (template: FileTemplateLibraryItem, title: string) => Promise<void>;
       onToggleFavorite: (templatePath: string) => Promise<void>;
@@ -337,7 +338,7 @@ class FileTemplateLibraryModal extends Modal {
         this.activeCategory = id;
         this.render();
       });
-      if (this.options.enableTemplateTabDrag && !Platform.isMobile && tab.type === "template-group") {
+      if (this.canDragTemplatesIntoTabs() && tab.type === "template-group") {
         button.addClass("is-drop-target");
         button.addEventListener("dragover", (event) => {
           event.preventDefault();
@@ -346,6 +347,9 @@ class FileTemplateLibraryModal extends Modal {
         button.addEventListener("dragleave", () => button.removeClass("is-drag-over"));
         button.addEventListener("drop", (event) => void this.dropTemplateOnTab(event, tab.id, button));
       }
+    }
+    if (this.isMobileTemplateTabsReadOnly()) {
+      return;
     }
     const add = tabs.createEl("button", {
       cls: "memos-plus-file-template-tab memos-plus-file-template-tab-add",
@@ -392,7 +396,7 @@ class FileTemplateLibraryModal extends Modal {
       row.setAttr("role", "button");
       row.setAttr("tabindex", "0");
       row.setAttr("aria-pressed", String(item.path === this.selectedPath));
-      if (this.options.enableTemplateTabDrag && !Platform.isMobile) {
+      if (this.canDragTemplatesIntoTabs()) {
         row.setAttr("draggable", "true");
         row.addEventListener("dragstart", (event) => {
           event.dataTransfer?.setData("application/x-memos-plus-template-path", item.path);
@@ -479,6 +483,14 @@ class FileTemplateLibraryModal extends Modal {
   private async saveTemplateTabs(tabs: FileTemplateTab[]): Promise<void> {
     this.options.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
     await this.options.onSaveTabs(this.options.fileTemplateTabs);
+  }
+
+  private canDragTemplatesIntoTabs(): boolean {
+    return canDragTemplatesIntoTabs(this.options.fileTemplateTabInteraction);
+  }
+
+  private isMobileTemplateTabsReadOnly(): boolean {
+    return isMobileTemplateTabsReadOnly(this.options.fileTemplateTabInteraction);
   }
 
   private async toggleFavorite(path: string): Promise<void> {
@@ -832,35 +844,37 @@ export class ProjectSendModal extends Modal {
         cls: `memos-plus-project-send-tab${isActive ? " is-active" : ""}`,
         attr: {
           type: "button",
-          "aria-pressed": String(isActive),
-          draggable: "true"
+          "aria-pressed": String(isActive)
         }
       });
       button.createSpan({ cls: "memos-plus-project-send-tab-label", text: this.tabLabel(id) });
       const customTab = getCustomTabFromTabId(id, this.fileTemplateTabs);
-      if (customTab) {
+      if (customTab && !this.isMobileTemplateTabsReadOnly()) {
         button.setAttr("title", t(lang, "projectSend.removeTagTabHint"));
         const close = button.createSpan({ cls: "memos-plus-project-send-tab-close", attr: { "aria-label": t(lang, "projectSend.removeTagTab") } });
         setIcon(close, "x");
-      close.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void withMobileClickLock(close, () => this.removeFileTemplateTab(customTab.id));
-      });
-      button.addEventListener("contextmenu", (event) => this.openFileTemplateTabMenu(event, customTab));
-    }
+        close.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void withMobileClickLock(close, () => this.removeFileTemplateTab(customTab.id));
+        });
+        button.addEventListener("contextmenu", (event) => this.openFileTemplateTabMenu(event, customTab));
+      }
       button.addEventListener("click", () => void withMobileClickLock(button, () => this.openTab(id)));
-      button.addEventListener("dragstart", (event) => this.startTabDrag(event, id, button));
-      button.addEventListener("dragover", (event) => {
-        event.preventDefault();
-      });
-      button.addEventListener("drop", (event) => void this.dropTab(event, id));
-      button.addEventListener("dragend", () => {
-        this.draggedTabId = "";
-        button.classList.remove("is-dragging");
-      });
+      if (this.canReorderTabs()) {
+        button.setAttr("draggable", "true");
+        button.addEventListener("dragstart", (event) => this.startTabDrag(event, id, button));
+        button.addEventListener("dragover", (event) => {
+          event.preventDefault();
+        });
+        button.addEventListener("drop", (event) => void this.dropTab(event, id));
+        button.addEventListener("dragend", () => {
+          this.draggedTabId = "";
+          button.classList.remove("is-dragging");
+        });
+      }
     }
-    if (this.options.enableFileTargets) {
+    if (this.options.enableFileTargets && !this.isMobileTemplateTabsReadOnly()) {
       const add = tabs.createEl("button", {
         cls: "memos-plus-project-send-tab memos-plus-project-send-tab-add",
         attr: { type: "button", "aria-label": t(lang, "projectSend.addTagTab"), title: t(lang, "projectSend.addTagTab") }
@@ -968,6 +982,14 @@ export class ProjectSendModal extends Modal {
     this.tabOrder = normalizeTabOrder(this.tabOrder, this.fileTemplateTabs);
     this.hiddenTabs = normalizeHiddenTabs(this.hiddenTabs, this.fileTemplateTabs);
     await this.options.onSaveTabPreferences({ tabOrder: [...this.tabOrder], hiddenTabs: [...this.hiddenTabs] });
+  }
+
+  private canReorderTabs(): boolean {
+    return canReorderTemplateTabs(this.options.fileTemplateTabInteraction);
+  }
+
+  private isMobileTemplateTabsReadOnly(): boolean {
+    return isMobileTemplateTabsReadOnly(this.options.fileTemplateTabInteraction);
   }
 
   private renderProjectList(): void {
@@ -1582,7 +1604,7 @@ export class ProjectSendModal extends Modal {
       preferredPath: preferredPathOverride || this.options.getPreferredFileTemplatePath?.(tag) || this.options.preferredFileTemplatePath,
       initialActiveTabId: activeTabId,
       fileTemplateTabs: this.fileTemplateTabs,
-      enableTemplateTabDrag: this.options.enableTemplateTabDrag,
+      fileTemplateTabInteraction: this.options.fileTemplateTabInteraction,
       onLoad: this.options.onLoadFileTemplates,
       onToggleFavorite: this.options.onToggleFileTemplateFavorite,
       onDelete: this.options.onDeleteFileTemplate,
@@ -1831,6 +1853,24 @@ export class ProjectSendModal extends Modal {
     await this.options.onSaveFileTemplateTabs([...this.fileTemplateTabs]);
     await this.options.onSaveCustomTagTabs?.(projectSendTagTabsFromFileTemplateTabs(this.fileTemplateTabs));
   }
+}
+
+function canDragTemplatesIntoTabs(settings: FileTemplateTabInteractionSettings): boolean {
+  if (Platform.isMobile) {
+    return !settings.mobileReadOnly && settings.enableMobileDrag;
+  }
+  return settings.enableDesktopDrag;
+}
+
+function canReorderTemplateTabs(settings: FileTemplateTabInteractionSettings): boolean {
+  if (Platform.isMobile) {
+    return !settings.mobileReadOnly && settings.enableMobileReorder;
+  }
+  return settings.enableDesktopDrag;
+}
+
+function isMobileTemplateTabsReadOnly(settings: FileTemplateTabInteractionSettings): boolean {
+  return Platform.isMobile && settings.mobileReadOnly;
 }
 
 function uniqueTags(tags: string[]): string[] {

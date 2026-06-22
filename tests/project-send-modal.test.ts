@@ -41,7 +41,7 @@ describe("project send modal source", () => {
     expect(modalSource).toContain("fileTemplateTabs");
     expect(modalSource).toContain("template-group");
     expect(modalSource).toContain("tag-filter");
-    expect(modalSource).toContain("enableTemplateTabDrag");
+    expect(modalSource).toContain("fileTemplateTabInteraction");
     expect(modalSource).toContain("tabOrder");
     expect(modalSource).toContain("hiddenTabs");
     expect(modalSource).toContain("projectSend.addTagTab");
@@ -51,18 +51,31 @@ describe("project send modal source", () => {
     expect(modalSource).not.toContain("prompt(t(lang, \"projectSend.addTagTabPrompt\")");
     expect(modalSource).toContain("renderFileTemplateTab");
     expect(modalSource).toContain("renderTemplateGroupTab");
-    expect(modalSource).toContain("draggable: \"true\"");
+    expect(modalSource).toContain('button.setAttr("draggable", "true")');
     expect(modalSource).toContain("dropTab(event: DragEvent");
     expect(modalSource).toContain("memos-plus-project-send-tab-close");
     expect(modalSource).toContain("renameFileTemplateTab");
     expect(modalSource).toContain("removeFileTemplateTab");
     expect(modalSource).not.toContain("contentEl.createEl(\"h2\", { text: title });");
     expect(deliverySource).toContain("fileTemplateTabs: host.settings.fileTemplateTabs");
-    expect(deliverySource).toContain("enableTemplateTabDrag: host.settings.enableTemplateTabDrag");
+    expect(deliverySource).toContain("fileTemplateTabInteraction: host.settings.fileTemplateTabInteraction");
     expect(deliverySource).toContain("tabOrder: host.settings.projectSendTabOrder");
     expect(deliverySource).toContain("hiddenTabs: host.settings.projectSendHiddenTabs");
     expect(deliverySource).toContain("onSaveFileTemplateTabs");
     expect(deliverySource).toContain("onSaveTabPreferences");
+  });
+
+  it("gates template-tab drag interactions by desktop and mobile interaction settings", () => {
+    const modeTabsSource = modalSource.slice(modalSource.indexOf("private renderModeTabs"), modalSource.indexOf("private visibleTabIds"));
+    const libraryTabsSource = modalSource.slice(modalSource.indexOf("private renderCategoryTabs"), modalSource.indexOf("private renderList"));
+
+    expect(modalSource).toContain("private canDragTemplatesIntoTabs()");
+    expect(modalSource).toContain("private canReorderTabs()");
+    expect(modalSource).toContain("private isMobileTemplateTabsReadOnly()");
+    expect(modeTabsSource).toContain("if (this.canReorderTabs())");
+    expect(libraryTabsSource).toContain("if (this.canDragTemplatesIntoTabs() && tab.type === \"template-group\")");
+    expect(modeTabsSource).not.toContain('draggable: "true"');
+    expect(libraryTabsSource).not.toContain("!Platform.isMobile && tab.type === \"template-group\"");
   });
 
   it("keeps template rules internal without showing a current-template selector", () => {
