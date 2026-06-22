@@ -57,6 +57,15 @@ describe("quick input sidebar view", () => {
     expect(settingsSource).toContain("normalizeQuickInputSendAction");
   });
 
+  it("surfaces the sidebar startup toggles prominently at the top of sidebar layout settings", () => {
+    expect(settingsSource).toContain("renderQuickInputStartupCard(container)");
+    expect(settingsSource).toContain("renderQuickInputSettings(container, { includeStartupToggles: false })");
+    expect(settingsSource).toContain("memos-plus-quick-input-startup-card");
+    expect(settingsSource).toContain("memos-plus-quick-input-startup-title");
+    expect(i18nSource).toContain('"settings.quickInputStartupTitle": "侧边栏启动设置"');
+    expect(i18nSource).toContain('"settings.quickInputStartupDesc": "最常用的侧边栏开关放在这里：是否启用右侧快速输入，以及启动时是否自动打开。"');
+  });
+
   it("auto-opens the sidebar safely after layout ready without focusing the composer", () => {
     expect(settingsSource).toContain("quickInputAutoOpen: true");
     expect(mainSource).toContain("this.app.workspace.onLayoutReady");

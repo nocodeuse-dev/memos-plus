@@ -124,7 +124,8 @@ describe("settings top tabs source", () => {
     expect(displaySource).toContain("this.renderComposerAppearanceSettings(container)");
     expect(tasksSource).toContain("this.renderTaskIndexSummary(container)");
     expect(tasksSource).not.toContain("this.renderTaskIndexSettings(container)");
-    expect(sidebarSource).toContain("this.renderQuickInputSettings(container)");
+    expect(sidebarSource).toContain("this.renderQuickInputStartupCard(container)");
+    expect(sidebarSource).toContain("this.renderQuickInputSettings(container, { includeStartupToggles: false })");
     expect(mobileSource).toContain("this.renderMobileLightHomeSettings(container)");
     expect(performanceSource).toContain("this.renderTaskIndexSettings(container)");
   });

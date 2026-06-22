@@ -65,6 +65,63 @@
   margin: 0 0 12px;
 }
 
+.memos-plus-quick-input-startup-card {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  border: 1px solid color-mix(in srgb, var(--text-error) 42%, var(--background-modifier-border));
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--background-primary) 92%, var(--text-error));
+}
+
+.memos-plus-quick-input-startup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.memos-plus-quick-input-startup-badge {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--text-error) 54%, transparent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--text-error) 14%, transparent);
+  color: var(--text-error);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.memos-plus-quick-input-startup-title {
+  margin: 0;
+  color: var(--text-error);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.memos-plus-quick-input-startup-desc {
+  color: color-mix(in srgb, var(--text-error) 76%, var(--text-muted));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.memos-plus-quick-input-startup-setting {
+  border-top: 1px solid color-mix(in srgb, var(--text-error) 22%, var(--background-modifier-border));
+  padding-top: 10px;
+}
+
+.memos-plus-quick-input-startup-setting .setting-item-name {
+  color: var(--text-error);
+  font-weight: 800;
+}
+
+.memos-plus-quick-input-startup-setting .setting-item-description {
+  color: color-mix(in srgb, var(--text-error) 66%, var(--text-muted));
+}
+
 .memos-plus-layout-surface-switcher {
   display: inline-flex;
   gap: 6px;

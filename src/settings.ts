@@ -1359,8 +1359,9 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   }
 
   private renderSidebarLayoutSettings(container: HTMLElement): void {
+    this.renderQuickInputStartupCard(container);
     this.renderViewLayoutSettings(container, "sidebar", "settings.displayContentSidebar", "settings.displayContentSidebarDesc");
-    this.renderQuickInputSettings(container);
+    this.renderQuickInputSettings(container, { includeStartupToggles: false });
   }
 
   private renderMobileLayoutSettings(container: HTMLElement): void {
@@ -1762,27 +1763,24 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       });
   }
 
-  private renderQuickInputSettings(container: HTMLElement): void {
+  private renderQuickInputStartupCard(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    const card = container.createDiv({ cls: "memos-plus-quick-input-startup-card" });
+    const header = card.createDiv({ cls: "memos-plus-quick-input-startup-header" });
+    header.createSpan({ cls: "memos-plus-quick-input-startup-badge", text: t(lang, "settings.quickInputStartupBadge") });
+    header.createEl("h3", { cls: "memos-plus-quick-input-startup-title", text: t(lang, "settings.quickInputStartupTitle") });
+    card.createDiv({ cls: "memos-plus-quick-input-startup-desc", text: t(lang, "settings.quickInputStartupDesc") });
+    this.renderQuickInputEnabledToggle(card, "memos-plus-quick-input-startup-setting");
+    this.renderQuickInputAutoOpenToggle(card, "memos-plus-quick-input-startup-setting");
+  }
+
+  private renderQuickInputSettings(container: HTMLElement, options: { includeStartupToggles?: boolean } = {}): void {
     const lang = this.plugin.settings.language;
     this.renderSectionHeader(container, "settings.quickInputSidebar", "settings.quickInputSidebarDesc");
-    new Setting(container)
-      .setName(t(lang, "settings.quickInputEnabled"))
-      .setDesc(t(lang, "settings.quickInputEnabledDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.quickInputEnabled).onChange(async (value) => {
-          this.plugin.settings.quickInputEnabled = value;
-          await this.plugin.persistSettings();
-        });
-      });
-    new Setting(container)
-      .setName(t(lang, "settings.quickInputAutoOpen"))
-      .setDesc(t(lang, "settings.quickInputAutoOpenDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.quickInputAutoOpen).onChange(async (value) => {
-          this.plugin.settings.quickInputAutoOpen = value;
-          await this.plugin.persistSettings();
-        });
-      });
+    if (options.includeStartupToggles ?? true) {
+      this.renderQuickInputEnabledToggle(container);
+      this.renderQuickInputAutoOpenToggle(container);
+    }
     new Setting(container)
       .setName(t(lang, "settings.quickInputPreserveDraft"))
       .setDesc(t(lang, "settings.quickInputPreserveDraftDesc"))
@@ -1860,6 +1858,38 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           await this.plugin.persistSettings();
         });
       });
+  }
+
+  private renderQuickInputEnabledToggle(container: HTMLElement, className?: string): void {
+    const lang = this.plugin.settings.language;
+    const setting = new Setting(container)
+      .setName(t(lang, "settings.quickInputEnabled"))
+      .setDesc(t(lang, "settings.quickInputEnabledDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.quickInputEnabled).onChange(async (value) => {
+          this.plugin.settings.quickInputEnabled = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    if (className) {
+      setting.settingEl.addClass(className);
+    }
+  }
+
+  private renderQuickInputAutoOpenToggle(container: HTMLElement, className?: string): void {
+    const lang = this.plugin.settings.language;
+    const setting = new Setting(container)
+      .setName(t(lang, "settings.quickInputAutoOpen"))
+      .setDesc(t(lang, "settings.quickInputAutoOpenDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.quickInputAutoOpen).onChange(async (value) => {
+          this.plugin.settings.quickInputAutoOpen = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    if (className) {
+      setting.settingEl.addClass(className);
+    }
   }
 
   private renderQuickCaptureContentSourceSettings(container: HTMLElement): void {
