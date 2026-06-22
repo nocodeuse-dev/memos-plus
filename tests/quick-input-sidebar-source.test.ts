@@ -128,4 +128,15 @@ describe("quick input sidebar view", () => {
     expect(quickInputSource).toContain('setIcon(settingsButton, "settings")');
     expect(quickInputSource).toContain('setIcon(reload, "refresh-cw")');
   });
+
+  it("refreshes the live sidebar view after layout settings change without dropping the active draft", () => {
+    expect(mainSource).toContain("refreshLayoutViews");
+    expect(mainSource).toContain("refreshQuickInputViews");
+    expect(mainSource).toContain("view instanceof MemosPlusQuickInputView");
+    expect(mainSource).toContain("await view.reload()");
+    expect(settingsSource).toContain('this.plugin.refreshLayoutViews("layout-settings")');
+    expect(quickInputSource).toContain("async reload()");
+    expect(quickInputSource).toContain("const transientDraft = this.composerSession?.widget.getValue()");
+    expect(quickInputSource).toContain("initialContent: transientDraft");
+  });
 });

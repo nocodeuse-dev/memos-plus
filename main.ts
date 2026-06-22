@@ -322,6 +322,25 @@ export default class MemosPlusPlugin extends Plugin {
     }
   }
 
+  async refreshLayoutViews(source = "layout-settings"): Promise<void> {
+    await this.refreshViews(source);
+    await this.refreshQuickInputViews(source);
+  }
+
+  async refreshQuickInputViews(source = "manual"): Promise<void> {
+    const leaves = this.app.workspace.getLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE);
+    logMemosPlusDiagnostic("view:refresh", {
+      source,
+      quickInputLeaves: leaves.length
+    });
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof MemosPlusQuickInputView) {
+        await view.reload();
+      }
+    }
+  }
+
   private async captureClipboardLinkToMemos(): Promise<void> {
     await captureClipboardLinkToMemos({
       readClipboard: () => this.readClipboardText(),

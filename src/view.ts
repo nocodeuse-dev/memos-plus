@@ -159,10 +159,11 @@ export class MemosPlusView extends ItemView {
           return;
         }
         const homeModules = this.homeLayoutModules();
-        if (this.shouldRenderDisplaySidebar(homeModules)) {
-          this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(homeModules));
+        const surfaceModules = Platform.isMobile ? this.mobileLayoutModules() : homeModules;
+        if (this.shouldRenderDisplaySidebar(surfaceModules)) {
+          this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceModules));
         }
-        await this.renderMain(shell, homeModules);
+        await this.renderMain(shell, surfaceModules);
         this.renderMobileFab(shell);
       });
     } finally {
@@ -246,7 +247,7 @@ export class MemosPlusView extends ItemView {
       }
 
       if (modules.has("quickInput")) {
-        this.renderComposer(main, Platform.isMobile ? "mobileHome" : "home");
+        this.renderComposer(main, Platform.isMobile ? "mobileHome" : "home", modules);
       }
       await this.renderHomeResults(main, modules);
     } finally {
@@ -259,10 +260,12 @@ export class MemosPlusView extends ItemView {
   }
 
   private activeLayoutDataNeeds(): Set<DisplayModuleDataNeed> {
+    const layout = Platform.isMobile ? this.plugin.settings.mobileLayout : this.plugin.settings.homeLayout;
+    const surface = Platform.isMobile ? "mobile" : "home";
     return new Set(
       this.shouldRenderMobileLightHome()
         ? resolveViewLayoutDataNeeds(this.plugin.settings.mobileLayout, "mobile")
-        : resolveViewLayoutDataNeeds(this.plugin.settings.homeLayout, "home")
+        : resolveViewLayoutDataNeeds(layout, surface)
     );
   }
 
@@ -301,7 +304,7 @@ export class MemosPlusView extends ItemView {
     }
 
     if (modules.has("quickInput")) {
-      this.renderComposer(home, "mobileHome");
+      this.renderComposer(home, "mobileHome", modules);
     }
     if (modules.has("quickInput") && modules.has("sendButton") && this.plugin.settings.mobileLightHomeShowLaterButton) {
       const actions = home.createDiv({ cls: "memos-plus-mobile-light-actions" });
@@ -463,7 +466,7 @@ export class MemosPlusView extends ItemView {
     await this.renderTimeline(this.timelineEl);
   }
 
-  private renderComposer(main: Element, surface: ComposerSurface = "home"): void {
+  private renderComposer(main: Element, surface: ComposerSurface = "home", modules?: ReadonlySet<DisplayModuleId>): void {
     this.composerSession = createComposerSession({
       app: this.app,
       parent: main,
@@ -474,7 +477,8 @@ export class MemosPlusView extends ItemView {
       registerCleanup: (cleanup) => this.register(cleanup),
       resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text)
     }, {
-      surface
+      surface,
+      displayModules: modules
     });
   }
 

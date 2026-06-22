@@ -1491,6 +1491,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         button.setButtonText(t(lang, "settings.displayContentApply")).onClick(async () => {
           this.plugin.settings.sidebarLayout = copyViewLayoutToSurface(this.plugin.settings.homeLayout, "sidebar");
           await this.plugin.persistSettings();
+          await this.plugin.refreshLayoutViews("layout-settings");
           this.display();
         });
       });
@@ -1501,6 +1502,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         button.setButtonText(t(lang, "settings.displayContentApply")).onClick(async () => {
           this.plugin.settings.mobileLayout = copyViewLayoutToSurface(this.plugin.settings.sidebarLayout, "mobile");
           await this.plugin.persistSettings();
+          await this.plugin.refreshLayoutViews("layout-settings");
           this.display();
         });
       });
@@ -1514,6 +1516,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           this.plugin.settings.sidebarLayout = layouts.sidebar;
           this.plugin.settings.mobileLayout = layouts.mobile;
           await this.plugin.persistSettings();
+          await this.plugin.refreshLayoutViews("layout-settings");
           this.display();
         });
       });
@@ -1611,6 +1614,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       this.plugin.settings.mobileLayout = layout;
     }
     await this.plugin.persistSettings();
+    await this.plugin.refreshLayoutViews("layout-settings");
   }
 
   private renderMobileLightHomeSettings(container: HTMLElement): void {

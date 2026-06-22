@@ -2,6 +2,7 @@ import { Notice, Platform, type App } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { createComposerActions, type ComposerActions, type ComposerActionsOptions, type ComposerProjectMode } from "./composerActions";
 import { ComposerWidget, type ComposerInputChangeSource, type ComposerSurface } from "./composerWidget";
+import type { DisplayModuleId } from "./displayModules";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
 import {
@@ -36,6 +37,7 @@ export interface ComposerSessionOptions extends ComposerActionsOptions {
   showClipboardEmptyNotice?: boolean;
   onIncomingContentApplied?: () => void | Promise<void>;
   onClearDraft?: () => void | Promise<void>;
+  displayModules?: ReadonlySet<DisplayModuleId>;
 }
 
 export interface ComposerSession {
@@ -72,7 +74,8 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     sendActionTitle: options.defaultSendAction,
     resolveMarkdownLink: host.resolveMarkdownLink,
     onClearDraft: () => clearComposerDraftCaches(host, options),
-    surface: options.surface ?? "home"
+    surface: options.surface ?? "home",
+    displayModules: options.displayModules
   });
 
   const initialContent = resolveComposerInitialContent(host.settings, options.initialContent);

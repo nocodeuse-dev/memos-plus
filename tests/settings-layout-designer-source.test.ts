@@ -60,6 +60,15 @@ describe("visual layout settings source", () => {
     expect(settingsSource).toContain("\"sendButton\"");
   });
 
+  it("persists layout changes through a refresh path that updates real views, not only the preview", () => {
+    const setViewLayoutSource = settingsSource.slice(settingsSource.indexOf("private async setViewLayout"), settingsSource.indexOf("private renderMobileLightHomeSettings"));
+    const syncSource = settingsSource.slice(settingsSource.indexOf("private renderDisplayContentSyncSettings"), settingsSource.indexOf("private renderViewLayoutSettings"));
+
+    expect(setViewLayoutSource).toContain('this.plugin.refreshLayoutViews("layout-settings")');
+    expect(syncSource).toContain('this.plugin.refreshLayoutViews("layout-settings")');
+    expect(syncSource).not.toContain("await this.plugin.persistSettings();\n          this.display();");
+  });
+
   it("adds Chinese labels and responsive designer styles", () => {
     for (const key of [
       "settings.layoutDesigner.surface.home",

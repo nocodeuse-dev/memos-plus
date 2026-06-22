@@ -17,7 +17,19 @@ describe("mobile light home source integration", () => {
     expect(renderBlock.indexOf("this.renderMobileLightHome")).toBeLessThan(renderBlock.indexOf("const homeModules = this.homeLayoutModules()"));
   });
 
-  it("only uses the mobile layout while mobile performance mode is enabled", () => {
+  it("uses mobile layout modules for the mobile workbench, even when the light home is not active", () => {
+    const renderBlock = viewSource.slice(viewSource.indexOf("async render()"), viewSource.indexOf("private renderSidebar"));
+    const dataNeedsBlock = viewSource.match(/private activeLayoutDataNeeds\(\): Set<DisplayModuleDataNeed> \{([\s\S]*?)\n {2}\}/)?.[1] ?? "";
+
+    expect(renderBlock).toContain("const homeModules = this.homeLayoutModules()");
+    expect(renderBlock).toContain("const surfaceModules = Platform.isMobile ? this.mobileLayoutModules() : homeModules");
+    expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
+    expect(renderBlock).toContain("this.renderMain(shell, surfaceModules)");
+    expect(dataNeedsBlock).toContain("Platform.isMobile");
+    expect(dataNeedsBlock).toContain("this.plugin.settings.mobileLayout");
+  });
+
+  it("only renders the light home shell while mobile performance mode is enabled", () => {
     const shouldRenderBlock = viewSource.match(/private shouldRenderMobileLightHome\(\): boolean \{([\s\S]*?)\n {2}\}/)?.[1] ?? "";
     expect(shouldRenderBlock).toContain("this.plugin.settings.mobilePerformanceMode");
     expect(shouldRenderBlock).toContain("this.mobileLayoutMode()");

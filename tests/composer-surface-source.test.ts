@@ -12,8 +12,8 @@ describe("composer surface routing", () => {
     expect(widgetSource).toContain('export type ComposerSurface = "home" | "mobileHome" | "sidebar" | "quickCaptureModal"');
     expect(sessionSource).toContain("surface?: ComposerSurface");
     expect(sessionSource).toContain('surface: options.surface ?? "home"');
-    expect(viewSource).toContain('this.renderComposer(main, Platform.isMobile ? "mobileHome" : "home")');
-    expect(viewSource).toContain('this.renderComposer(home, "mobileHome")');
+    expect(viewSource).toContain('this.renderComposer(main, Platform.isMobile ? "mobileHome" : "home", modules)');
+    expect(viewSource).toContain('this.renderComposer(home, "mobileHome", modules)');
     expect(quickInputSource).toContain('surface: "sidebar"');
     expect(modalSource).toContain('surface: "quickCaptureModal"');
   });

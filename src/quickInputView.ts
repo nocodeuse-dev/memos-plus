@@ -80,11 +80,17 @@ export class MemosPlusQuickInputView extends ItemView {
     this.containerEl.children[1]?.empty();
   }
 
+  async reload(): Promise<void> {
+    const transientDraft = this.composerSession?.widget.getValue();
+    this.clearDirectoryCache();
+    this.render({ initialContent: transientDraft });
+  }
+
   focusComposer(): void {
     this.composerSession?.focus();
   }
 
-  private render(): void {
+  private render(options: { initialContent?: string } = {}): void {
     logMemosPlusDiagnostic("view:render", { type: MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE });
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
@@ -106,7 +112,7 @@ export class MemosPlusQuickInputView extends ItemView {
     let directoryRendered = false;
     for (const moduleId of resolveViewLayoutModules(this.plugin.settings.sidebarLayout, "sidebar")) {
       if (moduleId === "quickInput" && this.shouldRenderSidebarQuickInput(modules)) {
-        this.renderQuickInputComposer(container);
+        this.renderQuickInputComposer(container, modules, options.initialContent);
         continue;
       }
       if (!directoryRendered && isSidebarDirectoryModule(moduleId) && this.shouldRenderSidebarDirectory(modules)) {
@@ -117,7 +123,7 @@ export class MemosPlusQuickInputView extends ItemView {
     }
   }
 
-  private renderQuickInputComposer(parent: HTMLElement): void {
+  private renderQuickInputComposer(parent: HTMLElement, modules: ReadonlySet<DisplayModuleId>, initialContent?: string): void {
     this.composerSession = createComposerSession(
       {
         app: this.app,
@@ -131,8 +137,9 @@ export class MemosPlusQuickInputView extends ItemView {
       },
       {
         surface: "sidebar",
+        displayModules: modules,
         defaultSendAction: () => sendActionForQuickInput(this.plugin.settings),
-        initialContent: this.plugin.settings.quickInputPreserveDraft ? this.plugin.settings.quickInputDraft : undefined,
+        initialContent: initialContent ?? (this.plugin.settings.quickInputPreserveDraft ? this.plugin.settings.quickInputDraft : undefined),
         initialContentMode: "auto",
         afterDefaultSave: () => this.updateDraftFromComposer(),
         afterProjectSend: () => this.updateDraftFromComposer(),

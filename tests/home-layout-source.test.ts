@@ -10,9 +10,10 @@ describe("desktop home layout source integration", () => {
 
     const renderBlock = viewSource.slice(viewSource.indexOf("async render()"), viewSource.indexOf("private renderSidebar"));
     expect(renderBlock).toContain("const homeModules = this.homeLayoutModules()");
-    expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(homeModules)");
-    expect(renderBlock).toContain("this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(homeModules))");
-    expect(renderBlock).toContain("this.renderMain(shell, homeModules)");
+    expect(renderBlock).toContain("const surfaceModules = Platform.isMobile ? this.mobileLayoutModules() : homeModules");
+    expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
+    expect(renderBlock).toContain("this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceModules))");
+    expect(renderBlock).toContain("this.renderMain(shell, surfaceModules)");
   });
 
   it("skips hidden desktop home modules before rendering or binding events", () => {
@@ -24,5 +25,19 @@ describe("desktop home layout source integration", () => {
     expect(toolbarBlock).toContain('modules.has("refreshButton")');
     expect(renderMainBlock).toContain('modules.has("quickInput")');
     expect(renderMainBlock).toContain("this.renderHomeResults(main, modules)");
+  });
+
+  it("passes the active home/mobile modules into the shared composer so toolbar parts are not preview-only", () => {
+    const renderMainBlock = viewSource.slice(viewSource.indexOf("private async renderMain"), viewSource.indexOf("private homeLayoutModules"));
+    const renderComposerBlock = viewSource.slice(viewSource.indexOf("private renderComposer"), viewSource.indexOf("private async renderTimeline(main"));
+    const composerSessionSource = readFileSync("src/composerSession.ts", "utf8");
+    const composerWidgetSource = readFileSync("src/composerWidget.ts", "utf8");
+
+    expect(renderMainBlock).toContain('this.renderComposer(main, Platform.isMobile ? "mobileHome" : "home", modules)');
+    expect(renderComposerBlock).toContain("displayModules: modules");
+    expect(composerSessionSource).toContain("displayModules: options.displayModules");
+    expect(composerWidgetSource).toContain('this.shouldRenderDisplayModule("inputToolbar")');
+    expect(composerWidgetSource).toContain('this.shouldRenderDisplayModule("moreMenu")');
+    expect(composerWidgetSource).toContain('this.shouldRenderDisplayModule("sendButton")');
   });
 });

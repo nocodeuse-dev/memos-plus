@@ -7,6 +7,7 @@ import {
   type ComposerTextTool,
   type ComposerToolbarToolId
 } from "./composerTools";
+import type { DisplayModuleId } from "./displayModules";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
 import { createNativeMarkdownComposer, type NativeMarkdownComposer } from "./nativeComposer";
@@ -35,6 +36,7 @@ export interface ComposerWidgetOptions {
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
   onClearDraft?: () => void | Promise<void>;
   surface?: ComposerSurface;
+  displayModules?: ReadonlySet<DisplayModuleId>;
 }
 
 export type ComposerInputChangeSource = "quick-input-paste" | "clipboard-fill" | "clipboard-append" | "selection-fill" | "selection-append";
@@ -459,8 +461,14 @@ export class ComposerWidget {
   private renderFooter(): void {
     const settings = this.options.settings();
     const lang = settings.language;
+    const showInputToolbar = this.shouldRenderDisplayModule("inputToolbar");
+    const showMoreMenu = this.shouldRenderDisplayModule("moreMenu");
+    const showSendButton = this.shouldRenderDisplayModule("sendButton");
+    if (!showInputToolbar && !showMoreMenu && !showSendButton) {
+      return;
+    }
     const footer = this.element.createDiv({ cls: "memos-plus-composer-footer" });
-    const tools = footer.createDiv({ cls: "memos-plus-composer-tools" });
+    const tools = showInputToolbar || showMoreMenu ? footer.createDiv({ cls: "memos-plus-composer-tools" }) : null;
     const toolButtons: ComposerToolbarButton[] = [
       { id: "tag", icon: "hash", labelKey: "toolbar.insertTag", onClick: () => this.applyTextTool("tag") },
       { id: "image", icon: "image", labelKey: "toolbar.insertImage", onClick: () => this.pickImageFromDisk() },
@@ -491,53 +499,65 @@ export class ComposerWidget {
         }
       });
     }
-    const visibleTools = toolButtons.filter((item) => settings.composerToolbar[item.id]);
-    const hiddenTools = toolButtons.filter((item) => !settings.composerToolbar[item.id]);
-    for (const item of visibleTools) {
-      const label = t(lang, item.labelKey);
-      const button = tools.createEl("button", {
-        cls: `memos-plus-tool-button${item.active?.() ? " is-active" : ""}`,
-        attr: { type: "button", "aria-label": label, title: label }
+    const visibleTools = showInputToolbar ? toolButtons.filter((item) => settings.composerToolbar[item.id]) : [];
+    const hiddenTools = showInputToolbar ? toolButtons.filter((item) => !settings.composerToolbar[item.id]) : toolButtons;
+    if (tools && showInputToolbar) {
+      for (const item of visibleTools) {
+        const label = t(lang, item.labelKey);
+        const button = tools.createEl("button", {
+          cls: `memos-plus-tool-button${item.active?.() ? " is-active" : ""}`,
+          attr: { type: "button", "aria-label": label, title: label }
+        });
+        setIcon(button, item.icon);
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void item.onClick(button);
+          button.classList.toggle("is-active", item.active?.() ?? false);
+        });
+      }
+    }
+    if (tools && showMoreMenu) {
+      const moreButton = tools.createEl("button", {
+        cls: "memos-plus-tool-button",
+        attr: { type: "button", "aria-label": t(lang, "toolbar.more"), title: t(lang, "toolbar.more") }
       });
-      setIcon(button, item.icon);
-      button.addEventListener("click", (event) => {
+      setIcon(moreButton, "more-horizontal");
+      moreButton.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        void item.onClick(button);
-        button.classList.toggle("is-active", item.active?.() ?? false);
+        this.openComposerToolsMenu(event, hiddenTools, moreButton);
       });
     }
-    const moreButton = tools.createEl("button", {
-      cls: "memos-plus-tool-button",
-      attr: { type: "button", "aria-label": t(lang, "toolbar.more"), title: t(lang, "toolbar.more") }
-    });
-    setIcon(moreButton, "more-horizontal");
-    moreButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.openComposerToolsMenu(event, hiddenTools, moreButton);
-    });
-    const clearTool = { icon: "eraser", labelKey: "toolbar.clearInput" } as const;
-    const clearLabel = t(lang, clearTool.labelKey);
-    const clearButton = tools.createEl("button", {
-      cls: "memos-plus-tool-button memos-plus-clear-input-button",
-      attr: { type: "button", "aria-label": clearLabel, title: clearLabel }
-    });
-    setIcon(clearButton, "eraser");
-    clearButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      void this.clearInput();
-    });
-    this.clearButton = clearButton;
-    this.calloutStatus = tools.createDiv({ cls: "memos-plus-callout-status" });
-    this.updateCalloutStatus();
-    this.updateClearButtonState();
-    const sendTitle = t(lang, `sendAction.${this.options.sendActionTitle?.() ?? settings.defaultSendAction}`);
-    const save = footer.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "composer.send"), attr: { title: sendTitle } });
-    save.addEventListener("click", () => {
-      void this.options.onSend();
-    });
+    if (tools && showInputToolbar) {
+      const clearTool = { icon: "eraser", labelKey: "toolbar.clearInput" } as const;
+      const clearLabel = t(lang, clearTool.labelKey);
+      const clearButton = tools.createEl("button", {
+        cls: "memos-plus-tool-button memos-plus-clear-input-button",
+        attr: { type: "button", "aria-label": clearLabel, title: clearLabel }
+      });
+      setIcon(clearButton, "eraser");
+      clearButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void this.clearInput();
+      });
+      this.clearButton = clearButton;
+      this.calloutStatus = tools.createDiv({ cls: "memos-plus-callout-status" });
+      this.updateCalloutStatus();
+      this.updateClearButtonState();
+    }
+    if (showSendButton) {
+      const sendTitle = t(lang, `sendAction.${this.options.sendActionTitle?.() ?? settings.defaultSendAction}`);
+      const save = footer.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "composer.send"), attr: { title: sendTitle } });
+      save.addEventListener("click", () => {
+        void this.options.onSend();
+      });
+    }
+  }
+
+  private shouldRenderDisplayModule(moduleId: DisplayModuleId): boolean {
+    return this.options.displayModules?.has(moduleId) ?? true;
   }
 
   private updateCalloutStatus(): void {

@@ -13,14 +13,15 @@ describe("sidebar display module option helpers", () => {
     expect(quickInputSource).not.toContain("function isSidebarDirectoryModule");
   });
 
-  it("uses one sidebar option mapper for desktop home and mobile light home", () => {
+  it("uses one sidebar option mapper for desktop home, mobile workbench, and mobile light home", () => {
     const renderBlock = viewSource.slice(viewSource.indexOf("async render()"), viewSource.indexOf("private renderSidebar"));
     const mobileBlock = viewSource.slice(viewSource.indexOf("private async renderMobileLightHome"), viewSource.indexOf("private async renderMobileHomeMemoList"));
 
     expect(viewSource).toContain("private shouldRenderDisplaySidebar");
     expect(viewSource).toContain("private sidebarOptionsForDisplayModules");
-    expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(homeModules)");
-    expect(renderBlock).toContain("this.sidebarOptionsForDisplayModules(homeModules)");
+    expect(renderBlock).toContain("const surfaceModules = Platform.isMobile ? this.mobileLayoutModules() : homeModules");
+    expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
+    expect(renderBlock).toContain("this.sidebarOptionsForDisplayModules(surfaceModules)");
     expect(mobileBlock).toContain("this.shouldRenderDisplaySidebar(modules)");
     expect(mobileBlock).toContain("this.sidebarOptionsForDisplayModules(modules)");
   });
