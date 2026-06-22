@@ -2,7 +2,7 @@ import { Menu, Notice, Platform, type App } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import type { ComposerWidget } from "./composerWidget";
 import { t } from "./i18n";
-import { sendContentToProject, type ProjectDeliveryResult } from "./projectDelivery";
+import { maybeOpenTargetFileAfterSend, sendContentToProject, type ProjectDeliveryResult } from "./projectDelivery";
 import type { DefaultSendAction, MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 
@@ -101,6 +101,7 @@ export function createComposerActions(
       await clearFailureDraft(host);
       await host.refreshViews();
       await options.afterProjectSend?.(delivery);
+      await maybeOpenTargetFileAfterSend(host.app, host.settings, delivery.file);
       return delivery;
     } catch (error) {
       console.error("Memos Plus: failed to send composer content", error);

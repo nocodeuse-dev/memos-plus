@@ -19,7 +19,7 @@ import {
   type OrganizerFilterId
 } from "./organizerPanel";
 import { debounceDelay, effectivePageSize, PerformanceProfiler, shouldUseLightweightMode } from "./performance";
-import { sendContentToProject, type ProjectDeliveryResult } from "./projectDelivery";
+import { maybeOpenTargetFileAfterSend, sendContentToProject, type ProjectDeliveryResult } from "./projectDelivery";
 import {
   createSavedSearchId,
   filterMemosBySavedSearch,
@@ -1511,6 +1511,7 @@ export class MemosPlusView extends ItemView {
     } else {
       await this.render();
     }
+    await maybeOpenTargetFileAfterSend(this.app, this.plugin.settings, delivery.file);
   }
 
   private wireTaskCheckboxes(body: Element, memo: MemoItem): void {

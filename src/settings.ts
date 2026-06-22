@@ -163,6 +163,7 @@ export interface MemosPlusSettings {
   calloutAutoForLinks: boolean;
   composerToolbar: ComposerToolbarSettings;
   clearAfterSave: boolean;
+  openTargetFileAfterSend: boolean;
   sendFailureDraftEnabled: boolean;
   sendFailureDraftContent: string;
   sortOrder: SortOrder;
@@ -274,6 +275,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   ...DEFAULT_CALLOUT_SETTINGS,
   composerToolbar: DEFAULT_COMPOSER_TOOLBAR_SETTINGS,
   clearAfterSave: true,
+  openTargetFileAfterSend: false,
   sendFailureDraftEnabled: true,
   sendFailureDraftContent: "",
   sortOrder: "newest",
@@ -490,6 +492,8 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     calloutAutoForLinks: typeof raw.calloutAutoForLinks === "boolean" ? raw.calloutAutoForLinks : DEFAULT_CALLOUT_SETTINGS.calloutAutoForLinks,
     composerToolbar: normalizeComposerToolbarSettings(raw.composerToolbar),
     clearAfterSave,
+    openTargetFileAfterSend:
+      typeof raw.openTargetFileAfterSend === "boolean" ? raw.openTargetFileAfterSend : DEFAULT_SETTINGS.openTargetFileAfterSend,
     sendFailureDraftEnabled: typeof raw.sendFailureDraftEnabled === "boolean" ? raw.sendFailureDraftEnabled : DEFAULT_SETTINGS.sendFailureDraftEnabled,
     sendFailureDraftContent: typeof raw.sendFailureDraftContent === "string" ? raw.sendFailureDraftContent : "",
     sortOrder: raw.sortOrder === "oldest" ? "oldest" : "newest",
@@ -784,6 +788,15 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.clearAfterSave).onChange(async (value) => {
           this.plugin.settings.clearAfterSave = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.openTargetFileAfterSend"))
+      .setDesc(t(lang, "settings.openTargetFileAfterSendDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.openTargetFileAfterSend).onChange(async (value) => {
+          this.plugin.settings.openTargetFileAfterSend = value;
           await this.plugin.persistSettings();
         });
       });

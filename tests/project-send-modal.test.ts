@@ -94,6 +94,16 @@ describe("project send modal source", () => {
     expect(deliveryOptionsSource).toContain("fileTemplateLibraryInteraction: host.settings.fileTemplateLibraryInteraction");
   });
 
+  it("opens the target file only after successful send or transfer when enabled", () => {
+    expect(deliverySource).toContain("export async function maybeOpenTargetFileAfterSend");
+    expect(deliverySource).toContain("if (!settings.openTargetFileAfterSend)");
+    expect(deliverySource).toContain("await app.workspace.getLeaf(false).openFile(file)");
+    expect(composerActionsSource).toContain("maybeOpenTargetFileAfterSend");
+    expect(composerActionsSource).toContain("await maybeOpenTargetFileAfterSend(host.app, host.settings, delivery.file)");
+    expect(viewSource).toContain("maybeOpenTargetFileAfterSend");
+    expect(viewSource).toContain("await maybeOpenTargetFileAfterSend(this.app, this.plugin.settings, delivery.file)");
+  });
+
   it("keeps template rules internal without showing a current-template selector", () => {
     expect(modalSource).toContain("initialTemplateId");
     expect(modalSource).toContain("private currentTemplate()");

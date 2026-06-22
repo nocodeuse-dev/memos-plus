@@ -29,6 +29,17 @@ export interface SendContentToProjectOptions {
   onSaveDefault?: () => Promise<void>;
 }
 
+export async function maybeOpenTargetFileAfterSend(app: App, settings: MemosPlusSettings, file: TFile): Promise<void> {
+  if (!settings.openTargetFileAfterSend) {
+    return;
+  }
+  try {
+    await app.workspace.getLeaf(false).openFile(file);
+  } catch (error) {
+    console.error("[Memos Plus] Failed to open target file after send", error);
+  }
+}
+
 export async function sendContentToProject(
   host: ProjectDeliveryHost,
   content: string,

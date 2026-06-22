@@ -174,6 +174,7 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.projectSendTabOrder).toEqual(["project", "tag", "recent", "search"]);
     expect(DEFAULT_SETTINGS.projectSendHiddenTabs).toEqual([]);
     expect(DEFAULT_SETTINGS.managedTemplates).toEqual([]);
+    expect(DEFAULT_SETTINGS.openTargetFileAfterSend).toBe(false);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryFolder).toBe("我的资源/模板");
     expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaultFolder).toBe("我的资源/Memos");
     expect(DEFAULT_SETTINGS.fileTemplateLibraryFavorites).toEqual([]);
@@ -526,6 +527,7 @@ describe("normalizeSettings", () => {
         projectSendTabOrder: ["search", "custom:插件", "project", "bad", "tag", "search"],
         projectSendHiddenTabs: ["recent", "custom:医学/疾病", "bad", "recent"],
         managedTemplates: [{ id: "tpl", name: " 病例 ", type: "case", folderPath: " 医学//病例 ", defaultTags: ["#病例"] }],
+        openTargetFileAfterSend: true,
       sendToFileDefaultInsertPosition: "file-end",
       sendToFileNoHeadingBehavior: "file-start",
       recentFileTargetPaths: [" 医学//肩袖损伤.md ", "", "插件/Memos Plus.md"],
@@ -584,6 +586,7 @@ describe("normalizeSettings", () => {
           afterTransferAction: "keep"
         })
       ],
+      openTargetFileAfterSend: true,
       sendToFileDefaultInsertPosition: "file-end",
       sendToFileNoHeadingBehavior: "file-start",
       recentFileTargetPaths: ["医学/肩袖损伤.md", "插件/Memos Plus.md"],
