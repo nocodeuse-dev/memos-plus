@@ -43,9 +43,12 @@ describe("quick capture shared composer", () => {
     expect(stylesSource).toContain(".memos-plus-composer:focus-within");
   });
 
-  it("keeps the focus ring on the outer composer instead of drawing an inner purple line", () => {
+  it("keeps composer focus feedback to a single border instead of drawing a second purple line", () => {
     const outerFocusRule = stylesSource.match(/\.memos-plus-composer:focus-within \{([\s\S]*?)\n\}/)?.[1] ?? "";
-    expect(outerFocusRule).toContain("box-shadow");
+    expect(outerFocusRule).toContain("border-color");
+    expect(outerFocusRule).toContain("box-shadow: none");
+    expect(outerFocusRule).not.toContain("0 0 0 1px");
+    expect(outerFocusRule).not.toContain("0 0 0 4px");
 
     const nativeFocusRule = stylesSource.match(/\.memos-plus-native-editor-host:focus-within \{([\s\S]*?)\n\}/)?.[1] ?? "";
     expect(nativeFocusRule).toContain("box-shadow: none");

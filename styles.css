@@ -1259,10 +1259,7 @@
 
 .memos-plus-composer:focus-within {
   border-color: var(--memos-plus-composer-border-color);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--memos-plus-composer-border-color) 66%, transparent),
-    0 0 0 4px color-mix(in srgb, var(--memos-plus-composer-border-color) 18%, transparent),
-    0 10px 28px color-mix(in srgb, var(--memos-plus-composer-border-color) 12%, transparent);
+  box-shadow: none;
 }
 
 .memos-plus-composer-editor {
