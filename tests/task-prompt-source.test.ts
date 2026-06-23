@@ -30,9 +30,9 @@ describe("task settings prompt wiring", () => {
     expect(saveDefaultSource).toContain("host.store.addMemo");
   });
 
-  it("prompts for template-selected task sends instead of silently applying defaults", () => {
+  it("does not prompt for format-rule task sends", () => {
     expect(projectModalSource).toContain("promptOnCreate");
-    expect(projectModalSource).toContain('decision === "task" && this.options.taskSettings.promptOnCreate');
+    expect(projectModalSource).not.toContain('decision === "task" && this.options.taskSettings.promptOnCreate');
   });
 
   it("shows a localized setting for task prompt behavior", () => {

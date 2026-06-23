@@ -285,26 +285,11 @@ export function resolveTemplateAfterTransferAction(
 }
 
 export function resolveTemplateTaskDecision(template: ManagedTemplate | undefined, context: TemplateTaskDecisionContext): TemplateTaskDecision {
+  void context;
   if (!template) {
     return "none";
   }
-  if (template.taskMode === "none") {
-    return "none";
-  }
-  if (template.taskMode === "always") {
-    return "task";
-  }
-  if (template.taskMode === "ask") {
-    return "ask";
-  }
-  if (template.taskMode !== "auto") {
-    return "none";
-  }
-  const matched = templateTaskConditionsMatch(template, context);
-  if (!matched) {
-    return "none";
-  }
-  return template.taskAutoConfirm ? "ask" : "task";
+  return template.insertFormat === "task" ? "task" : "none";
 }
 
 export function buildTemplateFilePath(template: ManagedTemplate, title: string, now = new Date()): string {
@@ -511,44 +496,6 @@ function normalizeTemplateTextList(value: unknown): string[] {
     seen.add(text);
     return [text];
   });
-}
-
-function templateTaskConditionsMatch(template: ManagedTemplate, context: TemplateTaskDecisionContext): boolean {
-  const content = context.content.trim();
-  const contentLower = content.toLowerCase();
-  const heading = context.heading?.trim() ?? "";
-  const headingLower = heading.toLowerCase();
-
-  if (template.taskAutoUseInsertFormat && template.insertFormat === "task") {
-    return true;
-  }
-  if (template.taskAutoUseTemplateName && template.name.toLowerCase().includes("task")) {
-    return true;
-  }
-  if (template.taskAutoUseTemplateName && template.name.includes("任务")) {
-    return true;
-  }
-  if (template.taskAutoKeywords.some((keyword) => contentLower.includes(keyword.toLowerCase()))) {
-    return true;
-  }
-  if (template.taskAutoPrefixes.some((prefix) => content.trimStart().toLowerCase().startsWith(prefix.toLowerCase()))) {
-    return true;
-  }
-  if (template.taskAutoHeadings.some((target) => headingLower === target.toLowerCase())) {
-    return true;
-  }
-  if (template.taskAutoTags.some((tag) => contentHasTag(contentLower, tag))) {
-    return true;
-  }
-  return false;
-}
-
-function contentHasTag(contentLower: string, tag: string): boolean {
-  const normalized = normalizeFileTag(tag).toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-  return contentLower.includes(`#${normalized}`) || contentLower.includes(`/${normalized}`);
 }
 
 function normalizeOptionalPath(value: unknown): string {

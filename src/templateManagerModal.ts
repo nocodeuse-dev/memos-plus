@@ -7,7 +7,6 @@ import {
   TEMPLATE_AFTER_TRANSFER_ACTIONS,
   TEMPLATE_GLOBAL_OVERRIDE_MODES,
   TEMPLATE_INSERT_FORMATS,
-  TEMPLATE_TASK_CONTENT_MODES,
   buildTemplateFileContent,
   createEmptyManagedTemplate,
   type ManagedTemplate,
@@ -26,6 +25,7 @@ interface TemplateEditorModalOptions {
 type TemplatePurpose = "project" | "tag-file" | "recent" | "search" | "default";
 
 const TEMPLATE_PURPOSES: TemplatePurpose[] = ["project", "tag-file", "recent", "search", "default"];
+const FORMAT_RULE_TASK_CONTENT_MODES: TaskContentMode[] = ["task-with-detail", "task-only"];
 
 export class TemplateEditorModal extends Modal {
   private draft: ManagedTemplate;
@@ -126,7 +126,7 @@ export class TemplateEditorModal extends Modal {
       .setName(t(lang, "templateManager.taskContentMode"))
       .setDesc(t(lang, "templateManager.taskContentModeDesc"))
       .addDropdown((dropdown) => {
-        for (const mode of TEMPLATE_TASK_CONTENT_MODES) {
+        for (const mode of FORMAT_RULE_TASK_CONTENT_MODES) {
           dropdown.addOption(mode, t(lang, `templateManager.taskContentMode.${mode}`));
         }
         dropdown.setValue(this.draft.taskContentMode).onChange((value) => {

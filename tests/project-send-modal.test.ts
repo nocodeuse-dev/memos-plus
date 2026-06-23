@@ -186,6 +186,10 @@ describe("project send modal source", () => {
     expect(modalSource).not.toContain('normalized === this.options.taskSettings.defaultSection || normalized === "待办" || normalized === "任务"');
   });
 
+  it("does not open task options just because a format rule resolves to task", () => {
+    expect(modalSource).not.toContain('decision === "task" && this.options.taskSettings.promptOnCreate');
+  });
+
   it("offers a new-heading insert target with heading name, level, location, and duplicate handling", () => {
     expect(modalSource).toContain('"new-heading"');
     expect(modalSource).toContain("fileSend.newHeadingName");

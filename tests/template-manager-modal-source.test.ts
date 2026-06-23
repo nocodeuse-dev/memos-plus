@@ -54,6 +54,12 @@ describe("template manager editor source", () => {
     expect(modalSource).not.toContain('this.draft.insertFormat !== "custom"');
   });
 
+  it("keeps task detail mode choices explicit in the format-rule editor", () => {
+    expect(modalSource).toContain("FORMAT_RULE_TASK_CONTENT_MODES");
+    expect(modalSource).not.toContain("TEMPLATE_TASK_CONTENT_MODES");
+    expect(i18nSource).not.toContain('"templateManager.taskContentMode.ask"');
+  });
+
   it("uses friendlier Chinese labels instead of duplicate technical wording", () => {
     expect(i18nSource).toContain('"templateManager.addTemplate": "新增发送格式规则"');
     expect(i18nSource).toContain('"templateManager.editTemplate": "编辑发送格式规则"');
@@ -62,9 +68,7 @@ describe("template manager editor source", () => {
     expect(i18nSource).toContain('"templateManager.purpose": "适用入口"');
     expect(i18nSource).toContain('"templateManager.insertFormat": "输入内容保存成"');
     expect(i18nSource).toContain('"templateManager.section.format": "输入内容变成什么格式"');
-    expect(i18nSource).toContain('"templateManager.taskMode": "是否启用任务格式"');
-    expect(i18nSource).toContain('"templateManager.taskMode.ask": "发送时询问"');
-    expect(i18nSource).toContain('"templateManager.taskAutoKeywords": "内容包含关键词"');
-    expect(i18nSource).toContain('"templateManager.taskAutoHeadings": "目标标题是"');
+    expect(i18nSource).not.toContain('"templateManager.taskMode"');
+    expect(i18nSource).not.toContain('"templateManager.taskAutoKeywords"');
   });
 });

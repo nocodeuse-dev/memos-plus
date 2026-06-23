@@ -107,11 +107,9 @@ import { normalizeSidebarItems, type SidebarItem } from "./sidebar";
 import { normalizeTaskDate, normalizeTaskPriority, normalizeTaskRecurrence, type TaskPriority, type TaskRecurrence } from "./tasksFormat";
 import type { TaskIndexStatus } from "./taskIndex";
 import {
-  TEMPLATE_TASK_MODES,
   cloneManagedTemplate,
   normalizeManagedTemplates,
-  type ManagedTemplate,
-  type TemplateTaskMode
+  type ManagedTemplate
 } from "./templateManager";
 import { TemplateEditorModal } from "./templateManagerModal";
 import { logMemosPlusDiagnostic } from "./diagnostics";
@@ -2420,7 +2418,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const lang = this.plugin.settings.language;
     const entry = this.formatManagedTemplateEntry(template);
     const format = t(lang, `templateManager.insertFormat.${template.insertFormat}`);
-    const task = t(lang, `templateManager.taskMode.${template.taskMode}`);
     const afterSend =
       template.clearAfterSendMode === "custom"
         ? t(lang, template.clearAfterSend ? "settings.templateSummaryClearCustomYes" : "settings.templateSummaryClearCustomNo")
@@ -2428,7 +2425,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     return [
       `${t(lang, "settings.templateSummaryEntry")}：${entry}`,
       `${t(lang, "settings.templateSummaryFormat")}：${format}`,
-      `${t(lang, "settings.templateSummaryTask")}：${task}`,
       `${t(lang, "settings.templateSummaryAfterSend")}：${afterSend}`
     ]
       .filter(Boolean)
@@ -2888,9 +2884,8 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             this.plugin.settings.taskDefaultRecurrence = normalizeTaskRecurrence(value);
             await this.plugin.persistSettings();
           });
-      });
+    });
     this.renderTaskIndexSummary(container);
-    this.renderTemplateTaskRuleSettings(container);
   }
 
   private renderTaskIndexSummary(container: HTMLElement): void {
@@ -2968,120 +2963,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           this.display();
         });
       });
-  }
-
-  private renderTemplateTaskRuleSettings(container: HTMLElement): void {
-    const lang = this.plugin.settings.language;
-    const templates = this.plugin.settings.managedTemplates;
-    this.renderSectionHeader(container, "settings.templateTaskRules", "settings.templateTaskRulesDesc");
-
-    if (templates.length === 0) {
-      container.createEl("p", {
-        cls: "setting-item-description",
-        text: t(lang, "settings.templateTaskRulesEmpty")
-      });
-      return;
-    }
-
-    for (const template of templates) {
-      const details = container.createEl("details", { cls: "memos-plus-template-task-rule" });
-      details.createEl("summary", {
-        text: `${template.name} · ${t(lang, `templateManager.taskMode.${template.taskMode}`)}`
-      });
-
-      new Setting(details)
-        .setName(t(lang, "templateManager.taskMode"))
-        .addDropdown((dropdown) => {
-          for (const mode of TEMPLATE_TASK_MODES) {
-            dropdown.addOption(mode, t(lang, `templateManager.taskMode.${mode}`));
-          }
-          dropdown.setValue(template.taskMode).onChange(async (value) => {
-            await this.updateManagedTemplateTaskRule(template.id, { taskMode: value as TemplateTaskMode });
-            this.display();
-          });
-        });
-
-      if (template.taskMode === "none") {
-        details.createDiv({ cls: "setting-item-description", text: t(lang, "templateManager.taskMode.noneDesc") });
-        continue;
-      }
-      if (template.taskMode === "always") {
-        details.createDiv({ cls: "setting-item-description", text: t(lang, "templateManager.taskMode.alwaysDesc") });
-        continue;
-      }
-      if (template.taskMode === "ask") {
-        details.createDiv({ cls: "setting-item-description", text: t(lang, "templateManager.taskMode.askDesc") });
-        continue;
-      }
-
-      details.createDiv({ cls: "setting-item-description", text: t(lang, "templateManager.taskAutoDesc") });
-      new Setting(details)
-        .setName(t(lang, "templateManager.taskAutoKeywords"))
-        .addText((text) => {
-          text.setPlaceholder("任务, todo, 待办").setValue(template.taskAutoKeywords.join(", ")).onChange(async (value) => {
-            await this.updateManagedTemplateTaskRule(template.id, { taskAutoKeywords: parseTaskRuleTextList(value) });
-          });
-        });
-      new Setting(details)
-        .setName(t(lang, "templateManager.taskAutoTags"))
-        .addText((text) => {
-          text.setPlaceholder("任务, todo").setValue(template.taskAutoTags.join(", ")).onChange(async (value) => {
-            await this.updateManagedTemplateTaskRule(template.id, { taskAutoTags: parseTaskRuleTags(value) });
-          });
-        });
-      new Setting(details)
-        .setName(t(lang, "templateManager.taskAutoPrefixes"))
-        .addText((text) => {
-          text.setPlaceholder("任务：, todo:").setValue(template.taskAutoPrefixes.join(", ")).onChange(async (value) => {
-            await this.updateManagedTemplateTaskRule(template.id, { taskAutoPrefixes: parseTaskRuleTextList(value) });
-          });
-        });
-      new Setting(details)
-        .setName(t(lang, "templateManager.taskAutoHeadings"))
-        .addText((text) => {
-          text.setPlaceholder("待办, 今日任务, 下一步").setValue(template.taskAutoHeadings.join(", ")).onChange(async (value) => {
-            await this.updateManagedTemplateTaskRule(template.id, { taskAutoHeadings: parseTaskRuleTextList(value) });
-          });
-        });
-      new Setting(details)
-        .setName(t(lang, "templateManager.taskAutoUseInsertFormat"))
-        .addToggle((toggle) => {
-          toggle.setValue(template.taskAutoUseInsertFormat).onChange(async (value) => {
-            await this.updateManagedTemplateTaskRule(template.id, { taskAutoUseInsertFormat: value });
-          });
-        });
-      new Setting(details)
-        .setName(t(lang, "templateManager.taskAutoUseTemplateName"))
-        .addToggle((toggle) => {
-          toggle.setValue(template.taskAutoUseTemplateName).onChange(async (value) => {
-            await this.updateManagedTemplateTaskRule(template.id, { taskAutoUseTemplateName: value });
-          });
-        });
-      new Setting(details)
-        .setName(t(lang, "templateManager.taskAutoConfirm"))
-        .addToggle((toggle) => {
-          toggle.setValue(template.taskAutoConfirm).onChange(async (value) => {
-            await this.updateManagedTemplateTaskRule(template.id, { taskAutoConfirm: value });
-          });
-        });
-    }
-  }
-
-  private async updateManagedTemplateTaskRule(templateId: string, update: Partial<Pick<
-    ManagedTemplate,
-    | "taskMode"
-    | "taskAutoKeywords"
-    | "taskAutoTags"
-    | "taskAutoPrefixes"
-    | "taskAutoHeadings"
-    | "taskAutoUseInsertFormat"
-    | "taskAutoUseTemplateName"
-    | "taskAutoConfirm"
-  >>): Promise<void> {
-    this.plugin.settings.managedTemplates = normalizeManagedTemplates(
-      this.plugin.settings.managedTemplates.map((template) => (template.id === templateId ? { ...template, ...update } : template))
-    );
-    await this.plugin.persistSettings();
   }
 
   private renderFilterSettings(container: HTMLElement): void {
@@ -3307,18 +3188,6 @@ function uniqueNonEmpty(value: string, index: number, array: string[]): boolean 
 
 function formatTagsForInput(tags: string[]): string {
   return tags.map((tag) => `#${tag}`).join(" ");
-}
-
-function parseTaskRuleTextList(value: string): string[] {
-  const seen = new Set<string>();
-  return value.split(/[\n,，]+/).flatMap((item) => {
-    const normalized = item.trim();
-    if (!normalized || seen.has(normalized)) {
-      return [];
-    }
-    seen.add(normalized);
-    return [normalized];
-  });
 }
 
 function parseTaskRuleTags(value: string): string[] {

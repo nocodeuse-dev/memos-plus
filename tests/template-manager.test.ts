@@ -214,12 +214,13 @@ describe("template manager helpers", () => {
     );
   });
 
-  it("resolves per-template task mode without relying on fixed sections", () => {
+  it("resolves task sending from the selected insert format only", () => {
     const base = createDefaultProjectTemplate("项目", "项目", "收集箱");
 
     expect(resolveTemplateTaskDecision({ ...base, taskMode: "none" }, { content: "任务：整理资料", heading: "待办" })).toBe("none");
-    expect(resolveTemplateTaskDecision({ ...base, taskMode: "always" }, { content: "普通内容", heading: "资料" })).toBe("task");
-    expect(resolveTemplateTaskDecision({ ...base, taskMode: "ask" }, { content: "普通内容", heading: "资料" })).toBe("ask");
+    expect(resolveTemplateTaskDecision({ ...base, insertFormat: "task", taskMode: "ask" }, { content: "普通内容", heading: "资料" })).toBe("task");
+    expect(resolveTemplateTaskDecision({ ...base, taskMode: "always" }, { content: "普通内容", heading: "资料" })).toBe("none");
+    expect(resolveTemplateTaskDecision({ ...base, taskMode: "ask" }, { content: "普通内容", heading: "资料" })).toBe("none");
     expect(
       resolveTemplateTaskDecision(
         {
@@ -237,19 +238,19 @@ describe("template manager helpers", () => {
       )
     ).toBe("none");
     expect(resolveTemplateTaskDecision({ ...base, taskMode: "auto", taskAutoPrefixes: ["任务："] }, { content: "任务：整理资料", heading: "资料" })).toBe(
-      "task"
+      "none"
     );
     expect(resolveTemplateTaskDecision({ ...base, taskMode: "auto", taskAutoTags: ["任务"] }, { content: "整理资料 #任务", heading: "资料" })).toBe(
-      "task"
+      "none"
     );
     expect(resolveTemplateTaskDecision({ ...base, taskMode: "auto", taskAutoHeadings: ["下一步"] }, { content: "整理资料", heading: "下一步" })).toBe(
-      "task"
+      "none"
     );
     expect(
       resolveTemplateTaskDecision({ ...base, taskMode: "auto", taskAutoUseInsertFormat: true, insertFormat: "task" }, { content: "整理资料", heading: "资料" })
     ).toBe("task");
     expect(resolveTemplateTaskDecision({ ...base, taskMode: "auto", taskAutoKeywords: ["todo"], taskAutoConfirm: true }, { content: "todo 整理", heading: "资料" })).toBe(
-      "ask"
+      "none"
     );
   });
 

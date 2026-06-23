@@ -433,16 +433,32 @@ function renderDeliveryContent(
     return taskOptions?.isTask ? renderTaskWrappedDeliveryContent(settings, file, trimmed, taskOptions, trimmed, options, now) : trimmed;
   }
   const template = options.template;
-  if (taskOptions?.isTask && isTaskWrapperCustomTemplate(template)) {
-    const taskLine = renderTaskOnlyDeliveryContent(settings, file, trimmed, taskOptions, options, now);
+  const resolvedTaskOptions = taskOptions ?? defaultTaskOptionsForTemplate(settings, template);
+  if (resolvedTaskOptions?.isTask && isTaskWrapperCustomTemplate(template)) {
+    const taskLine = renderTaskOnlyDeliveryContent(settings, file, trimmed, resolvedTaskOptions, options, now);
     return renderTaskWrapperCustomTemplate(template.advancedContentTemplate, file, trimmed, taskLine, template, now);
   }
   const formatted = renderFormattedDeliveryContent(file, trimmed, template, now);
-  if (taskOptions?.isTask) {
+  if (resolvedTaskOptions?.isTask) {
     const detailContent = template && template.insertFormat !== "note" && template.insertFormat !== "task" ? formatted : "";
-    return renderTaskWrappedDeliveryContent(settings, file, trimmed, taskOptions, detailContent, options, now);
+    return renderTaskWrappedDeliveryContent(settings, file, trimmed, resolvedTaskOptions, detailContent, options, now);
   }
   return formatted;
+}
+
+function defaultTaskOptionsForTemplate(settings: MemosPlusSettings, template: ManagedTemplate | undefined): ProjectTaskOptions | undefined {
+  if (template?.insertFormat !== "task") {
+    return undefined;
+  }
+  return {
+    isTask: true,
+    priority: settings.taskDefaultPriority,
+    scheduledDate: settings.taskDefaultScheduledDate,
+    dueDate: settings.taskDefaultDueDate,
+    recurrence: settings.taskDefaultRecurrence,
+    addCreatedDate: settings.taskAddCreatedDate,
+    contentMode: template.taskContentMode === "ask" ? "task-with-detail" : template.taskContentMode
+  };
 }
 
 function renderFormattedDeliveryContent(file: TFile, content: string, template?: ManagedTemplate, now = new Date()): string {

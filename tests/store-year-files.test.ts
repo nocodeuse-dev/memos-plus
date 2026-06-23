@@ -309,6 +309,43 @@ describe("MemosPlusStore year files", () => {
     expect(files.get("项目/A.md")?.content).toBe("# A\n\n## 待办\n\n- [ ] 添加发送到项目功能 #项目/A 🔼 📅 2026-06-20 ➕ 2026-06-14\n\n旧任务\n");
   });
 
+  it("sends task format rules with global task defaults without needing a task prompt", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 24, 7, 20));
+    try {
+      const { store, files } = createStore(
+        {
+          "项目/A.md": "# A\n\n## 待办\n\n旧任务\n"
+        },
+        {
+          tasksFormatEnabled: true,
+          taskPromptOnCreate: true,
+          taskAddProjectTag: false,
+          taskDefaultPriority: "high",
+          taskDefaultDueDate: "2026-06-25",
+          taskDefaultScheduledDate: "2026-06-24",
+          taskAddCreatedDate: true,
+          taskDefaultRecurrence: "weekly"
+        }
+      );
+      const file = makeTFile("项目/A.md");
+
+      await store.sendToProjectFile(file, "直接任务格式", "待办", undefined, {
+        template: {
+          ...DEFAULT_SETTINGS.managedTemplates[0],
+          insertFormat: "task",
+          taskMode: "ask"
+        }
+      });
+
+      expect(files.get("项目/A.md")?.content).toBe(
+        "# A\n\n## 待办\n\n- [ ] 直接任务格式 ⏫ 🔁 every week ⏳ 2026-06-24 📅 2026-06-25 ➕ 2026-06-24\n\n旧任务\n"
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("preserves code format as task detail when a send rule asks for tasks", async () => {
     const { store, files } = createStore(
       {

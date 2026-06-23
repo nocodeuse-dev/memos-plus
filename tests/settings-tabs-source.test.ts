@@ -78,7 +78,7 @@ describe("settings top tabs source", () => {
     expect(settingsSource).toContain("formatManagedTemplateSummary");
     expect(settingsSource).toContain("settings.templateSummaryEntry");
     expect(settingsSource).toContain("settings.templateSummaryFormat");
-    expect(settingsSource).toContain("settings.templateSummaryTask");
+    expect(settingsSource).not.toContain("settings.templateSummaryTask");
     expect(settingsSource).not.toContain("settings.templateSummaryDestination");
     expect(settingsSource).not.toContain("settings.templateSummaryLookup");
     expect(settingsSource).not.toContain("settings.templateSummaryInsert");
@@ -99,15 +99,15 @@ describe("settings top tabs source", () => {
     expect(i18nSource).not.toContain("Project insert template");
   });
 
-  it("places template task-format rules inside the tasks settings tab", () => {
+  it("keeps hidden template task-rule settings out of the tasks settings tab", () => {
     const tasksSource = settingsSource.slice(settingsSource.indexOf("private renderTasksSettings"), settingsSource.indexOf("private renderTaskIndexSettings"));
 
-    expect(settingsSource).toContain("renderTemplateTaskRuleSettings");
-    expect(tasksSource).toContain("this.renderTemplateTaskRuleSettings(container)");
+    expect(settingsSource).not.toContain("renderTemplateTaskRuleSettings");
+    expect(tasksSource).not.toContain("this.renderTemplateTaskRuleSettings(container)");
     expect(tasksSource).not.toContain("this.renderTaskIndexSettings(container)");
-    expect(settingsSource).toContain("settings.templateTaskRules");
-    expect(settingsSource).toContain("TEMPLATE_TASK_MODES");
-    expect(settingsSource).toContain("templateManager.taskAutoKeywords");
+    expect(settingsSource).not.toContain("settings.templateTaskRules");
+    expect(settingsSource).not.toContain("TEMPLATE_TASK_MODES");
+    expect(settingsSource).not.toContain("templateManager.taskAutoKeywords");
   });
 
   it("moves sending dialog tabs, sidebar quick input, mobile settings, and task cache to the requested groups", () => {

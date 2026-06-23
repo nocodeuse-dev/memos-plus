@@ -1550,7 +1550,7 @@ export class ProjectSendModal extends Modal {
   ): void {
     const taskHeading = position === "new-heading" ? targetOptions.newHeadingName ?? heading : heading;
     const decision = this.taskDecisionFor(taskHeading);
-    if (decision === "ask" || (decision === "task" && this.options.taskSettings.promptOnCreate)) {
+    if (decision === "ask") {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(this.options.language, `fileSend.position.${position === "file-start" ? "fileStart" : position === "new-heading" ? "newHeading" : "fileEnd"}`)}`,
         backAction ?? (() => this.renderCurrentMode()),
