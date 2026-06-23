@@ -724,7 +724,6 @@ export class ProjectSendModal extends Modal {
     }
     this.tabOrder = normalizeTabOrder(options.tabOrder, this.fileTemplateTabs);
     this.hiddenTabs = normalizeHiddenTabs(options.hiddenTabs, this.fileTemplateTabs);
-    this.applyCurrentTemplateDefaults();
   }
 
   onOpen(): void {
@@ -843,15 +842,6 @@ export class ProjectSendModal extends Modal {
       return;
     }
     this.ensureActiveTabVisible();
-    const template = this.currentTemplate();
-    if (template?.targetSource === "default-memo") {
-      this.renderDefaultMemoTemplate();
-      return;
-    }
-    if (template?.targetSource === "fixed-file") {
-      void this.renderFixedFileTemplate(template);
-      return;
-    }
     if (this.mode === "custom-tag" && this.activeFileTemplateTabId) {
       void this.renderFileTemplateTab(this.activeFileTemplateTabId);
       return;
@@ -882,26 +872,6 @@ export class ProjectSendModal extends Modal {
     }
   }
 
-  private async renderFixedFileTemplate(template: ManagedTemplate): Promise<void> {
-    const contentEl = this.renderShell();
-    const file = this.app.vault.getAbstractFileByPath(template.fixedFilePath);
-    if (!(file instanceof TFile)) {
-      contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(this.options.language, "fileSend.noFiles") });
-      return;
-    }
-    await this.renderHeadingPicker(
-      {
-        file,
-        name: file.basename,
-        path: file.path,
-        tags: template.defaultTags,
-        matchTags: template.defaultTags,
-        updatedAt: file.stat?.mtime ?? Date.now()
-      },
-      () => void this.renderFixedFileTemplate(template)
-    );
-  }
-
   private renderShell(): HTMLElement {
     const { contentEl } = this;
     contentEl.empty();
@@ -912,40 +882,6 @@ export class ProjectSendModal extends Modal {
 
   private currentTemplate(): ManagedTemplate | undefined {
     return this.options.templates.find((template) => template.id === this.currentTemplateId) ?? this.options.templates[0];
-  }
-
-  private applyCurrentTemplateDefaults(): void {
-    const template = this.currentTemplate();
-    if (!template) {
-      return;
-    }
-    if (template.targetSource === "project-tag") {
-      this.mode = "project";
-      this.activeFileTemplateTabId = "";
-      return;
-    }
-    if (template.targetSource === "specific-tag") {
-      const tag = template.recognitionTag || template.defaultTags[0] || "";
-      if (tag) {
-        const tab = this.findTagFilterTab(tag) ?? createTagFilterFileTemplateTab(tag);
-        this.mode = "custom-tag";
-        this.activeFileTemplateTabId = tab?.id ?? tag;
-        this.tagQuery = tag;
-        return;
-      }
-      this.mode = "tag";
-      return;
-    }
-    if (template.targetSource === "recent-file") {
-      this.mode = "recent";
-      this.activeFileTemplateTabId = "";
-      return;
-    }
-    if (template.targetSource === "vault-search" || template.targetSource === "fixed-file" || template.targetSource === "new-file") {
-      this.mode = "search";
-      this.activeFileTemplateTabId = "";
-      return;
-    }
   }
 
   private findTagFilterTab(tagValue: string): FileTemplateTab | undefined {
@@ -1472,28 +1408,28 @@ export class ProjectSendModal extends Modal {
       ["file-end", t(lang, "fileSend.position.fileEnd")],
       ["file-start", t(lang, "fileSend.position.fileStart")]
     ]);
-    position.value = this.currentTemplate()?.insertPosition ?? this.options.defaultFileInsertPosition;
+    position.value = this.options.defaultFileInsertPosition;
     const newHeadingControls = contentEl.createDiv({ cls: "memos-plus-new-heading-options" });
     const newHeadingName = createTextField(newHeadingControls, t(lang, "fileSend.newHeadingName"), this.defaultInsertHeading());
-    newHeadingName.value = this.currentTemplate()?.newHeadingName || this.defaultInsertHeading();
+    newHeadingName.value = this.defaultInsertHeading();
     const newHeadingLevel = createSelectField(
       newHeadingControls,
       t(lang, "fileSend.newHeadingLevel"),
       [1, 2, 3, 4, 5, 6].map((level) => [String(level), t(lang, `fileSend.headingLevel.${level}`)])
     );
-    newHeadingLevel.value = String(this.currentTemplate()?.newHeadingLevel ?? 2);
+    newHeadingLevel.value = "2";
     const newHeadingPosition = createSelectField(newHeadingControls, t(lang, "fileSend.newHeadingPosition"), [
       ["file-end", t(lang, "fileSend.newHeadingPosition.file-end")],
       ["file-start", t(lang, "fileSend.newHeadingPosition.file-start")],
       ["after-current-heading", t(lang, "fileSend.newHeadingPosition.after-current-heading")]
     ]);
-    newHeadingPosition.value = this.currentTemplate()?.newHeadingPosition ?? "file-end";
+    newHeadingPosition.value = "file-end";
     const existingHeadingBehavior = createSelectField(newHeadingControls, t(lang, "fileSend.existingHeadingBehavior"), [
       ["use-existing", t(lang, "fileSend.existingHeadingBehavior.use-existing")],
       ["create-duplicate", t(lang, "fileSend.existingHeadingBehavior.create-duplicate")],
       ["cancel", t(lang, "fileSend.existingHeadingBehavior.cancel")]
     ]);
-    existingHeadingBehavior.value = this.currentTemplate()?.existingHeadingBehavior ?? "use-existing";
+    existingHeadingBehavior.value = "use-existing";
     const createHeading = newHeadingControls.createEl("button", {
       cls: "memos-plus-save-button",
       attr: { type: "button" },
@@ -1600,7 +1536,7 @@ export class ProjectSendModal extends Modal {
   }
 
   private defaultInsertHeading(): string {
-    return this.currentTemplate()?.heading?.trim() || this.options.defaultHeading.trim() || "收集箱";
+    return this.options.defaultHeading.trim() || "收集箱";
   }
 
   private handleFileTargetChoice(
@@ -1843,18 +1779,6 @@ export class ProjectSendModal extends Modal {
     this.settled = true;
     this.options.onChoose({ file, section: heading, task, mode: "file", fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions }, template });
     this.close();
-  }
-
-  private fileTargetOptionsFromTemplate(template: ManagedTemplate | undefined): Partial<FileSendTarget> {
-    if (!template || template.insertLocation !== "new-heading") {
-      return {};
-    }
-    return {
-      newHeadingName: template.newHeadingName,
-      newHeadingLevel: template.newHeadingLevel,
-      newHeadingPosition: template.newHeadingPosition,
-      existingHeadingBehavior: template.existingHeadingBehavior
-    };
   }
 
   private filteredProjects(): ProjectInfo[] {

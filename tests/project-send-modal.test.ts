@@ -104,12 +104,17 @@ describe("project send modal source", () => {
     expect(viewSource).toContain("await maybeOpenTargetFileAfterSend(this.app, this.plugin.settings, delivery.file)");
   });
 
-  it("keeps template rules internal without showing a current-template selector", () => {
+  it("keeps format rules internal without letting them control the selected destination tab", () => {
     expect(modalSource).toContain("initialTemplateId");
     expect(modalSource).toContain("private currentTemplate()");
-    expect(modalSource).toContain("this.applyCurrentTemplateDefaults()");
+    expect(deliverySource).toContain("chooseInitialFormatRule");
+    expect(deliverySource).toContain("initialMode");
+    expect(deliverySource).toContain("initialMode,");
     expect(modalSource).toContain("template?: ManagedTemplate");
     expect(modalSource).toContain("template })");
+    expect(modalSource).not.toContain("this.applyCurrentTemplateDefaults()");
+    expect(modalSource).not.toContain("private applyCurrentTemplateDefaults()");
+    expect(deliverySource).not.toContain("modeForTemplate");
     expect(modalSource).not.toContain("renderTemplateSelector");
     expect(modalSource).not.toContain("projectSend.currentTemplate");
     expect(modalSource).not.toContain("memos-plus-project-template-selector");
@@ -190,6 +195,19 @@ describe("project send modal source", () => {
     expect(modalSource).toContain("newHeadingName");
     expect(modalSource).toContain("newHeadingLevel");
     expect(modalSource).toContain("existingHeadingBehavior");
+  });
+
+  it("lets the heading picker own insert defaults instead of reading them from format rules", () => {
+    const headingPickerSource = modalSource.slice(modalSource.indexOf("private async renderHeadingPicker"), modalSource.indexOf("private async renderProjectHeadingPicker"));
+
+    expect(headingPickerSource).toContain("this.options.defaultFileInsertPosition");
+    expect(headingPickerSource).toContain("this.defaultInsertHeading()");
+    expect(headingPickerSource).not.toContain("this.currentTemplate()?.insertPosition");
+    expect(headingPickerSource).not.toContain("this.currentTemplate()?.newHeadingName");
+    expect(headingPickerSource).not.toContain("this.currentTemplate()?.newHeadingLevel");
+    expect(headingPickerSource).not.toContain("this.currentTemplate()?.newHeadingPosition");
+    expect(headingPickerSource).not.toContain("this.currentTemplate()?.existingHeadingBehavior");
+    expect(modalSource).not.toContain("fileTargetOptionsFromTemplate");
   });
 
   it("keeps project mode while writing through file targets", () => {
