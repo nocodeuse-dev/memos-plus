@@ -45,8 +45,8 @@ export async function sendContentToProject(
   content: string,
   options: SendContentToProjectOptions
 ): Promise<ProjectDeliveryResult | null> {
-  const templates = availableTemplates(host.settings);
-  const initialTemplate = chooseInitialTemplate(templates, options.initialMode);
+  const initialTemplate = chooseInitialFormatRule(host.settings, options.initialMode);
+  const templates = availableTemplates(host.settings, initialTemplate);
   const choice = await selectProjectTarget(host, content, options.initialMode, options.onSaveDefault, templates, initialTemplate);
   if (!choice) {
     return null;
@@ -86,15 +86,17 @@ async function selectProjectTarget(
   content: string,
   initialMode: "project" | "tag" | "recent" | "search" = "project",
   onSaveDefault?: () => Promise<void>,
-  templates: ManagedTemplate[] = availableTemplates(host.settings),
+  templates?: ManagedTemplate[],
   initialTemplate?: ManagedTemplate
 ): Promise<ProjectSendChoice | null> {
+  const selectedInitialTemplate = initialTemplate ?? chooseInitialFormatRule(host.settings, initialMode);
+  const formatRules = templates ?? availableTemplates(host.settings, selectedInitialTemplate);
   return new Promise((resolve) => {
     new ProjectSendModal(host.app, {
       language: host.settings.language,
       content,
       defaultHeading: host.settings.defaultProjectSection,
-      initialMode: initialTemplate ? modeForTemplate(initialTemplate, initialMode) : initialMode,
+      initialMode,
       taskSettings: {
         enabled: host.settings.tasksFormatEnabled,
         defaultSection: host.settings.taskDefaultSection,
@@ -115,8 +117,8 @@ async function selectProjectTarget(
       fileTemplateLibraryInteraction: host.settings.fileTemplateLibraryInteraction,
       tabOrder: host.settings.projectSendTabOrder,
       hiddenTabs: host.settings.projectSendHiddenTabs,
-      templates,
-      initialTemplateId: initialTemplate?.id,
+      templates: formatRules,
+      initialTemplateId: selectedInitialTemplate.id,
       defaultFileTag: host.settings.sendToFileDefaultTag,
       defaultFileInsertPosition: host.settings.sendToFileDefaultInsertPosition,
       noHeadingBehavior: host.settings.sendToFileNoHeadingBehavior,
@@ -153,7 +155,7 @@ async function selectProjectTarget(
         host.settings.fileTemplateLibraryRecent = updateRecentFileTemplatePaths(host.settings.fileTemplateLibraryRecent, templatePath);
         await host.persistSettings();
       },
-      preferredFileTemplatePath: preferredFileTemplatePath(host.settings, initialTemplate),
+      preferredFileTemplatePath: "",
       getPreferredFileTemplatePath: (tag) => preferredFileTemplatePathForTag(host.settings, tag),
       onLoadTags: () => host.store.getAllFileSendTags(),
       onLoadTaggedFiles: (tagQuery) => host.store.getTaggedFileTargets(tagQuery),
@@ -183,23 +185,20 @@ async function selectProjectTarget(
   });
 }
 
-function preferredFileTemplatePath(settings: MemosPlusSettings, template?: ManagedTemplate): string {
-  const tag = normalizeFileTag(template?.recognitionTag || template?.defaultTags[0] || "");
-  return preferredFileTemplatePathForTag(settings, tag);
-}
-
 function preferredFileTemplatePathForTag(settings: MemosPlusSettings, tagValue: string): string {
   const tag = normalizeFileTag(tagValue);
   return tag ? settings.fileTemplateLibraryDefaults[tag] ?? "" : "";
 }
 
-function availableTemplates(settings: MemosPlusSettings): ManagedTemplate[] {
-  return settings.managedTemplates.length > 0
-    ? settings.managedTemplates
-    : [createDefaultProjectTemplate(settings.projectTag, settings.projectFolderPath, settings.defaultProjectSection)];
+function availableTemplates(settings: MemosPlusSettings, initialTemplate: ManagedTemplate): ManagedTemplate[] {
+  if (settings.managedTemplates.some((template) => template.id === initialTemplate.id)) {
+    return settings.managedTemplates;
+  }
+  return [initialTemplate, ...settings.managedTemplates];
 }
 
-function chooseInitialTemplate(templates: ManagedTemplate[], initialMode: "project" | "tag" | "recent" | "search"): ManagedTemplate | undefined {
+function chooseInitialFormatRule(settings: MemosPlusSettings, initialMode: "project" | "tag" | "recent" | "search"): ManagedTemplate {
+  const templates = settings.managedTemplates;
   const source =
     initialMode === "project"
       ? "project-tag"
@@ -208,21 +207,9 @@ function chooseInitialTemplate(templates: ManagedTemplate[], initialMode: "proje
         : initialMode === "recent"
           ? "recent-file"
           : "vault-search";
-  return templates.find((template) => template.targetSource === source) ?? templates[0];
-}
-
-function modeForTemplate(template: ManagedTemplate, fallback: "project" | "tag" | "recent" | "search"): "project" | "tag" | "recent" | "search" | "custom-tag" {
-  if (template.targetSource === "project-tag") {
-    return "project";
-  }
-  if (template.targetSource === "specific-tag") {
-    return template.recognitionTag || template.defaultTags[0] ? "custom-tag" : "tag";
-  }
-  if (template.targetSource === "recent-file") {
-    return "recent";
-  }
-  if (template.targetSource === "vault-search" || template.targetSource === "fixed-file" || template.targetSource === "new-file") {
-    return "search";
-  }
-  return fallback;
+  return (
+    templates.find((template) => template.targetSource === source) ??
+    templates.find((template) => template.targetSource === "default-memo") ??
+    createDefaultProjectTemplate(settings.projectTag, settings.projectFolderPath, settings.defaultProjectSection)
+  );
 }

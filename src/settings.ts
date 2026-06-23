@@ -109,7 +109,6 @@ import type { TaskIndexStatus } from "./taskIndex";
 import {
   TEMPLATE_TASK_MODES,
   cloneManagedTemplate,
-  createDefaultProjectTemplate,
   normalizeManagedTemplates,
   type ManagedTemplate,
   type TemplateTaskMode
@@ -409,11 +408,7 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
       ? migrateLegacyMobileHomeLayout(mobileHomeLayout, mobileHomeCustomModules)
       : DEFAULT_SETTINGS.mobileLayout;
   const normalizedManagedTemplates = normalizeManagedTemplates(raw.managedTemplates);
-  const defaultProjectTemplate = createDefaultProjectTemplate(projectTag, projectFolderPath, defaultProjectSection, {
-    clearAfterSend: clearAfterSave,
-    afterTransferAction: memoProjectTransferAfterAction
-  });
-  const managedTemplates = ensureDefaultProjectTemplate(normalizedManagedTemplates, defaultProjectTemplate);
+  const managedTemplates = normalizedManagedTemplates;
   let normalizedProjectSections = projectSections;
   if (!normalizedProjectSections.includes(defaultProjectSection)) {
     normalizedProjectSections = [defaultProjectSection, ...normalizedProjectSections];
@@ -551,13 +546,6 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     taskDefaultRecurrence: normalizeTaskRecurrence(raw.taskDefaultRecurrence),
     taskPromptOnCreate: typeof raw.taskPromptOnCreate === "boolean" ? raw.taskPromptOnCreate : DEFAULT_SETTINGS.taskPromptOnCreate
   };
-}
-
-function ensureDefaultProjectTemplate(templates: ManagedTemplate[], defaultProjectTemplate: ManagedTemplate): ManagedTemplate[] {
-  if (templates.some((template) => template.targetSource === "project-tag")) {
-    return templates;
-  }
-  return [defaultProjectTemplate, ...templates];
 }
 
 export class MemosPlusSettingTab extends PluginSettingTab {
@@ -2430,21 +2418,38 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private formatManagedTemplateSummary(template: ManagedTemplate): string {
     const lang = this.plugin.settings.language;
-    const destination = t(lang, `templateManager.targetSource.${template.targetSource}`);
-    const lookupTag = template.recognitionTag ? `#${template.recognitionTag}` : "";
-    const insert =
-      template.insertLocation === "heading" && template.heading
-        ? `${t(lang, "templateManager.insertLocation.heading")}：${template.heading}`
-        : t(lang, `templateManager.insertLocation.${template.insertLocation}`);
+    const entry = this.formatManagedTemplateEntry(template);
     const format = t(lang, `templateManager.insertFormat.${template.insertFormat}`);
+    const task = t(lang, `templateManager.taskMode.${template.taskMode}`);
+    const afterSend =
+      template.clearAfterSendMode === "custom"
+        ? t(lang, template.clearAfterSend ? "settings.templateSummaryClearCustomYes" : "settings.templateSummaryClearCustomNo")
+        : t(lang, "settings.templateSummaryFollowGlobal");
     return [
-      `${t(lang, "settings.templateSummaryDestination")}：${destination}`,
-      lookupTag ? `${t(lang, "settings.templateSummaryLookup")}：${lookupTag}` : "",
-      `${t(lang, "settings.templateSummaryInsert")}：${insert}`,
-      `${t(lang, "settings.templateSummaryFormat")}：${format}`
+      `${t(lang, "settings.templateSummaryEntry")}：${entry}`,
+      `${t(lang, "settings.templateSummaryFormat")}：${format}`,
+      `${t(lang, "settings.templateSummaryTask")}：${task}`,
+      `${t(lang, "settings.templateSummaryAfterSend")}：${afterSend}`
     ]
       .filter(Boolean)
       .join(" · ");
+  }
+
+  private formatManagedTemplateEntry(template: ManagedTemplate): string {
+    const lang = this.plugin.settings.language;
+    if (template.targetSource === "project-tag") {
+      return t(lang, "templateManager.purpose.project");
+    }
+    if (template.targetSource === "specific-tag") {
+      return t(lang, "templateManager.purpose.tag-file");
+    }
+    if (template.targetSource === "recent-file") {
+      return t(lang, "templateManager.purpose.recent");
+    }
+    if (template.targetSource === "vault-search" || template.targetSource === "fixed-file" || template.targetSource === "new-file") {
+      return t(lang, "templateManager.purpose.search");
+    }
+    return t(lang, "templateManager.purpose.default");
   }
 
   private renderFileTemplateLibrarySettings(container: HTMLElement): void {

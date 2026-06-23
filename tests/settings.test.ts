@@ -439,7 +439,7 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ memoProjectTransferAfterAction: "unknown" }).memoProjectTransferAfterAction).toBe("keep");
   });
 
-  it("migrates legacy project delivery settings into the default managed template", () => {
+  it("does not persist a default project format rule when only legacy destination settings exist", () => {
     const settings = normalizeSettings({
       projectTag: " #项目 ",
       projectFolderPath: " Projects//Active ",
@@ -448,23 +448,10 @@ describe("normalizeSettings", () => {
       memoProjectTransferAfterAction: "archive"
     });
 
-    expect(settings.managedTemplates).toEqual([
-      expect.objectContaining({
-        name: "发送到项目",
-        type: "project",
-        targetSource: "project-tag",
-        recognitionTag: "项目",
-        folderPath: "Projects/Active",
-        heading: "资料",
-        insertLocation: "heading",
-        insertFormat: "note",
-        clearAfterSend: false,
-        afterTransferAction: "archive"
-      })
-    ]);
+    expect(settings.managedTemplates).toEqual([]);
   });
 
-  it("keeps the default project send rule when custom rules only create new files", () => {
+  it("does not resurrect a deleted project format rule when custom rules exist", () => {
     const settings = normalizeSettings({
       projectTag: " #项目 ",
       projectFolderPath: " Projects//Active ",
@@ -481,13 +468,6 @@ describe("normalizeSettings", () => {
     });
 
     expect(settings.managedTemplates).toEqual([
-      expect.objectContaining({
-        name: "发送到项目",
-        targetSource: "project-tag",
-        recognitionTag: "项目",
-        folderPath: "Projects/Active",
-        heading: "资料"
-      }),
       expect.objectContaining({
         id: "new-file",
         name: "新建病例",
@@ -605,18 +585,6 @@ describe("normalizeSettings", () => {
       projectSendHiddenTabs: ["recent"],
       managedTemplates: [
         expect.objectContaining({
-          id: "default-project",
-          name: "发送到项目",
-          type: "project",
-          targetSource: "project-tag",
-          recognitionTag: "项目",
-          folderPath: "Projects/Active",
-          heading: "资料",
-          insertLocation: "heading",
-          insertFormat: "note",
-          taskMode: "ask"
-        }),
-        expect.objectContaining({
           id: "tpl",
           name: "病例",
           type: "case",
@@ -674,7 +642,7 @@ describe("normalizeSettings", () => {
     expect(settings.projectSendTabOrder).toEqual(["search", "custom:插件", "project", "tag", "recent", "custom:病"]);
   });
 
-  it("ignores removed legacy project template fields when creating the default managed template", () => {
+  it("ignores removed legacy project template fields without creating a stored format rule", () => {
     const settings = normalizeSettings({
       projectInsertHeading: "旧标题",
       createProjectHeadingIfMissing: false,
@@ -690,14 +658,7 @@ describe("normalizeSettings", () => {
     expect(record.createProjectHeadingIfMissing).toBeUndefined();
     expect(record.projectTemplateOptions).toBeUndefined();
     expect(record.projectInsertTemplate).toBeUndefined();
-    expect(settings.managedTemplates).toEqual([
-      expect.objectContaining({
-        name: "发送到项目",
-        heading: "收集箱",
-        insertFormat: "note",
-        advancedContentTemplate: ""
-      })
-    ]);
+    expect(settings.managedTemplates).toEqual([]);
   });
 
   it("normalizes Tasks compatibility settings", () => {

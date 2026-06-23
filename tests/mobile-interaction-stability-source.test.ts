@@ -195,7 +195,8 @@ describe("mobile interaction stability source", () => {
     expect(projectSendModalSource).toContain("mobileModalResultLimit");
     expect(projectSendModalSource).not.toContain(".slice(0, 120)");
     expect(projectSendModalSource).not.toContain(".slice(0, 100)");
-    expect(templateManagerModalSource).toContain("mobileModalResultLimit");
+    expect(templateManagerModalSource).not.toContain("TemplatePathPickerModal");
+    expect(templateManagerModalSource).not.toContain("renderPathPicker");
     expect(templateManagerModalSource).not.toContain(".slice(0, 120)");
   });
 

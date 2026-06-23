@@ -74,12 +74,14 @@ describe("settings top tabs source", () => {
     }
   });
 
-  it("labels the old template area as send rules with readable summaries", () => {
+  it("labels the old template area as send format rules with readable summaries", () => {
     expect(settingsSource).toContain("formatManagedTemplateSummary");
-    expect(settingsSource).toContain("settings.templateSummaryDestination");
-    expect(settingsSource).toContain("settings.templateSummaryLookup");
-    expect(settingsSource).toContain("settings.templateSummaryInsert");
+    expect(settingsSource).toContain("settings.templateSummaryEntry");
     expect(settingsSource).toContain("settings.templateSummaryFormat");
+    expect(settingsSource).toContain("settings.templateSummaryTask");
+    expect(settingsSource).not.toContain("settings.templateSummaryDestination");
+    expect(settingsSource).not.toContain("settings.templateSummaryLookup");
+    expect(settingsSource).not.toContain("settings.templateSummaryInsert");
   });
 
   it("does not keep the old standalone project settings UI around", () => {
