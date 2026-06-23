@@ -409,15 +409,11 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
       ? migrateLegacyMobileHomeLayout(mobileHomeLayout, mobileHomeCustomModules)
       : DEFAULT_SETTINGS.mobileLayout;
   const normalizedManagedTemplates = normalizeManagedTemplates(raw.managedTemplates);
-  const managedTemplates =
-    normalizedManagedTemplates.length > 0
-      ? normalizedManagedTemplates
-      : [
-          createDefaultProjectTemplate(projectTag, projectFolderPath, defaultProjectSection, {
-            clearAfterSend: clearAfterSave,
-            afterTransferAction: memoProjectTransferAfterAction
-          })
-        ];
+  const defaultProjectTemplate = createDefaultProjectTemplate(projectTag, projectFolderPath, defaultProjectSection, {
+    clearAfterSend: clearAfterSave,
+    afterTransferAction: memoProjectTransferAfterAction
+  });
+  const managedTemplates = ensureDefaultProjectTemplate(normalizedManagedTemplates, defaultProjectTemplate);
   let normalizedProjectSections = projectSections;
   if (!normalizedProjectSections.includes(defaultProjectSection)) {
     normalizedProjectSections = [defaultProjectSection, ...normalizedProjectSections];
@@ -555,6 +551,13 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     taskDefaultRecurrence: normalizeTaskRecurrence(raw.taskDefaultRecurrence),
     taskPromptOnCreate: typeof raw.taskPromptOnCreate === "boolean" ? raw.taskPromptOnCreate : DEFAULT_SETTINGS.taskPromptOnCreate
   };
+}
+
+function ensureDefaultProjectTemplate(templates: ManagedTemplate[], defaultProjectTemplate: ManagedTemplate): ManagedTemplate[] {
+  if (templates.some((template) => template.targetSource === "project-tag")) {
+    return templates;
+  }
+  return [defaultProjectTemplate, ...templates];
 }
 
 export class MemosPlusSettingTab extends PluginSettingTab {

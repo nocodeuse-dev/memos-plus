@@ -11,7 +11,12 @@ import {
 } from "../src/templateManager";
 
 vi.mock("obsidian", () => ({
-  normalizePath: (value: string) => value.replace(/\/+/g, "/").replace(/\/$/, "")
+  normalizePath: (value: string) => {
+    if (!value.trim()) {
+      return "/";
+    }
+    return value.replace(/\/+/g, "/").replace(/\/$/, "");
+  }
 }));
 
 describe("template manager helpers", () => {
@@ -136,6 +141,25 @@ describe("template manager helpers", () => {
         clearAfterSend: true,
         afterTransferActionMode: "global",
         afterTransferAction: "keep"
+      }
+    ]);
+  });
+
+  it("keeps optional template paths empty instead of normalizing them to the vault root", () => {
+    expect(
+      normalizeManagedTemplates([
+        {
+          id: "empty-paths",
+          name: "空路径模板",
+          templateFilePath: "   ",
+          fixedFilePath: "/"
+        }
+      ])
+    ).toMatchObject([
+      {
+        id: "empty-paths",
+        templateFilePath: "",
+        fixedFilePath: ""
       }
     ]);
   });

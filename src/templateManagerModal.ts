@@ -434,7 +434,8 @@ export class TemplateEditorModal extends Modal {
       .setName(t(lang, "templateManager.manualTemplateFile"))
       .addText((text) => {
         text.setValue(this.draft.templateFilePath).onChange((value) => {
-          this.draft.templateFilePath = normalizePath(value.trim());
+          const path = value.trim();
+          this.draft.templateFilePath = path && path !== "/" ? normalizePath(path) : "";
           this.refreshPreview();
         });
       });
@@ -443,7 +444,8 @@ export class TemplateEditorModal extends Modal {
       .setName(t(lang, "templateManager.manualFixedFile"))
       .addText((text) => {
         text.setValue(this.draft.fixedFilePath).onChange((value) => {
-          this.draft.fixedFilePath = normalizePath(value.trim());
+          const path = value.trim();
+          this.draft.fixedFilePath = path && path !== "/" ? normalizePath(path) : "";
           this.refreshPreview();
         });
       });

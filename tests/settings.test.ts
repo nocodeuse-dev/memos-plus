@@ -464,6 +464,39 @@ describe("normalizeSettings", () => {
     ]);
   });
 
+  it("keeps the default project send rule when custom rules only create new files", () => {
+    const settings = normalizeSettings({
+      projectTag: " #项目 ",
+      projectFolderPath: " Projects//Active ",
+      defaultProjectSection: " 资料 ",
+      managedTemplates: [
+        {
+          id: "new-file",
+          name: "新建病例",
+          targetSource: "new-file",
+          folderPath: " 医学//病例 ",
+          defaultTags: ["病例"]
+        }
+      ]
+    });
+
+    expect(settings.managedTemplates).toEqual([
+      expect.objectContaining({
+        name: "发送到项目",
+        targetSource: "project-tag",
+        recognitionTag: "项目",
+        folderPath: "Projects/Active",
+        heading: "资料"
+      }),
+      expect.objectContaining({
+        id: "new-file",
+        name: "新建病例",
+        targetSource: "new-file",
+        folderPath: "医学/病例"
+      })
+    ]);
+  });
+
   it("normalizes callout settings", () => {
     expect(
       normalizeSettings({
@@ -571,6 +604,18 @@ describe("normalizeSettings", () => {
       projectSendTabOrder: ["search", "project", "tag", "recent", "custom:tag-medical", "custom:group-common"],
       projectSendHiddenTabs: ["recent"],
       managedTemplates: [
+        expect.objectContaining({
+          id: "default-project",
+          name: "发送到项目",
+          type: "project",
+          targetSource: "project-tag",
+          recognitionTag: "项目",
+          folderPath: "Projects/Active",
+          heading: "资料",
+          insertLocation: "heading",
+          insertFormat: "note",
+          taskMode: "ask"
+        }),
         expect.objectContaining({
           id: "tpl",
           name: "病例",

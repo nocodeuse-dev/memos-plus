@@ -548,7 +548,8 @@ function contentHasTag(contentLower: string, tag: string): boolean {
 }
 
 function normalizeOptionalPath(value: unknown): string {
-  return normalizePath(typeof value === "string" ? value.trim() : "");
+  const text = typeof value === "string" ? value.trim() : "";
+  return text && text !== "/" ? normalizePath(text) : "";
 }
 
 function normalizeText(value: unknown, fallback: string): string {

@@ -62,7 +62,7 @@ describe("mobile interaction stability source", () => {
   });
 
   it("does not refocus the main composer after closing the task options modal on mobile", () => {
-    const taskToolBlock = composerWidgetSource.match(/private async applyTaskTool\(\): Promise<void> \{[\s\S]*?\n  \}/)?.[0] ?? "";
+    const taskToolBlock = composerWidgetSource.match(/private async applyTaskTool\(\): Promise<void> \{[\s\S]*?\n {2}\}/)?.[0] ?? "";
     expect(taskToolBlock).toContain("focusComposerAfterTaskModal");
     expect(taskToolBlock).not.toContain("this.composer.focus();");
     expect(composerWidgetSource).toContain("private focusComposerAfterTaskModal(): void");
@@ -75,7 +75,7 @@ describe("mobile interaction stability source", () => {
     expect(composerActionsSource).toContain("function focusComposerOnDesktop(composer: ComposerWidget): void");
     expect(composerActionsSource).toContain("if (Platform.isMobile)");
     const sendToProjectBlock =
-      composerActionsSource.match(/const sendToProject = async[\s\S]*?\n  \};\n\n  const openSendMenu/)?.[0] ?? "";
+      composerActionsSource.match(/const sendToProject = async[\s\S]*?\n {2}\};\n\n {2}const openSendMenu/)?.[0] ?? "";
     const saveFailureDraftBlock =
       composerActionsSource.match(/async function saveFailureDraft[\s\S]*?\n\}/)?.[0] ?? "";
     expect(sendToProjectBlock).not.toContain("composer.focus();");
