@@ -445,10 +445,14 @@ function normalizeExistingHeadingBehavior(value: unknown): ExistingHeadingBehavi
 }
 
 function normalizeTemplateInsertFormat(value: unknown, advancedContentTemplate: string): TemplateInsertFormat {
+  const hasCustomTemplate = Boolean(advancedContentTemplate.trim());
+  if (value === "note" && hasCustomTemplate) {
+    return "custom";
+  }
   if (typeof value === "string" && (TEMPLATE_INSERT_FORMATS as string[]).includes(value)) {
     return value as TemplateInsertFormat;
   }
-  return advancedContentTemplate.trim() ? "custom" : "note";
+  return hasCustomTemplate ? "custom" : "note";
 }
 
 function normalizeTemplateAfterTransferAction(value: unknown): TemplateAfterTransferAction {

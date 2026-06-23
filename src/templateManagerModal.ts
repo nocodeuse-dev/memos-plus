@@ -199,10 +199,7 @@ export class TemplateEditorModal extends Modal {
     const lang = this.options.language;
     const details = container.createEl("details", { cls: "memos-plus-template-advanced" });
     details.createEl("summary", { text: t(lang, "templateManager.advanced") });
-
-    if (this.draft.insertFormat !== "custom") {
-      this.renderCustomTemplateEditor(details);
-    }
+    details.createDiv({ cls: "setting-item-description", text: t(lang, "templateManager.advancedDesc") });
   }
 
   private renderCustomTemplateEditor(container: HTMLElement): void {

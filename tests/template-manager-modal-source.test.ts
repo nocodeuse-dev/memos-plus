@@ -46,6 +46,14 @@ describe("template manager editor source", () => {
     expect(modalSource).not.toContain('setName(t(lang, "templateManager.type"))');
   });
 
+  it("only shows custom template editing when custom format is selected", () => {
+    const advancedSource = modalSource.slice(modalSource.indexOf("private renderAdvancedSettings"), modalSource.indexOf("private renderCustomTemplateEditor"));
+
+    expect(modalSource).toContain('if (this.draft.insertFormat === "custom")');
+    expect(advancedSource).not.toContain("renderCustomTemplateEditor");
+    expect(modalSource).not.toContain('this.draft.insertFormat !== "custom"');
+  });
+
   it("uses friendlier Chinese labels instead of duplicate technical wording", () => {
     expect(i18nSource).toContain('"templateManager.addTemplate": "新增发送格式规则"');
     expect(i18nSource).toContain('"templateManager.editTemplate": "编辑发送格式规则"');

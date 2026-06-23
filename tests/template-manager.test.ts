@@ -145,6 +145,25 @@ describe("template manager helpers", () => {
     ]);
   });
 
+  it("promotes note rules with custom template content to custom format", () => {
+    expect(
+      normalizeManagedTemplates([
+        {
+          id: "custom-note",
+          name: "自定义但仍是普通笔记",
+          insertFormat: "note",
+          advancedContentTemplate: "- {{datetime}}\n{{content}}"
+        }
+      ])
+    ).toMatchObject([
+      {
+        id: "custom-note",
+        insertFormat: "custom",
+        advancedContentTemplate: "- {{datetime}}\n{{content}}"
+      }
+    ]);
+  });
+
   it("keeps optional template paths empty instead of normalizing them to the vault root", () => {
     expect(
       normalizeManagedTemplates([
