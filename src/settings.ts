@@ -54,11 +54,8 @@ import {
   DEFAULT_FILE_TEMPLATE_LIBRARY_FOLDER,
   DEFAULT_FILE_TEMPLATE_LIBRARY_TARGET_FOLDER,
   FILE_TEMPLATE_LIBRARY_TAB_ALL,
-  FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
-  FILE_TEMPLATE_LIBRARY_TAB_RECENT,
   createTagFilterFileTemplateTab,
   createTemplateGroupFileTemplateTab,
-  getFileTemplateLibraryCategoryTabId,
   legacyProjectSendTagsToFileTemplateTabs,
   normalizeFileTemplateDefaults,
   normalizeFileTemplateLibraryDefaultTabId,
@@ -2631,21 +2628,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         });
       });
 
-    new Setting(container)
-      .setName(t(lang, "settings.fileTemplateLibraryDefaultTab"))
-      .setDesc(t(lang, "settings.fileTemplateLibraryDefaultTabDesc"))
-      .addDropdown((dropdown) => {
-        for (const id of this.fileTemplateLibraryDefaultTabOptions()) {
-          dropdown.addOption(id, this.fileTemplateLibraryTabLabel(id));
-        }
-        dropdown
-          .setValue(normalizeFileTemplateLibraryDefaultTabId(this.plugin.settings.fileTemplateLibraryDefaultTabId, this.fileTemplateLibraryKnownTabIds()))
-          .onChange(async (value) => {
-            this.plugin.settings.fileTemplateLibraryDefaultTabId = normalizeFileTemplateLibraryDefaultTabId(value);
-            await this.plugin.persistSettings();
-          });
-      });
-
     this.renderFileTemplateTabManagement(container);
 
     const advancedLibrary = this.renderSettingsDetails(container, "settings.advancedOptions", "settings.fileTemplateLibraryAdvancedDesc");
@@ -2662,40 +2644,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           });
         text.inputEl.rows = 4;
       });
-  }
-
-  private fileTemplateLibraryKnownTabIds(): string[] {
-    return normalizeFileTemplateLibraryTabOrder([
-      FILE_TEMPLATE_LIBRARY_TAB_ALL,
-      FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
-      FILE_TEMPLATE_LIBRARY_TAB_RECENT,
-      getFileTemplateLibraryCategoryTabId("未分类"),
-      ...this.plugin.settings.fileTemplateLibraryTabOrder,
-      this.plugin.settings.fileTemplateLibraryDefaultTabId,
-      ...this.plugin.settings.fileTemplateTabs.map((tab) => getProjectSendCustomTabId(tab.id))
-    ]);
-  }
-
-  private fileTemplateLibraryDefaultTabOptions(): string[] {
-    return normalizeFileTemplateLibraryTabOrder(this.plugin.settings.fileTemplateLibraryTabOrder, this.fileTemplateLibraryKnownTabIds());
-  }
-
-  private fileTemplateLibraryTabLabel(id: string): string {
-    const lang = this.plugin.settings.language;
-    if (id === FILE_TEMPLATE_LIBRARY_TAB_ALL) {
-      return t(lang, "fileTemplateLibrary.category.all");
-    }
-    if (id === FILE_TEMPLATE_LIBRARY_TAB_FAVORITE) {
-      return t(lang, "fileTemplateLibrary.category.favorite");
-    }
-    if (id === FILE_TEMPLATE_LIBRARY_TAB_RECENT) {
-      return t(lang, "fileTemplateLibrary.category.recent");
-    }
-    if (id.startsWith("category:")) {
-      return id.slice("category:".length);
-    }
-    const customTab = getProjectSendCustomTab(id, this.plugin.settings.fileTemplateTabs);
-    return customTab?.name ?? id.replace(/^custom:/, "");
   }
 
   private renderFileTemplateTabManagement(container: HTMLElement): void {
@@ -2717,30 +2665,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.enableDesktopDrag).onChange(async (value) => {
           await saveInteraction({ enableDesktopDrag: value });
-        });
-      });
-    new Setting(section)
-      .setName(t(lang, "settings.fileTemplateLibraryTabDesktopDrag"))
-      .setDesc(t(lang, "settings.fileTemplateLibraryTabDesktopDragDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.fileTemplateLibraryInteraction.enableDesktopTabDrag).onChange(async (value) => {
-          this.plugin.settings.fileTemplateLibraryInteraction = normalizeFileTemplateLibraryInteraction({
-            ...this.plugin.settings.fileTemplateLibraryInteraction,
-            enableDesktopTabDrag: value
-          });
-          await this.plugin.persistSettings();
-        });
-      });
-    new Setting(section)
-      .setName(t(lang, "settings.fileTemplateLibraryTabMobileDrag"))
-      .setDesc(t(lang, "settings.fileTemplateLibraryTabMobileDragDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.fileTemplateLibraryInteraction.enableMobileTabDrag).onChange(async (value) => {
-          this.plugin.settings.fileTemplateLibraryInteraction = normalizeFileTemplateLibraryInteraction({
-            ...this.plugin.settings.fileTemplateLibraryInteraction,
-            enableMobileTabDrag: value
-          });
-          await this.plugin.persistSettings();
         });
       });
     new Setting(section)

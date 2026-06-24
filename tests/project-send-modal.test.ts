@@ -67,31 +67,37 @@ describe("project send modal source", () => {
 
   it("gates template-tab drag interactions by desktop and mobile interaction settings", () => {
     const modeTabsSource = modalSource.slice(modalSource.indexOf("private renderModeTabs"), modalSource.indexOf("private visibleTabIds"));
-    const libraryTabsSource = modalSource.slice(modalSource.indexOf("private renderCategoryTabs"), modalSource.indexOf("private renderList"));
+    const libraryModalSource = modalSource.slice(modalSource.indexOf("class FileTemplateLibraryModal"), modalSource.indexOf("export class ProjectSendModal"));
 
-    expect(modalSource).toContain("private canDragTemplatesIntoTabs()");
     expect(modalSource).toContain("private canReorderTabs()");
     expect(modalSource).toContain("private isMobileTemplateTabsReadOnly()");
     expect(modeTabsSource).toContain("if (this.canReorderTabs())");
-    expect(libraryTabsSource).toContain("this.canDragTemplatesIntoTabs() && tab.customTab?.type === \"template-group\"");
     expect(modeTabsSource).not.toContain('draggable: "true"');
-    expect(libraryTabsSource).not.toContain("!Platform.isMobile && tab.type === \"template-group\"");
+    expect(libraryModalSource).not.toContain("this.canDragTemplatesIntoTabs()");
+    expect(libraryModalSource).not.toContain('button.setAttr("draggable", "true")');
+    expect(libraryModalSource).not.toContain("dragover");
   });
 
-  it("persists template library modal tab order and default tab without mobile drag by default", () => {
+  it("keeps the template library modal to all templates plus the add entry", () => {
     const libraryModalSource = modalSource.slice(modalSource.indexOf("class FileTemplateLibraryModal"), modalSource.indexOf("export class ProjectSendModal"));
     const deliveryOptionsSource = deliverySource.slice(deliverySource.indexOf("new ProjectSendModal"), deliverySource.indexOf("onLoadFileTemplates"));
 
-    expect(modalSource).toContain("fileTemplateLibraryDefaultTabId");
-    expect(modalSource).toContain("fileTemplateLibraryTabOrder");
-    expect(modalSource).toContain("fileTemplateLibraryInteraction");
-    expect(libraryModalSource).toContain("private canReorderLibraryTabs()");
-    expect(libraryModalSource).toContain("private async dropLibraryTab");
-    expect(libraryModalSource).toContain('event.dataTransfer?.setData("application/x-memos-plus-library-tab-id"');
-    expect(libraryModalSource).toContain("normalizeFileTemplateLibraryTabOrder");
-    expect(deliveryOptionsSource).toContain("fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId");
-    expect(deliveryOptionsSource).toContain("fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder");
-    expect(deliveryOptionsSource).toContain("fileTemplateLibraryInteraction: host.settings.fileTemplateLibraryInteraction");
+    expect(libraryModalSource).toContain("FILE_TEMPLATE_LIBRARY_TAB_ALL");
+    expect(libraryModalSource).toContain("fileTemplateLibrary.category.all");
+    expect(libraryModalSource).toContain("memos-plus-file-template-tab-add");
+    expect(libraryModalSource).toContain('filterFileTemplateLibraryItems(this.items, { category: "全部" })');
+    expect(libraryModalSource).not.toContain("fileTemplateLibrary.searchPlaceholder");
+    expect(libraryModalSource).not.toContain("FILE_TEMPLATE_LIBRARY_TAB_FAVORITE");
+    expect(libraryModalSource).not.toContain("FILE_TEMPLATE_LIBRARY_TAB_RECENT");
+    expect(libraryModalSource).not.toContain("filterFileTemplateLibraryItemsForTab");
+    expect(libraryModalSource).not.toContain("getFileTemplateLibraryCategoryTabId");
+    expect(libraryModalSource).not.toContain("normalizeFileTemplateLibraryDefaultTabId");
+    expect(libraryModalSource).not.toContain("normalizeFileTemplateLibraryTabOrder");
+    expect(libraryModalSource).not.toContain("private canReorderLibraryTabs()");
+    expect(libraryModalSource).not.toContain("private async dropLibraryTab");
+    expect(deliveryOptionsSource).not.toContain("fileTemplateLibraryDefaultTabId");
+    expect(deliveryOptionsSource).not.toContain("fileTemplateLibraryTabOrder");
+    expect(deliveryOptionsSource).not.toContain("fileTemplateLibraryInteraction");
   });
 
   it("opens the target file only after successful send or transfer when enabled", () => {
@@ -121,15 +127,17 @@ describe("project send modal source", () => {
   });
 
   it("uses the separate new-file template library for empty search creation", () => {
+    const libraryModalSource = modalSource.slice(modalSource.indexOf("class FileTemplateLibraryModal"), modalSource.indexOf("export class ProjectSendModal"));
+
     expect(modalSource).toContain("FileTemplateLibraryModal");
     expect(modalSource).toContain("onLoadFileTemplates");
     expect(modalSource).toContain("onCreateFromFileTemplate");
     expect(modalSource).toContain("onToggleFileTemplateFavorite");
     expect(modalSource).toContain("onDeleteFileTemplate");
-    expect(modalSource).toContain("filterFileTemplateLibraryItemsForTab");
-    expect(modalSource).toContain("addTemplatePathToFileTemplateTab");
-    expect(modalSource).toContain("fileTemplateLibrary.emptyGroup");
-    expect(modalSource).toContain("notice.fileTemplateTabAdded");
+    expect(libraryModalSource).not.toContain("filterFileTemplateLibraryItemsForTab");
+    expect(libraryModalSource).not.toContain("addTemplatePathToFileTemplateTab");
+    expect(libraryModalSource).not.toContain("fileTemplateLibrary.emptyGroup");
+    expect(libraryModalSource).not.toContain("notice.fileTemplateTabAdded");
     expect(modalSource).toContain("this.listEl.createDiv({");
     expect(modalSource).toContain('row.setAttr("role", "button")');
     expect(modalSource).not.toContain('this.listEl.createEl("button", {\n        cls: `memos-plus-file-template-item');
