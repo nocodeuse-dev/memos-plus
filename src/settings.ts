@@ -2065,7 +2065,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private renderPerformanceDataSettings(container: HTMLElement): void {
     this.renderPerformanceSwitchSettings(container);
-    this.renderTaskIndexSettings(container);
   }
 
   private renderPerformanceSwitchSettings(container: HTMLElement): void {
@@ -3492,6 +3491,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           });
     });
     this.renderTaskIndexSummary(container);
+    this.renderTaskIndexSettings(container);
   }
 
   private renderTaskIndexSummary(container: HTMLElement): void {
@@ -3499,12 +3499,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const status = this.plugin.taskIndex.getStatus();
     new Setting(container)
       .setName(t(lang, "settings.taskIndexSummary"))
-      .setDesc(formatTaskIndexStatus(status, lang, this.plugin.settings.taskVaultFilterEnabled))
-      .addButton((button) => {
-        button.setButtonText(t(lang, "settings.taskIndexOpenPerformance")).onClick(() => {
-          this.switchSettingsTab("performanceData");
-        });
-      });
+      .setDesc(formatTaskIndexStatus(status, lang, this.plugin.settings.taskVaultFilterEnabled));
   }
 
   private renderTaskIndexSettings(container: HTMLElement): void {

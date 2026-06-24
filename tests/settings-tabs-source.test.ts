@@ -103,7 +103,6 @@ describe("settings top tabs source", () => {
 
     expect(settingsSource).not.toContain("renderTemplateTaskRuleSettings");
     expect(tasksSource).not.toContain("this.renderTemplateTaskRuleSettings(container)");
-    expect(tasksSource).not.toContain("this.renderTaskIndexSettings(container)");
     expect(settingsSource).not.toContain("settings.templateTaskRules");
     expect(settingsSource).not.toContain("TEMPLATE_TASK_MODES");
     expect(settingsSource).not.toContain("templateManager.taskAutoKeywords");
@@ -117,7 +116,7 @@ describe("settings top tabs source", () => {
     const tasksSource = settingsSource.slice(settingsSource.indexOf("private renderTasksSettings"), settingsSource.indexOf("private renderTaskIndexSettings"));
     const sidebarSource = settingsSource.slice(settingsSource.indexOf("private renderSidebarLayoutSettings"), settingsSource.indexOf("private renderMobileLayoutSettings"));
     const mobileSource = settingsSource.slice(settingsSource.indexOf("private renderMobileLayoutSettings"), settingsSource.indexOf("private renderDirectoryFilterSettings"));
-    const performanceSource = settingsSource.slice(settingsSource.indexOf("private renderPerformanceDataSettings"), settingsSource.indexOf("private renderAdvancedSettings"));
+    const performanceSource = settingsSource.slice(settingsSource.indexOf("private renderPerformanceDataSettings"), settingsSource.indexOf("private renderPerformanceSwitchSettings"));
 
     expect(recordsSource).toContain("this.renderProjectWriteSettings(container)");
     expect(recordsSource).toContain("this.renderManagedTemplateSettings(container)");
@@ -131,11 +130,12 @@ describe("settings top tabs source", () => {
     expect(displaySource).toContain("this.renderMobileDisplaySettings(container)");
     expect(fileTemplateSource).toContain("this.renderFileTemplateTabInteractionSettings(container)");
     expect(tasksSource).toContain("this.renderTaskIndexSummary(container)");
-    expect(tasksSource).not.toContain("this.renderTaskIndexSettings(container)");
+    expect(tasksSource).toContain("this.renderTaskIndexSettings(container)");
+    expect(tasksSource).not.toContain('this.switchSettingsTab("performanceData")');
     expect(sidebarSource).toContain("this.renderQuickInputStartupCard(container)");
     expect(sidebarSource).toContain("this.renderQuickInputSettings(container, { includeStartupToggles: false })");
     expect(mobileSource).toContain("this.renderMobileLightHomeSettings(container)");
-    expect(performanceSource).toContain("this.renderTaskIndexSettings(container)");
+    expect(performanceSource).not.toContain("this.renderTaskIndexSettings(container)");
   });
 
   it("styles settings as horizontally scrollable top tabs instead of cards", () => {
