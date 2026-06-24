@@ -148,6 +148,25 @@ describe("quick input directory data", () => {
     expect(entries.find((entry) => entry.title === "#项目")).toMatchObject({ type: "tag", count: 1 });
   });
 
+  it("respects module order across task, organizer, project, all notes, and tags", () => {
+    const currentSettings = settings();
+    const entries = buildQuickInputDirectoryEntries(currentSettings, memos, {
+      today: "2026-06-13",
+      limit: 20,
+      visibleModules: new Set(["allNotes", "projectDirectory", "organizeDirectory", "taskDirectory", "tagFilters", "fileCount", "fileList"]),
+      moduleOrder: ["taskDirectory", "organizeDirectory", "projectDirectory", "allNotes", "tagFilters", "fileCount", "fileList"]
+    });
+
+    const titles = entries.map((entry) => entry.title);
+    expect(titles).toEqual(
+      expect.arrayContaining(["未完成任务", "待整理", "今日新增", "项目", "所有项目", "软件项目", "全部笔记", "#项目", "#归档"])
+    );
+    expect(titles.indexOf("未完成任务")).toBeLessThan(titles.indexOf("待整理"));
+    expect(titles.indexOf("今日新增")).toBeLessThan(titles.indexOf("项目"));
+    expect(titles.indexOf("软件项目")).toBeLessThan(titles.indexOf("全部笔记"));
+    expect(titles.indexOf("全部笔记")).toBeLessThan(titles.indexOf("#项目"));
+  });
+
   it("shows filtered content below the clicked directory item and respects limits", () => {
     const currentSettings = settings();
     const entries = buildQuickInputDirectoryEntries(currentSettings, memos, { today: "2026-06-13", limit: 6 });

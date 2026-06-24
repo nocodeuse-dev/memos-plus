@@ -193,7 +193,11 @@ export class MemosPlusQuickInputView extends ItemView {
   }
 
   private sidebarModules(): Set<DisplayModuleId> {
-    return new Set(resolveLayoutSurfaceModules(this.plugin.settings.sidebarLayout, "sidebar").orderedModules);
+    return new Set(this.sidebarModuleOrder());
+  }
+
+  private sidebarModuleOrder(): DisplayModuleId[] {
+    return resolveLayoutSurfaceModules(this.plugin.settings.sidebarLayout, "sidebar").orderedModules;
   }
 
   private shouldRenderSidebarQuickInput(modules = this.sidebarModules()): boolean {
@@ -217,7 +221,8 @@ export class MemosPlusQuickInputView extends ItemView {
     if (!directoryEl) {
       return;
     }
-    const modules = this.sidebarModules();
+    const moduleOrder = this.sidebarModuleOrder();
+    const modules = new Set(moduleOrder);
     const lang = this.plugin.settings.language;
     directoryEl.empty();
     const header = directoryEl.createDiv({ cls: "memos-plus-quick-directory-header" });
@@ -238,7 +243,7 @@ export class MemosPlusQuickInputView extends ItemView {
       limit: this.plugin.settings.quickInputDirectoryLimit,
       includeCounts: this.shouldRenderSidebarFileCount(modules),
       visibleModules: modules,
-      moduleOrder: [...modules]
+      moduleOrder
     });
     const list = directoryEl.createDiv({ cls: "memos-plus-quick-directory-list" });
     for (const entry of entries) {

@@ -124,9 +124,14 @@ export function buildQuickInputDirectoryEntries(
       entries.push(...sidebarItemsToEntries(settings.sidebarItems, settings, memos, savedSearches, options.today, includeCounts));
       continue;
     }
-    if ((moduleId === "organizeDirectory" || moduleId === "taskDirectory") && !rendered.has("organizer")) {
-      rendered.add("organizer");
-      entries.push(...organizerEntries(settings, memos, options.today, includeCounts, modules));
+    if (moduleId === "organizeDirectory" && shouldRenderModule(modules, "organizeDirectory") && !rendered.has("organizeDirectory")) {
+      rendered.add("organizeDirectory");
+      entries.push(...organizerEntries(settings, memos, options.today, includeCounts, modules, "sections"));
+      continue;
+    }
+    if (moduleId === "taskDirectory" && shouldRenderModule(modules, "taskDirectory") && !rendered.has("taskDirectory")) {
+      rendered.add("taskDirectory");
+      entries.push(...organizerEntries(settings, memos, options.today, includeCounts, modules, "tasks"));
       continue;
     }
     if (moduleId === "tagFilters" && shouldRenderModule(modules, "tagFilters") && !rendered.has("tagFilters")) {
@@ -194,13 +199,14 @@ function organizerEntries(
   memos: MemoItem[],
   today: string,
   includeCounts: boolean,
-  modules: ReadonlySet<DisplayModuleId> | null
+  modules: ReadonlySet<DisplayModuleId> | null,
+  mode: "sections" | "tasks"
 ): QuickInputDirectoryEntry[] {
   if (!settings.organizerPanelEnabled) {
     return [];
   }
-  const showSections = shouldRenderModule(modules, "organizeDirectory");
-  const showTasks = shouldRenderModule(modules, "taskDirectory");
+  const showSections = mode === "sections" && shouldRenderModule(modules, "organizeDirectory");
+  const showTasks = mode === "tasks" && shouldRenderModule(modules, "taskDirectory");
   if (!showSections && !showTasks) {
     return [];
   }

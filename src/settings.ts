@@ -33,7 +33,12 @@ import {
   type DisplaySurface,
   type ViewLayoutSettings
 } from "./displayModules";
-import { resolveLayoutSurfaceModules } from "./layoutRenderer";
+import {
+  HOME_RESULTS_LAYOUT_GROUP,
+  SIDEBAR_NAVIGATION_LAYOUT_GROUP,
+  orderedModulesInGroup,
+  resolveLayoutSurfaceModules
+} from "./layoutRenderer";
 import {
   DEFAULT_SEND_TO_FILE_COMMON_TAGS,
   normalizeFileInsertPosition,
@@ -992,16 +997,34 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
     const shell = container.createDiv({ cls: "memos-plus-layout-home-shell" });
     const sidebar = shell.createDiv({ cls: "memos-plus-layout-home-sidebar" });
-    this.renderLayoutPreviewRegion(sidebar, preview, "home", "allNotes", "全部笔记", inspector, "nav");
-    this.renderLayoutPreviewRegion(sidebar, preview, "home", "projectDirectory", "项目", inspector, "nav");
-    this.renderLayoutPreviewRegion(sidebar, preview, "home", "projectFilters", "所有项目 / 软件项目", inspector, "nav");
-    this.renderLayoutPreviewRegion(sidebar, preview, "home", "organizeDirectory", "整理", inspector, "nav");
-    this.renderLayoutPreviewRegion(sidebar, preview, "home", "taskDirectory", "任务", inspector, "nav");
-    this.renderLayoutPreviewRegion(sidebar, preview, "home", "tagFilters", "标签", inspector, "nav");
+    this.renderLayoutPreviewRegionsInOrder(
+      sidebar,
+      preview,
+      "home",
+      SIDEBAR_NAVIGATION_LAYOUT_GROUP,
+      {
+        allNotes: { label: "全部笔记", variant: "nav" },
+        projectDirectory: { label: "项目", variant: "nav" },
+        projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
+        organizeDirectory: { label: "整理", variant: "nav" },
+        taskDirectory: { label: "任务", variant: "nav" },
+        tagFilters: { label: "标签", variant: "nav" }
+      },
+      inspector
+    );
 
     const main = shell.createDiv({ cls: "memos-plus-layout-home-main" });
-    this.renderLayoutPreviewRegion(main, preview, "home", "fileCount", "18 文件 · 所有项目", inspector, "meta");
-    this.renderLayoutPreviewRegion(main, preview, "home", "fileList", "文件列表", inspector, "cards");
+    this.renderLayoutPreviewRegionsInOrder(
+      main,
+      preview,
+      "home",
+      HOME_RESULTS_LAYOUT_GROUP,
+      {
+        fileCount: { label: "18 文件 · 所有项目", variant: "meta" },
+        fileList: { label: "文件列表", variant: "cards" }
+      },
+      inspector
+    );
 
     const stats = shell.createDiv({ cls: "memos-plus-layout-home-sidepanel" });
     this.renderLayoutPreviewRegion(stats, preview, "home", "statsCards", "统计卡片", inspector, "panel");
@@ -1029,16 +1052,34 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const directoryHead = directory.createDiv({ cls: "memos-plus-layout-directory-title" });
     directoryHead.createSpan({ text: "目录" });
     directoryHead.createSpan({ text: "+" });
-    this.renderLayoutPreviewRegion(directory, preview, "sidebar", "allNotes", "全部笔记 32", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "sidebar", "projectDirectory", "项目", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "sidebar", "projectFilters", "所有项目 / 软件项目", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "sidebar", "organizeDirectory", "整理", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "sidebar", "taskDirectory", "任务", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "sidebar", "tagFilters", "标签", inspector, "nav");
+    this.renderLayoutPreviewRegionsInOrder(
+      directory,
+      preview,
+      "sidebar",
+      SIDEBAR_NAVIGATION_LAYOUT_GROUP,
+      {
+        allNotes: { label: "全部笔记 32", variant: "nav" },
+        projectDirectory: { label: "项目", variant: "nav" },
+        projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
+        organizeDirectory: { label: "整理", variant: "nav" },
+        taskDirectory: { label: "任务", variant: "nav" },
+        tagFilters: { label: "标签", variant: "nav" }
+      },
+      inspector
+    );
 
     const results = card.createDiv({ cls: "memos-plus-layout-sidebar-results" });
-    this.renderLayoutPreviewRegion(results, preview, "sidebar", "fileCount", "18 文件 · 项目", inspector, "meta");
-    this.renderLayoutPreviewRegion(results, preview, "sidebar", "fileList", "文件卡片列表", inspector, "cards");
+    this.renderLayoutPreviewRegionsInOrder(
+      results,
+      preview,
+      "sidebar",
+      HOME_RESULTS_LAYOUT_GROUP,
+      {
+        fileCount: { label: "18 文件 · 项目", variant: "meta" },
+        fileList: { label: "文件卡片列表", variant: "cards" }
+      },
+      inspector
+    );
   }
 
   private renderMobileLayoutMockup(container: HTMLElement, preview: HTMLElement, inspector: HTMLElement): void {
@@ -1057,18 +1098,60 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.renderLayoutPreviewRegion(nav, preview, "mobile", "refreshButton", "刷新", inspector, "icon");
 
     const directory = screen.createDiv({ cls: "memos-plus-layout-mobile-directory" });
-    this.renderLayoutPreviewRegion(directory, preview, "mobile", "allNotes", "全部笔记", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "mobile", "projectDirectory", "项目", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "mobile", "projectFilters", "项目筛选", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "mobile", "organizeDirectory", "整理", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "mobile", "taskDirectory", "任务", inspector, "nav");
-    this.renderLayoutPreviewRegion(directory, preview, "mobile", "tagFilters", "标签", inspector, "nav");
+    this.renderLayoutPreviewRegionsInOrder(
+      directory,
+      preview,
+      "mobile",
+      SIDEBAR_NAVIGATION_LAYOUT_GROUP,
+      {
+        allNotes: { label: "全部笔记", variant: "nav" },
+        projectDirectory: { label: "项目", variant: "nav" },
+        projectFilters: { label: "项目筛选", variant: "nav" },
+        organizeDirectory: { label: "整理", variant: "nav" },
+        taskDirectory: { label: "任务", variant: "nav" },
+        tagFilters: { label: "标签", variant: "nav" }
+      },
+      inspector
+    );
 
     const content = screen.createDiv({ cls: "memos-plus-layout-mobile-content" });
-    this.renderLayoutPreviewRegion(content, preview, "mobile", "fileCount", "最近 10 条", inspector, "meta");
-    this.renderLayoutPreviewRegion(content, preview, "mobile", "fileList", "最近笔记", inspector, "cards");
+    this.renderLayoutPreviewRegionsInOrder(
+      content,
+      preview,
+      "mobile",
+      HOME_RESULTS_LAYOUT_GROUP,
+      {
+        fileCount: { label: "最近 10 条", variant: "meta" },
+        fileList: { label: "最近笔记", variant: "cards" }
+      },
+      inspector
+    );
     this.renderLayoutPreviewRegion(content, preview, "mobile", "statsCards", "统计", inspector, "panel");
     this.renderLayoutPreviewRegion(content, preview, "mobile", "heatmap", "热力图", inspector, "heatmap");
+  }
+
+  private renderLayoutPreviewRegionsInOrder(
+    container: HTMLElement,
+    preview: HTMLElement,
+    surface: DisplaySurface,
+    moduleIds: readonly DisplayModuleId[],
+    labels: Partial<Record<DisplayModuleId, { label: string; variant?: string }>>,
+    inspector: HTMLElement
+  ): void {
+    for (const moduleId of this.orderedPreviewModules(surface, moduleIds)) {
+      const config = labels[moduleId];
+      if (!config) {
+        continue;
+      }
+      this.renderLayoutPreviewRegion(container, preview, surface, moduleId, config.label, inspector, config.variant);
+    }
+  }
+
+  private orderedPreviewModules(surface: DisplaySurface, moduleIds: readonly DisplayModuleId[]): DisplayModuleId[] {
+    const supportedModules = moduleIds.filter((moduleId) => getDisplayModule(moduleId)?.supportedSurfaces.includes(surface));
+    const visibleModules = orderedModulesInGroup(resolveLayoutSurfaceModules(this.getViewLayout(surface), surface).orderedModules, supportedModules);
+    const visible = new Set(visibleModules);
+    return [...visibleModules, ...supportedModules.filter((moduleId) => !visible.has(moduleId))];
   }
 
   private renderLayoutPreviewRegion(
@@ -1315,6 +1398,30 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   ): void {
     const lang = this.plugin.settings.language;
     const actions = container.createDiv({ cls: "memos-plus-layout-inspector-actions" });
+    const moveUp = actions.createEl("button", {
+      text: t(lang, "settings.layoutDesigner.moveUp"),
+      attr: { type: "button" }
+    });
+    moveUp.disabled = !this.canMoveLayoutModule(surface, module.id, -1);
+    moveUp.addEventListener("click", async () => {
+      await this.moveLayoutModule(surface, module.id, -1);
+      preview.empty();
+      container.empty();
+      this.renderLayoutPreview(preview, surface, container);
+      this.renderLayoutModuleInspector(container, surface, module.id, preview);
+    });
+    const moveDown = actions.createEl("button", {
+      text: t(lang, "settings.layoutDesigner.moveDown"),
+      attr: { type: "button" }
+    });
+    moveDown.disabled = !this.canMoveLayoutModule(surface, module.id, 1);
+    moveDown.addEventListener("click", async () => {
+      await this.moveLayoutModule(surface, module.id, 1);
+      preview.empty();
+      container.empty();
+      this.renderLayoutPreview(preview, surface, container);
+      this.renderLayoutModuleInspector(container, surface, module.id, preview);
+    });
     actions
       .createEl("button", {
         text: t(lang, "settings.layoutDesigner.hideRegion"),
@@ -1347,6 +1454,37 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addEventListener("click", () => {
         this.switchSettingsTab(fullSettingsTab ?? this.fullSettingsTabForModule(module.id));
       });
+  }
+
+  private canMoveLayoutModule(surface: DisplaySurface, moduleId: DisplayModuleId, delta: -1 | 1): boolean {
+    const orderedModules = resolveLayoutSurfaceModules(this.getViewLayout(surface), surface).orderedModules;
+    const index = orderedModules.indexOf(moduleId);
+    const targetIndex = index + delta;
+    return index >= 0 && targetIndex >= 0 && targetIndex < orderedModules.length;
+  }
+
+  private async moveLayoutModule(surface: DisplaySurface, moduleId: DisplayModuleId, delta: -1 | 1): Promise<void> {
+    const layout = this.getViewLayout(surface);
+    const orderedModules = resolveLayoutSurfaceModules(layout, surface).orderedModules;
+    const index = orderedModules.indexOf(moduleId);
+    const targetIndex = index + delta;
+    if (index < 0 || targetIndex < 0 || targetIndex >= orderedModules.length) {
+      return;
+    }
+    const nextOrder = [...orderedModules];
+    [nextOrder[index], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[index]];
+    await this.setViewLayout(
+      surface,
+      normalizeViewLayout(
+        {
+          mode: "custom",
+          visibleModules: nextOrder,
+          order: nextOrder,
+          compactMode: layout.compactMode
+        },
+        surface
+      )
+    );
   }
 
   private fullSettingsTabForModule(moduleId: DisplayModuleId): SettingsTabId {

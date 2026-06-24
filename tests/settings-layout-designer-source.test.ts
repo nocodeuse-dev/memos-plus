@@ -60,6 +60,18 @@ describe("visual layout settings source", () => {
     expect(settingsSource).toContain("\"sendButton\"");
   });
 
+  it("exposes move up and move down controls for the selected layout module", () => {
+    const actionsSource = settingsSource.slice(settingsSource.indexOf("private renderLayoutInspectorActions"), settingsSource.indexOf("private fullSettingsTabForModule"));
+
+    expect(settingsSource).toContain("moveLayoutModule");
+    expect(actionsSource).toContain("settings.layoutDesigner.moveUp");
+    expect(actionsSource).toContain("settings.layoutDesigner.moveDown");
+    expect(actionsSource).toContain("this.moveLayoutModule(surface, module.id, -1");
+    expect(actionsSource).toContain("this.moveLayoutModule(surface, module.id, 1");
+    expect(i18nSource).toContain('"settings.layoutDesigner.moveUp": "上移"');
+    expect(i18nSource).toContain('"settings.layoutDesigner.moveDown": "下移"');
+  });
+
   it("persists layout changes through a refresh path that updates real views, not only the preview", () => {
     const setViewLayoutSource = settingsSource.slice(settingsSource.indexOf("private async setViewLayout"), settingsSource.indexOf("private renderMobileLightHomeSettings"));
     const syncSource = settingsSource.slice(settingsSource.indexOf("private renderDisplayContentSyncSettings"), settingsSource.indexOf("private renderViewLayoutSettings"));

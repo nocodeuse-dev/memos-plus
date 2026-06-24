@@ -53,6 +53,7 @@ import {
   COMPOSER_LAYOUT_GROUP,
   HOME_RESULTS_LAYOUT_GROUP,
   HOME_TOOLBAR_LAYOUT_GROUP,
+  orderedModulesInGroup,
   renderLayoutSurface,
   resolveLayoutSurfaceModules
 } from "./layoutRenderer";
@@ -77,7 +78,19 @@ interface SidebarRenderOptions {
   showOrganizer?: boolean;
   showTasks?: boolean;
   showCustomDirectory?: boolean;
+  moduleOrder?: readonly DisplayModuleId[];
 }
+
+const DEFAULT_SIDEBAR_MODULE_ORDER: readonly DisplayModuleId[] = [
+  "statsCards",
+  "heatmap",
+  "allNotes",
+  "organizeDirectory",
+  "taskDirectory",
+  "projectDirectory",
+  "projectFilters",
+  "tagFilters"
+];
 
 export class MemosPlusView extends ItemView {
   private memos: MemoItem[] = [];
@@ -174,9 +187,10 @@ export class MemosPlusView extends ItemView {
         }
         const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home";
         const activeLayout = this.layoutForSurface(activeSurface);
-        const surfaceModules = this.layoutModulesForSurface(activeSurface);
+        const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, activeSurface);
+        const surfaceModules = surfaceLayoutModules.modules;
         if (this.shouldRenderDisplaySidebar(surfaceModules)) {
-          this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceModules));
+          this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules));
         }
         await this.renderMain(shell, activeSurface, activeLayout);
         this.renderMobileFab(shell);
@@ -200,8 +214,11 @@ export class MemosPlusView extends ItemView {
     const lang = this.plugin.settings.language;
     const today = todayString();
     const sidebar = shell.createDiv({ cls: "memos-plus-sidebar" });
+    const moduleOrder =
+      options.moduleOrder && options.moduleOrder.length > 0 ? orderedModulesInGroup(options.moduleOrder, DEFAULT_SIDEBAR_MODULE_ORDER) : [...DEFAULT_SIDEBAR_MODULE_ORDER];
+    const rendered = new Set<string>();
 
-    if (renderOptions.showStats) {
+    const renderStats = () => {
       const stats = this.profiler().measureSync("calculate stats time", () => computeMemoStats(this.memos, today));
       const statGrid = sidebar.createDiv({ cls: "memos-plus-stat-grid" });
       this.renderStat(statGrid, stats.total, t(lang, "meta.memos"));
@@ -209,12 +226,9 @@ export class MemosPlusView extends ItemView {
       this.renderStat(statGrid, stats.activeDays, t(lang, "meta.activeDays"));
       this.renderStat(statGrid, stats.today, t(lang, "meta.today"));
       this.renderStat(statGrid, stats.openTasks, t(lang, "meta.openTasks"));
-    }
+    };
 
-    if (renderOptions.showHeatmap) {
-      this.renderHeatmap(sidebar);
-    }
-    if (renderOptions.showAllNotes) {
+    const renderAllNotes = () => {
       const allSection = sidebar.createDiv({ cls: "memos-plus-sidebar-section memos-plus-sidebar-all-section" });
       const allRow = allSection.createDiv({ cls: "memos-plus-side-search-row memos-plus-side-all-row" });
       this.renderSidebarItem(allRow, {
@@ -225,15 +239,42 @@ export class MemosPlusView extends ItemView {
         onClick: () => this.selectView("all")
       });
       this.renderSidebarMoreAction(allRow, t(lang, "sidebar.more"), (event) => this.openAllMemosMenu(event));
-    }
-    if (renderOptions.showOrganizer || renderOptions.showTasks) {
-      this.renderOrganizerDirectory(sidebar, {
-        showSections: renderOptions.showOrganizer,
-        showTasks: renderOptions.showTasks
-      });
-    }
-    if (renderOptions.showCustomDirectory) {
-      this.renderCustomDirectory(sidebar);
+    };
+
+    for (const moduleId of moduleOrder) {
+      if (moduleId === "statsCards" && renderOptions.showStats && !rendered.has("statsCards")) {
+        rendered.add("statsCards");
+        renderStats();
+        continue;
+      }
+      if (moduleId === "heatmap" && renderOptions.showHeatmap && !rendered.has("heatmap")) {
+        rendered.add("heatmap");
+        this.renderHeatmap(sidebar);
+        continue;
+      }
+      if (moduleId === "allNotes" && renderOptions.showAllNotes && !rendered.has("allNotes")) {
+        rendered.add("allNotes");
+        renderAllNotes();
+        continue;
+      }
+      if (moduleId === "organizeDirectory" && renderOptions.showOrganizer && !rendered.has("organizeDirectory")) {
+        rendered.add("organizeDirectory");
+        this.renderOrganizerDirectory(sidebar, { showSections: true, showTasks: false });
+        continue;
+      }
+      if (moduleId === "taskDirectory" && renderOptions.showTasks && !rendered.has("taskDirectory")) {
+        rendered.add("taskDirectory");
+        this.renderOrganizerDirectory(sidebar, { showSections: false, showTasks: true });
+        continue;
+      }
+      if (
+        (moduleId === "projectDirectory" || moduleId === "projectFilters" || moduleId === "tagFilters") &&
+        renderOptions.showCustomDirectory &&
+        !rendered.has("customDirectory")
+      ) {
+        rendered.add("customDirectory");
+        this.renderCustomDirectory(sidebar);
+      }
     }
     logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
   }
@@ -299,21 +340,24 @@ export class MemosPlusView extends ItemView {
     return hasSidebarDirectoryModules(modules) || modules.has("statsCards") || modules.has("heatmap");
   }
 
-  private sidebarOptionsForDisplayModules(modules: ReadonlySet<DisplayModuleId>): SidebarRenderOptions {
+  private sidebarOptionsForDisplayModules(moduleOrder: readonly DisplayModuleId[] | ReadonlySet<DisplayModuleId>): SidebarRenderOptions {
+    const orderedModules = Array.isArray(moduleOrder) ? moduleOrder : [...moduleOrder];
+    const modules = new Set(orderedModules);
     return {
       showAllNotes: modules.has("allNotes"),
       showStats: modules.has("statsCards"),
       showHeatmap: modules.has("heatmap"),
       showOrganizer: modules.has("organizeDirectory"),
       showTasks: modules.has("taskDirectory"),
-      showCustomDirectory: modules.has("projectDirectory") || modules.has("projectFilters") || modules.has("tagFilters")
+      showCustomDirectory: modules.has("projectDirectory") || modules.has("projectFilters") || modules.has("tagFilters"),
+      moduleOrder: orderedModules
     };
   }
 
   private async renderMobileLightHome(shell: Element): Promise<void> {
     const lang = this.plugin.settings.language;
     const mobileLayout = this.layoutForSurface("mobile");
-    const { modules } = resolveLayoutSurfaceModules(mobileLayout, "mobile");
+    const { modules, orderedModules } = resolveLayoutSurfaceModules(mobileLayout, "mobile");
     const home = shell.createDiv({ cls: "memos-plus-mobile-light-home" });
     const header = home.createDiv({ cls: "memos-plus-mobile-light-header" });
     const titleWrap = header.createDiv({ cls: "memos-plus-mobile-light-title-wrap" });
@@ -337,7 +381,7 @@ export class MemosPlusView extends ItemView {
       renderGroup: async ({ groupId }) => {
         if (groupId === "navigation") {
           if (this.shouldRenderDisplaySidebar(modules)) {
-            this.renderSidebar(home, this.sidebarOptionsForDisplayModules(modules));
+            this.renderSidebar(home, this.sidebarOptionsForDisplayModules(orderedModules));
           }
           return;
         }

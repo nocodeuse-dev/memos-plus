@@ -22,10 +22,11 @@ describe("sidebar display module option helpers", () => {
     expect(viewSource).toContain("private shouldRenderDisplaySidebar");
     expect(viewSource).toContain("private sidebarOptionsForDisplayModules");
     expect(renderBlock).toContain('const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home"');
-    expect(renderBlock).toContain("const surfaceModules = this.layoutModulesForSurface(activeSurface)");
+    expect(renderBlock).toContain("const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, activeSurface)");
+    expect(renderBlock).toContain("const surfaceModules = surfaceLayoutModules.modules");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
-    expect(renderBlock).toContain("this.sidebarOptionsForDisplayModules(surfaceModules)");
+    expect(renderBlock).toContain("this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules)");
     expect(mobileBlock).toContain("this.shouldRenderDisplaySidebar(modules)");
-    expect(mobileBlock).toContain("this.sidebarOptionsForDisplayModules(modules)");
+    expect(mobileBlock).toContain("this.sidebarOptionsForDisplayModules(orderedModules)");
   });
 });

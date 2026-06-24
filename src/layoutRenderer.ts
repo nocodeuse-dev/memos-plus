@@ -59,6 +59,11 @@ export function resolveLayoutSurfaceModules(layout: ViewLayoutSettings, surface:
   };
 }
 
+export function orderedModulesInGroup(orderedModules: readonly DisplayModuleId[], groupModules: readonly DisplayModuleId[]): DisplayModuleId[] {
+  const group = new Set(groupModules);
+  return orderedModules.filter((moduleId) => group.has(moduleId));
+}
+
 export async function renderLayoutSurface(options: RenderLayoutSurfaceOptions): Promise<LayoutSurfaceModules> {
   const resolved = resolveLayoutSurfaceModules(options.layout, options.surface);
   const renderedGroups = new Set<string>();

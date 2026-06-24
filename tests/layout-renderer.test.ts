@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ViewLayoutSettings } from "../src/displayModules";
-import { renderLayoutSurface, resolveLayoutSurfaceModules } from "../src/layoutRenderer";
+import { orderedModulesInGroup, renderLayoutSurface, resolveLayoutSurfaceModules } from "../src/layoutRenderer";
 
 describe("layout surface renderer", () => {
   it("resolves one ordered module set for a surface", () => {
@@ -61,5 +61,23 @@ describe("layout surface renderer", () => {
     });
 
     expect(seen).toEqual(["directory:tagFilters:true", "fileList"]);
+  });
+
+  it("returns visible group modules in the saved layout order", () => {
+    const layout: ViewLayoutSettings = {
+      mode: "custom",
+      visibleModules: ["allNotes", "projectDirectory", "organizeDirectory", "taskDirectory", "tagFilters"],
+      order: ["taskDirectory", "organizeDirectory", "projectDirectory", "allNotes", "tagFilters"],
+      compactMode: true
+    };
+    const resolved = resolveLayoutSurfaceModules(layout, "sidebar");
+
+    expect(orderedModulesInGroup(resolved.orderedModules, ["allNotes", "projectDirectory", "organizeDirectory", "taskDirectory", "tagFilters"])).toEqual([
+      "taskDirectory",
+      "organizeDirectory",
+      "projectDirectory",
+      "allNotes",
+      "tagFilters"
+    ]);
   });
 });

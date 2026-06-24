@@ -24,7 +24,8 @@ describe("mobile light home source integration", () => {
 
     expect(renderBlock).toContain('const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home"');
     expect(renderBlock).toContain("const activeLayout = this.layoutForSurface(activeSurface)");
-    expect(renderBlock).toContain("const surfaceModules = this.layoutModulesForSurface(activeSurface)");
+    expect(renderBlock).toContain("const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, activeSurface)");
+    expect(renderBlock).toContain("const surfaceModules = surfaceLayoutModules.modules");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
     expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout)");
     expect(dataNeedsBlock).toContain("Platform.isMobile");
@@ -46,7 +47,7 @@ describe("mobile light home source integration", () => {
     expect(mobileBlock).toContain("COMPOSER_LAYOUT_GROUP");
     expect(mobileBlock).toContain('modules.has("fileList")');
     expect(mobileBlock).toContain("this.shouldRenderDisplaySidebar(modules)");
-    expect(mobileBlock).toContain("this.sidebarOptionsForDisplayModules(modules)");
+    expect(mobileBlock).toContain("this.sidebarOptionsForDisplayModules(orderedModules)");
     expect(viewSource).not.toContain("resolveMobileHomeModules");
     expect(viewSource).not.toContain("mobileHomeModules()");
   });

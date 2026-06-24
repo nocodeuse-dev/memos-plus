@@ -11,9 +11,10 @@ describe("desktop home layout source integration", () => {
     const renderBlock = viewSource.slice(viewSource.indexOf("async render()"), viewSource.indexOf("private renderSidebar"));
     expect(renderBlock).toContain('const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home"');
     expect(renderBlock).toContain("const activeLayout = this.layoutForSurface(activeSurface)");
-    expect(renderBlock).toContain("const surfaceModules = this.layoutModulesForSurface(activeSurface)");
+    expect(renderBlock).toContain("const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, activeSurface)");
+    expect(renderBlock).toContain("const surfaceModules = surfaceLayoutModules.modules");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
-    expect(renderBlock).toContain("this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceModules))");
+    expect(renderBlock).toContain("this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules))");
     expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout)");
   });
 
