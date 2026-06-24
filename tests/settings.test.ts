@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS, normalizeSettings, restoreSettingsTabsScroll } from "../src/settings";
 import { buildEmptyExcalidrawFile, buildExcalidrawAttachmentPath, buildImageAttachmentPath, normalizeImageExtension } from "../src/store";
+
+const settingsSource = readFileSync("src/settings.ts", "utf8");
 
 vi.mock("obsidian", () => ({
   App: class {},
@@ -554,7 +557,7 @@ describe("normalizeSettings", () => {
           项目: ""
         },
         fileTemplateLibraryDefaultTabId: " category:病历 ",
-        fileTemplateLibraryTabOrder: ["category:病历", "recent", "bad", "all", "recent"],
+        fileTemplateLibraryTabOrder: ["category:病历", "recent", "bad", "all", "custom:group-common", "recent", "custom:tag-medical"],
         fileTemplateLibraryInteraction: {
           enableDesktopTabDrag: false,
           enableMobileTabDrag: true
@@ -610,8 +613,8 @@ describe("normalizeSettings", () => {
       fileTemplateLibraryDefaults: {
         病: "我的资源/模板/疾病.md"
       },
-      fileTemplateLibraryDefaultTabId: "category:病历",
-      fileTemplateLibraryTabOrder: ["category:病历", "recent", "all"],
+      fileTemplateLibraryDefaultTabId: "all",
+      fileTemplateLibraryTabOrder: ["all", "custom:group-common"],
       fileTemplateLibraryInteraction: {
         enableDesktopTabDrag: false,
         enableMobileTabDrag: true
@@ -627,6 +630,41 @@ describe("normalizeSettings", () => {
         mobileReadOnly: false
       }
     });
+  });
+
+  it("normalizes template library defaults to all plus template groups only", () => {
+    const settings = normalizeSettings({
+      fileTemplateLibraryDefaultTabId: "custom:tag-medical",
+      fileTemplateLibraryTabOrder: ["favorite", "custom:tag-medical", "custom:group-common", "category:未分类", "recent"],
+      fileTemplateTabs: [
+        { id: "tag-medical", name: "病历", type: "tag-filter", tags: ["#病历"] },
+        { id: "group-common", name: "常用模板", type: "template-group", templatePaths: ["我的资源/模板/项目模板.md"] }
+      ]
+    });
+
+    expect(settings.fileTemplateLibraryDefaultTabId).toBe("all");
+    expect(settings.fileTemplateLibraryTabOrder).toEqual(["all", "custom:group-common"]);
+    expect(settings.fileTemplateTabs).toEqual([
+      { id: "tag-medical", name: "病历", type: "tag-filter", tags: ["病历"], templatePaths: [] },
+      { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] }
+    ]);
+  });
+
+  it("renders template library settings as template-group management only", () => {
+    const source = settingsSource.slice(
+      settingsSource.indexOf("private renderFileTemplateLibrarySettings"),
+      settingsSource.indexOf("private openManagedTemplateModal")
+    );
+
+    expect(source).toContain("settings.fileTemplateLibraryDefaultTab");
+    expect(source).toContain("this.fileTemplateLibraryDefaultTabOptions()");
+    expect(source).toContain("createTemplateGroupFileTemplateTab");
+    expect(source).toContain("normalizeVisibleFileTemplateLibraryDefaultTabId");
+    expect(source).not.toContain("settings.fileTemplateTabInteraction");
+    expect(source).not.toContain("settings.fileTemplateTabType.tag-filter");
+    expect(source).not.toContain("convertFileTemplateTabType");
+    expect(source).not.toContain("enableDesktopDrag");
+    expect(source).not.toContain("enableMobileDrag");
   });
 
   it("migrates legacy project send custom tags into tag-filter template tabs", () => {

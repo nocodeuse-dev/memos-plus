@@ -78,25 +78,28 @@ describe("project send modal source", () => {
     expect(libraryModalSource).not.toContain("dragover");
   });
 
-  it("keeps the template library modal to all templates plus the add entry", () => {
+  it("keeps the template library modal to all plus template groups and the add entry", () => {
     const libraryModalSource = modalSource.slice(modalSource.indexOf("class FileTemplateLibraryModal"), modalSource.indexOf("export class ProjectSendModal"));
     const deliveryOptionsSource = deliverySource.slice(deliverySource.indexOf("new ProjectSendModal"), deliverySource.indexOf("onLoadFileTemplates"));
 
     expect(libraryModalSource).toContain("FILE_TEMPLATE_LIBRARY_TAB_ALL");
     expect(libraryModalSource).toContain("fileTemplateLibrary.category.all");
     expect(libraryModalSource).toContain("memos-plus-file-template-tab-add");
-    expect(libraryModalSource).toContain('filterFileTemplateLibraryItems(this.items, { category: "全部" })');
+    expect(libraryModalSource).toContain("getVisibleFileTemplateLibraryTabIds");
+    expect(libraryModalSource).toContain("getFileTemplateLibraryTemplateGroupTab");
+    expect(libraryModalSource).toContain("filterFileTemplateLibraryItemsForTab");
+    expect(libraryModalSource).toContain("fileTemplateLibrary.emptyGroup");
+    expect(libraryModalSource).toContain("createTemplateGroupFileTemplateTab");
+    expect(libraryModalSource).not.toContain("createTagFilterFileTemplateTab");
     expect(libraryModalSource).not.toContain("fileTemplateLibrary.searchPlaceholder");
     expect(libraryModalSource).not.toContain("FILE_TEMPLATE_LIBRARY_TAB_FAVORITE");
     expect(libraryModalSource).not.toContain("FILE_TEMPLATE_LIBRARY_TAB_RECENT");
-    expect(libraryModalSource).not.toContain("filterFileTemplateLibraryItemsForTab");
     expect(libraryModalSource).not.toContain("getFileTemplateLibraryCategoryTabId");
-    expect(libraryModalSource).not.toContain("normalizeFileTemplateLibraryDefaultTabId");
-    expect(libraryModalSource).not.toContain("normalizeFileTemplateLibraryTabOrder");
+    expect(libraryModalSource).not.toContain("createSelectField(contentEl, t(this.language, \"projectSend.addTemplateTabType\")");
     expect(libraryModalSource).not.toContain("private canReorderLibraryTabs()");
     expect(libraryModalSource).not.toContain("private async dropLibraryTab");
-    expect(deliveryOptionsSource).not.toContain("fileTemplateLibraryDefaultTabId");
-    expect(deliveryOptionsSource).not.toContain("fileTemplateLibraryTabOrder");
+    expect(deliveryOptionsSource).toContain("fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId");
+    expect(deliveryOptionsSource).toContain("fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder");
     expect(deliveryOptionsSource).not.toContain("fileTemplateLibraryInteraction");
   });
 
@@ -134,9 +137,9 @@ describe("project send modal source", () => {
     expect(modalSource).toContain("onCreateFromFileTemplate");
     expect(modalSource).toContain("onToggleFileTemplateFavorite");
     expect(modalSource).toContain("onDeleteFileTemplate");
-    expect(libraryModalSource).not.toContain("filterFileTemplateLibraryItemsForTab");
     expect(libraryModalSource).not.toContain("addTemplatePathToFileTemplateTab");
-    expect(libraryModalSource).not.toContain("fileTemplateLibrary.emptyGroup");
+    expect(libraryModalSource).toContain("filterFileTemplateLibraryItemsForTab");
+    expect(libraryModalSource).toContain("fileTemplateLibrary.emptyGroup");
     expect(libraryModalSource).not.toContain("notice.fileTemplateTabAdded");
     expect(modalSource).toContain("this.listEl.createDiv({");
     expect(modalSource).toContain('row.setAttr("role", "button")');

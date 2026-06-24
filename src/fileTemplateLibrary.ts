@@ -191,6 +191,35 @@ export function normalizeFileTemplateLibraryDefaultTabId(value: unknown, availab
   return available.has(id) ? id : FILE_TEMPLATE_LIBRARY_TAB_ALL;
 }
 
+export function getFileTemplateLibraryTemplateGroupTabId(tabId: unknown): string {
+  const id = normalizeText(tabId);
+  return id ? `custom:${id}` : "";
+}
+
+export function getFileTemplateLibraryTemplateGroupTab(tabId: unknown, tabs: FileTemplateTab[]): FileTemplateTab | null {
+  const id = normalizeFileTemplateLibraryTabId(tabId);
+  if (!id.startsWith("custom:")) {
+    return null;
+  }
+  const customId = id.slice("custom:".length);
+  return normalizeFileTemplateTabs(tabs).find((tab) => tab.id === customId && tab.type === "template-group") ?? null;
+}
+
+export function getVisibleFileTemplateLibraryTabIds(tabs: FileTemplateTab[], tabOrder?: unknown): string[] {
+  const groupIds = normalizeFileTemplateTabs(tabs)
+    .filter((tab) => tab.type === "template-group")
+    .map((tab) => getFileTemplateLibraryTemplateGroupTabId(tab.id))
+    .filter(Boolean);
+  const orderedGroups = normalizeFileTemplateLibraryTabOrder(tabOrder, groupIds);
+  return [FILE_TEMPLATE_LIBRARY_TAB_ALL, ...orderedGroups.filter((id) => id !== FILE_TEMPLATE_LIBRARY_TAB_ALL)];
+}
+
+export function normalizeVisibleFileTemplateLibraryDefaultTabId(value: unknown, tabs: FileTemplateTab[]): string {
+  const ids = new Set(getVisibleFileTemplateLibraryTabIds(tabs));
+  const id = normalizeFileTemplateLibraryTabId(value);
+  return id && ids.has(id) ? id : FILE_TEMPLATE_LIBRARY_TAB_ALL;
+}
+
 export function createTagFilterFileTemplateTab(tagValue: string): FileTemplateTab | null {
   const tag = normalizeFileTag(tagValue);
   if (!tag) {

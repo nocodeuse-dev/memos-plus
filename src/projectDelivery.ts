@@ -1,7 +1,13 @@
 import { App, type TFile } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { normalizeFileTag } from "./fileSend";
-import { normalizeFileTemplateTabs, toggleFavoriteFileTemplatePath, updateRecentFileTemplatePaths } from "./fileTemplateLibrary";
+import {
+  getVisibleFileTemplateLibraryTabIds,
+  normalizeFileTemplateTabs,
+  normalizeVisibleFileTemplateLibraryDefaultTabId,
+  toggleFavoriteFileTemplatePath,
+  updateRecentFileTemplatePaths
+} from "./fileTemplateLibrary";
 import type { MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 import { updateRecentFileTargetPaths } from "./fileSend";
@@ -106,6 +112,8 @@ async function selectProjectTarget(
       customTagTabs: host.settings.projectSendTagTabs,
       fileTemplateTabs: host.settings.fileTemplateTabs,
       fileTemplateTabInteraction: host.settings.fileTemplateTabInteraction,
+      fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId,
+      fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder,
       tabOrder: host.settings.projectSendTabOrder,
       hiddenTabs: host.settings.projectSendHiddenTabs,
       templates: formatRules,
@@ -146,6 +154,23 @@ async function selectProjectTarget(
       onSaveFileTemplateTabs: async (tabs) => {
         host.settings.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
         host.settings.projectSendTagTabs = host.settings.fileTemplateTabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : []));
+        host.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(
+          host.settings.fileTemplateTabs,
+          host.settings.fileTemplateLibraryTabOrder
+        );
+        host.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(
+          host.settings.fileTemplateLibraryDefaultTabId,
+          host.settings.fileTemplateTabs
+        );
+        await host.persistSettings();
+      },
+      onSaveFileTemplateLibraryPreferences: async ({ defaultTabId, tabOrder }) => {
+        if (tabOrder) {
+          host.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(host.settings.fileTemplateTabs, tabOrder);
+        }
+        if (defaultTabId) {
+          host.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(defaultTabId, host.settings.fileTemplateTabs);
+        }
         await host.persistSettings();
       },
       onSaveTabPreferences: async ({ tabOrder, hiddenTabs }) => {

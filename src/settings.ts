@@ -56,11 +56,12 @@ import {
   FILE_TEMPLATE_LIBRARY_TAB_ALL,
   createTagFilterFileTemplateTab,
   createTemplateGroupFileTemplateTab,
+  getFileTemplateLibraryTemplateGroupTab,
+  getVisibleFileTemplateLibraryTabIds,
   legacyProjectSendTagsToFileTemplateTabs,
   normalizeFileTemplateDefaults,
-  normalizeFileTemplateLibraryDefaultTabId,
   normalizeFileTemplateLibraryInteraction,
-  normalizeFileTemplateLibraryTabOrder,
+  normalizeVisibleFileTemplateLibraryDefaultTabId,
   normalizeFileTemplateTabInteraction,
   normalizeFileTemplateLibraryDefaultFolder,
   normalizeFileTemplateLibraryFolder,
@@ -68,8 +69,7 @@ import {
   normalizeFileTemplateTabs,
   type FileTemplateLibraryInteractionSettings,
   type FileTemplateTabInteractionSettings,
-  type FileTemplateTab,
-  type FileTemplateTabType
+  type FileTemplateTab
 } from "./fileTemplateLibrary";
 import { normalizeImageHandlingMode, type ImageHandlingMode } from "./imageHandling";
 import { DEFAULT_LANGUAGE, Language, t } from "./i18n";
@@ -409,6 +409,8 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
       : DEFAULT_SETTINGS.mobileLayout;
   const normalizedManagedTemplates = normalizeManagedTemplates(raw.managedTemplates);
   const managedTemplates = normalizedManagedTemplates;
+  const fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(fileTemplateTabs, raw.fileTemplateLibraryTabOrder);
+  const fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(raw.fileTemplateLibraryDefaultTabId, fileTemplateTabs);
   let normalizedProjectSections = projectSections;
   if (!normalizedProjectSections.includes(defaultProjectSection)) {
     normalizedProjectSections = [defaultProjectSection, ...normalizedProjectSections];
@@ -528,8 +530,8 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     fileTemplateLibraryFavorites: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryFavorites),
     fileTemplateLibraryRecent: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryRecent).slice(0, 20),
     fileTemplateLibraryDefaults: normalizeFileTemplateDefaults(raw.fileTemplateLibraryDefaults),
-    fileTemplateLibraryDefaultTabId: normalizeFileTemplateLibraryDefaultTabId(raw.fileTemplateLibraryDefaultTabId),
-    fileTemplateLibraryTabOrder: normalizeFileTemplateLibraryTabOrder(raw.fileTemplateLibraryTabOrder),
+    fileTemplateLibraryDefaultTabId,
+    fileTemplateLibraryTabOrder,
     fileTemplateLibraryInteraction: normalizeFileTemplateLibraryInteraction(raw.fileTemplateLibraryInteraction),
     fileTemplateTabs,
     fileTemplateTabInteraction: normalizeFileTemplateTabInteraction(raw.fileTemplateTabInteraction, raw.enableTemplateTabDrag),
@@ -2628,6 +2630,25 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         });
       });
 
+    new Setting(container)
+      .setName(t(lang, "settings.fileTemplateLibraryDefaultTab"))
+      .setDesc(t(lang, "settings.fileTemplateLibraryDefaultTabDesc"))
+      .addDropdown((dropdown) => {
+        const options = this.fileTemplateLibraryDefaultTabOptions();
+        for (const id of options) {
+          dropdown.addOption(id, this.getFileTemplateLibraryTabLabel(id));
+        }
+        dropdown
+          .setValue(normalizeVisibleFileTemplateLibraryDefaultTabId(this.plugin.settings.fileTemplateLibraryDefaultTabId, this.plugin.settings.fileTemplateTabs))
+          .onChange(async (value) => {
+            this.plugin.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(
+              value,
+              this.plugin.settings.fileTemplateTabs
+            );
+            await this.plugin.persistSettings();
+          });
+      });
+
     this.renderFileTemplateTabManagement(container);
 
     const advancedLibrary = this.renderSettingsDetails(container, "settings.advancedOptions", "settings.fileTemplateLibraryAdvancedDesc");
@@ -2651,61 +2672,15 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const section = container.createDiv({ cls: "memos-plus-file-template-tab-settings" });
     this.renderSectionHeader(section, "settings.fileTemplateTabs", "settings.fileTemplateTabsDesc");
 
-    this.renderSectionHeader(section, "settings.fileTemplateTabInteraction", "settings.fileTemplateTabInteractionDesc");
-    const saveInteraction = async (next: Partial<FileTemplateTabInteractionSettings>): Promise<void> => {
-      this.plugin.settings.fileTemplateTabInteraction = normalizeFileTemplateTabInteraction({
-        ...this.plugin.settings.fileTemplateTabInteraction,
-        ...next
+    const groupTabs = this.plugin.settings.fileTemplateTabs.filter((tab) => tab.type === "template-group");
+    if (groupTabs.length === 0) {
+      section.createEl("p", {
+        cls: "setting-item-description",
+        text: t(lang, "settings.fileTemplateTabsEmpty")
       });
-      await this.plugin.persistSettings();
-    };
-    new Setting(section)
-      .setName(t(lang, "settings.fileTemplateTabDesktopDrag"))
-      .setDesc(t(lang, "settings.fileTemplateTabDesktopDragDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.enableDesktopDrag).onChange(async (value) => {
-          await saveInteraction({ enableDesktopDrag: value });
-        });
-      });
-    new Setting(section)
-      .setName(t(lang, "settings.fileTemplateTabMobileReadOnly"))
-      .setDesc(t(lang, "settings.fileTemplateTabMobileReadOnlyDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly).onChange(async (value) => {
-          await saveInteraction({
-            mobileReadOnly: value,
-            enableMobileDrag: value ? false : this.plugin.settings.fileTemplateTabInteraction.enableMobileDrag,
-            enableMobileReorder: value ? false : this.plugin.settings.fileTemplateTabInteraction.enableMobileReorder
-          });
-          this.display();
-        });
-      });
-    new Setting(section)
-      .setName(t(lang, "settings.fileTemplateTabMobileDrag"))
-      .setDesc(t(lang, "settings.fileTemplateTabMobileDragDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.enableMobileDrag).onChange(async (value) => {
-          await saveInteraction({
-            mobileReadOnly: value ? false : this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly,
-            enableMobileDrag: value
-          });
-          this.display();
-        });
-      });
-    new Setting(section)
-      .setName(t(lang, "settings.fileTemplateTabMobileReorder"))
-      .setDesc(t(lang, "settings.fileTemplateTabMobileReorderDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.enableMobileReorder).onChange(async (value) => {
-          await saveInteraction({
-            mobileReadOnly: value ? false : this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly,
-            enableMobileReorder: value
-          });
-          this.display();
-        });
-      });
+    }
 
-    for (const tab of this.plugin.settings.fileTemplateTabs) {
+    for (const tab of groupTabs) {
       const tabBox = section.createDiv({ cls: "memos-plus-file-template-tab-setting" });
       const header = new Setting(tabBox)
         .setName(tab.name)
@@ -2715,91 +2690,71 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           await this.saveFileTemplateTabs(this.plugin.settings.fileTemplateTabs.map((item) => (item.id === tab.id ? { ...item, name: value } : item)));
         });
       });
-      header.addDropdown((dropdown) => {
-        dropdown
-          .addOption("tag-filter", t(lang, "settings.fileTemplateTabType.tag-filter"))
-          .addOption("template-group", t(lang, "settings.fileTemplateTabType.template-group"))
-          .setValue(tab.type)
-          .onChange(async (value) => {
-            const type = value === "template-group" ? "template-group" : "tag-filter";
-            const nextTab = convertFileTemplateTabType(tab, type);
-            await this.saveFileTemplateTabs(this.plugin.settings.fileTemplateTabs.map((item) => (item.id === tab.id ? nextTab : item)));
-            this.display();
-          });
-      });
       header.addButton((button) => {
         button.setButtonText(t(lang, "settings.projectSendTabDelete")).onClick(async () => {
-          await this.deleteProjectSendCustomTab(tab.id);
+          await this.deleteFileTemplateGroupTab(tab.id);
         });
       });
 
-      if (tab.type === "tag-filter") {
-        new Setting(tabBox)
-          .setName(t(lang, "settings.fileTemplateTabTags"))
-          .setDesc(t(lang, "settings.fileTemplateTabTagsDesc"))
-          .addTextArea((text) => {
-            text.setPlaceholder("病\n项目\n肌肉").setValue(tab.tags.join("\n")).onChange(async (value) => {
-              await this.saveFileTemplateTabs(
-                this.plugin.settings.fileTemplateTabs.map((item) => (item.id === tab.id ? { ...item, tags: parseTaskRuleTags(value) } : item))
-              );
-            });
-            text.inputEl.rows = 3;
+      new Setting(tabBox)
+        .setName(t(lang, "settings.fileTemplateTabTemplatePaths"))
+        .setDesc(t(lang, "settings.fileTemplateTabTemplatePathsDesc"))
+        .addTextArea((text) => {
+          text.setPlaceholder("我的资源/模板/病历模板.md\n我的资源/模板/项目模板.md").setValue(tab.templatePaths.join("\n")).onChange(async (value) => {
+            await this.saveFileTemplateTabs(
+              this.plugin.settings.fileTemplateTabs.map((item) => ({
+                ...item,
+                templatePaths: item.id === tab.id ? normalizeFileTemplateLibraryPaths(value) : item.templatePaths
+              }))
+            );
           });
-      } else {
-        new Setting(tabBox)
-          .setName(t(lang, "settings.fileTemplateTabTemplatePaths"))
-          .setDesc(t(lang, "settings.fileTemplateTabTemplatePathsDesc"))
-          .addTextArea((text) => {
-            text.setPlaceholder("我的资源/模板/病历模板.md\n我的资源/模板/项目模板.md").setValue(tab.templatePaths.join("\n")).onChange(async (value) => {
-              await this.saveFileTemplateTabs(
-                this.plugin.settings.fileTemplateTabs.map((item) => ({
-                  ...item,
-                  templatePaths: item.id === tab.id ? normalizeFileTemplateLibraryPaths(value) : item.templatePaths
-                }))
-              );
-            });
-            text.inputEl.rows = 4;
-          });
-      }
+          text.inputEl.rows = 4;
+        });
     }
 
-    let addType: FileTemplateTabType = "tag-filter";
     let addInput: HTMLInputElement | null = null;
     new Setting(section)
       .setName(t(lang, "settings.fileTemplateTabAdd"))
       .setDesc(t(lang, "settings.fileTemplateTabAddDesc"))
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption("tag-filter", t(lang, "settings.fileTemplateTabType.tag-filter"))
-          .addOption("template-group", t(lang, "settings.fileTemplateTabType.template-group"))
-          .setValue(addType)
-          .onChange((value) => {
-            addType = value === "template-group" ? "template-group" : "tag-filter";
-          });
-      })
       .addText((text) => {
         text.setPlaceholder(t(lang, "settings.fileTemplateTabAddPlaceholder"));
         addInput = text.inputEl;
       })
       .addButton((button) => {
         button.setButtonText(t(lang, "settings.projectSendTabAddButton")).onClick(async () => {
-          await this.addFileTemplateTab(addType, addInput?.value ?? "");
+          await this.addFileTemplateGroupTab(addInput?.value ?? "");
         });
       });
   }
 
-  private async addFileTemplateTab(type: FileTemplateTabType, value: string): Promise<void> {
-    const tab = type === "template-group" ? createTemplateGroupFileTemplateTab(value) : createTagFilterFileTemplateTab(value);
+  private fileTemplateLibraryDefaultTabOptions(): string[] {
+    return getVisibleFileTemplateLibraryTabIds(this.plugin.settings.fileTemplateTabs, this.plugin.settings.fileTemplateLibraryTabOrder);
+  }
+
+  private getFileTemplateLibraryTabLabel(id: string): string {
+    if (id === FILE_TEMPLATE_LIBRARY_TAB_ALL) {
+      return t(this.plugin.settings.language, "fileTemplateLibrary.category.all");
+    }
+    return getFileTemplateLibraryTemplateGroupTab(id, this.plugin.settings.fileTemplateTabs)?.name ?? id;
+  }
+
+  private async addFileTemplateGroupTab(value: string): Promise<void> {
+    const tab = createTemplateGroupFileTemplateTab(value);
     if (!tab) {
       return;
     }
     const tabs = normalizeFileTemplateTabs([...this.plugin.settings.fileTemplateTabs, tab]);
     await this.saveFileTemplateTabs(tabs);
-    this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(
-      [...this.plugin.settings.projectSendTabOrder, getProjectSendCustomTabId(tab.id)],
-      tabs
+    this.plugin.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(
+      `custom:${tab.id}`,
+      this.plugin.settings.fileTemplateTabs
     );
     await this.plugin.persistSettings();
+    this.display();
+  }
+
+  private async deleteFileTemplateGroupTab(tabId: string): Promise<void> {
+    await this.saveFileTemplateTabs(this.plugin.settings.fileTemplateTabs.filter((item) => item.id !== tabId));
     this.display();
   }
 
@@ -2809,6 +2764,14 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.plugin.settings.projectSendTagTabs = projectSendTagTabsFromFileTemplateTabs(normalized);
     this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, normalized);
     this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs(this.plugin.settings.projectSendHiddenTabs, normalized);
+    this.plugin.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(
+      normalized,
+      this.plugin.settings.fileTemplateLibraryTabOrder
+    );
+    this.plugin.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(
+      this.plugin.settings.fileTemplateLibraryDefaultTabId,
+      normalized
+    );
     await this.plugin.persistSettings();
   }
 
@@ -3218,17 +3181,6 @@ function projectSendTagTabsFromFileTemplateTabs(tabs: FileTemplateTab[]): string
   return normalizeProjectSendTagTabs(tabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : [])));
 }
 
-function convertFileTemplateTabType(tab: FileTemplateTab, type: FileTemplateTabType): FileTemplateTab {
-  if (type === tab.type) {
-    return tab;
-  }
-  if (type === "template-group") {
-    return { ...tab, type, tags: [], templatePaths: tab.templatePaths ?? [] };
-  }
-  const tag = normalizeFileTag(tab.name);
-  return { ...tab, type, tags: tag ? [tag] : tab.tags, templatePaths: [] };
-}
-
 function normalizeRecentProjectPaths(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -3250,18 +3202,6 @@ function uniqueNonEmpty(value: string, index: number, array: string[]): boolean 
 
 function formatTagsForInput(tags: string[]): string {
   return tags.map((tag) => `#${tag}`).join(" ");
-}
-
-function parseTaskRuleTags(value: string): string[] {
-  const seen = new Set<string>();
-  return value.split(/[\n,，]+/).flatMap((item) => {
-    const normalized = normalizeFileTag(item);
-    if (!normalized || seen.has(normalized)) {
-      return [];
-    }
-    seen.add(normalized);
-    return [normalized];
-  });
 }
 
 function formatFileTemplateDefaultsForInput(defaults: Record<string, string>): string {

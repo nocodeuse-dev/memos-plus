@@ -16,8 +16,12 @@ import {
   FILE_TEMPLATE_LIBRARY_TAB_ALL,
   filterFileTemplateLibraryItems,
   filterFileTemplateLibraryItemsForTab,
+  getFileTemplateLibraryTemplateGroupTab,
+  getFileTemplateLibraryTemplateGroupTabId,
+  getVisibleFileTemplateLibraryTabIds,
   legacyProjectSendTagsToFileTemplateTabs,
   normalizeFileTemplateTabs,
+  normalizeVisibleFileTemplateLibraryDefaultTabId,
   type FileTemplateLibraryItem,
   type FileTemplateTabInteractionSettings,
   type FileTemplateTab,
@@ -68,6 +72,8 @@ interface ProjectSendModalOptions {
   customTagTabs?: string[];
   fileTemplateTabs: FileTemplateTab[];
   fileTemplateTabInteraction: FileTemplateTabInteractionSettings;
+  fileTemplateLibraryDefaultTabId: string;
+  fileTemplateLibraryTabOrder: string[];
   tabOrder: string[];
   hiddenTabs: string[];
   templates: ManagedTemplate[];
@@ -87,6 +93,7 @@ interface ProjectSendModalOptions {
   onLoadHeadings: (file: TFile) => Promise<FileHeadingInfo[]>;
   onSaveCustomTagTabs?: (tags: string[]) => Promise<void>;
   onSaveFileTemplateTabs: (tabs: FileTemplateTab[]) => Promise<void>;
+  onSaveFileTemplateLibraryPreferences?: (state: { defaultTabId?: string; tabOrder?: string[] }) => Promise<void>;
   onSaveTabPreferences: (state: { tabOrder: string[]; hiddenTabs: string[] }) => Promise<void>;
   onSaveDefault?: () => Promise<void>;
   onChoose: (choice: ProjectSendChoice | null) => void;
@@ -187,9 +194,92 @@ function promptForProjectTemplateTab(
   return Promise.resolve();
 }
 
+class FileTemplateGroupTabModal extends Modal {
+  private input!: HTMLInputElement;
+
+  constructor(
+    app: App,
+    private readonly language: Language,
+    private readonly onSubmit: (value: string) => Promise<void>,
+    private readonly initialValue = ""
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    registerMemosPlusModalOpen(this, "FileTemplateGroupTabModal");
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("memos-plus-modal");
+    contentEl.createEl("h2", { text: t(this.language, "fileTemplateLibrary.addGroupTab") });
+    this.input = contentEl.createEl("input", {
+      cls: "memos-plus-project-name-input",
+      attr: {
+        type: "text",
+        placeholder: t(this.language, "fileTemplateLibrary.addGroupTabPrompt")
+      }
+    });
+    this.input.value = this.initialValue;
+
+    const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
+    const cancel = footer.createEl("button", { attr: { type: "button" }, text: t(this.language, "modal.cancel") });
+    const save = footer.createEl("button", {
+      cls: "memos-plus-save-button",
+      attr: { type: "button" },
+      text: t(this.language, "fileTemplateLibrary.addGroupTab")
+    });
+    cancel.addEventListener("click", () => this.close());
+    save.addEventListener("click", () => void withMobileClickLock(save, () => this.submit(save)));
+    this.input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void withMobileClickLock(save, () => this.submit(save));
+      }
+    });
+    focusOnDesktopOnly(this.input);
+  }
+
+  onClose(): void {
+    registerMemosPlusModalClose(this, "FileTemplateGroupTabModal");
+    this.contentEl.empty();
+  }
+
+  private async submit(button: HTMLButtonElement): Promise<void> {
+    const value = this.input.value.trim();
+    if (!value) {
+      focusOnDesktopOnly(this.input);
+      return;
+    }
+    button.disabled = true;
+    try {
+      await this.onSubmit(value);
+      this.close();
+    } finally {
+      if (button.isConnected) {
+        button.disabled = false;
+      }
+    }
+  }
+}
+
+function promptForFileTemplateGroupTab(
+  app: App,
+  language: Language,
+  onSubmit: (value: string) => Promise<void>,
+  initialValue = ""
+): Promise<void> {
+  if (Platform.isMobile) {
+    const value = window.prompt(`${t(language, "fileTemplateLibrary.addGroupTab")}\n${t(language, "fileTemplateLibrary.addGroupTabPrompt")}`, initialValue)?.trim() ?? "";
+    return value ? onSubmit(value) : Promise.resolve();
+  }
+  new FileTemplateGroupTabModal(app, language, onSubmit, initialValue).open();
+  return Promise.resolve();
+}
+
 class FileTemplateLibraryModal extends Modal {
   private items: FileTemplateLibraryItem[] = [];
   private selectedPath = "";
+  private activeLibraryTabId = FILE_TEMPLATE_LIBRARY_TAB_ALL;
   private titleInput!: HTMLInputElement;
   private listEl!: HTMLElement;
   private closed = false;
@@ -202,15 +292,19 @@ class FileTemplateLibraryModal extends Modal {
       initialTag?: string;
       preferredPath?: string;
       fileTemplateTabs: FileTemplateTab[];
+      defaultTabId: string;
+      tabOrder: string[];
       onLoad: () => Promise<FileTemplateLibraryItem[]>;
       onCreate: (template: FileTemplateLibraryItem, title: string) => Promise<void>;
       onToggleFavorite: (templatePath: string) => Promise<void>;
       onDelete: (templatePath: string) => Promise<void>;
       onSaveTabs: (tabs: FileTemplateTab[]) => Promise<void>;
+      onSaveFileTemplateLibraryPreferences?: (state: { defaultTabId?: string; tabOrder?: string[] }) => Promise<void>;
     }
   ) {
     super(app);
     this.selectedPath = options.preferredPath ?? "";
+    this.activeLibraryTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(options.defaultTabId, options.fileTemplateTabs);
   }
 
   onOpen(): void {
@@ -290,27 +384,30 @@ class FileTemplateLibraryModal extends Modal {
   private renderCategoryTabs(container: HTMLElement): void {
     const lang = this.options.language;
     const tabs = container.createDiv({ cls: "memos-plus-file-template-tabs" });
-    const all = tabs.createEl("button", {
-      cls: "memos-plus-file-template-tab is-active",
-      attr: { type: "button", "aria-pressed": "true", "data-tab-id": FILE_TEMPLATE_LIBRARY_TAB_ALL },
-      text: t(lang, "fileTemplateLibrary.category.all")
-    });
-    all.addEventListener("click", () => this.renderList());
+    for (const tab of this.libraryTabs()) {
+      const isActive = tab.id === this.activeLibraryTabId;
+      const button = tabs.createEl("button", {
+        cls: `memos-plus-file-template-tab${isActive ? " is-active" : ""}`,
+        attr: { type: "button", "aria-pressed": String(isActive), "data-tab-id": tab.id },
+        text: tab.label
+      });
+      button.addEventListener("click", () => {
+        this.activeLibraryTabId = tab.id;
+        this.render();
+      });
+    }
     const add = tabs.createEl("button", {
       cls: "memos-plus-file-template-tab memos-plus-file-template-tab-add",
-      attr: { type: "button", title: t(lang, "projectSend.addTagTab") }
+      attr: { type: "button", title: t(lang, "fileTemplateLibrary.addGroupTab") }
     });
     setIcon(add, "plus");
     add.addEventListener("click", () => {
-      void withMobileClickLock(add, () => promptForProjectTemplateTab(
+      void withMobileClickLock(add, () => promptForFileTemplateGroupTab(
         this.app,
         lang,
-        async (value, type) => {
-          await this.addTemplateTab(value, type);
-        },
-        "",
-        "projectSend.addTagTab",
-        "projectSend.addTagTab"
+        async (value) => {
+          await this.addTemplateTab(value);
+        }
       ));
     });
   }
@@ -321,13 +418,17 @@ class FileTemplateLibraryModal extends Modal {
     }
     const lang = this.options.language;
     this.listEl.empty();
-    const items = filterFileTemplateLibraryItems(this.items, { category: "全部" }).slice(0, mobileModalResultLimit());
+    const items = this.currentLibraryItems().slice(0, mobileModalResultLimit());
+    const activeTab = this.activeLibraryTab();
     if (items.length === 0) {
       this.listEl.createDiv({
         cls: "memos-plus-project-empty",
-        text: t(lang, "fileTemplateLibrary.empty")
+        text: activeTab?.customTab ? t(lang, "fileTemplateLibrary.emptyGroup") : t(lang, "fileTemplateLibrary.empty")
       });
       return;
+    }
+    if (!items.some((item) => item.path === this.selectedPath)) {
+      this.selectedPath = items[0]?.path ?? "";
     }
     for (const item of items) {
       const row = this.listEl.createDiv({
@@ -383,13 +484,46 @@ class FileTemplateLibraryModal extends Modal {
     }
   }
 
-  private async addTemplateTab(value: string, type: FileTemplateTabType): Promise<void> {
-    const tab = type === "template-group" ? createTemplateGroupFileTemplateTab(value) : createTagFilterFileTemplateTab(value);
+  private currentLibraryItems(): FileTemplateLibraryItem[] {
+    const activeTab = this.activeLibraryTab();
+    return activeTab?.customTab
+      ? filterFileTemplateLibraryItemsForTab(this.items, activeTab.customTab)
+      : filterFileTemplateLibraryItems(this.items, { category: "全部" });
+  }
+
+  private libraryTabs(): Array<{ id: string; label: string; customTab: FileTemplateTab | null }> {
+    const ids = getVisibleFileTemplateLibraryTabIds(this.options.fileTemplateTabs, this.options.tabOrder);
+    return ids.map((id) => {
+      if (id === FILE_TEMPLATE_LIBRARY_TAB_ALL) {
+        return { id, label: t(this.options.language, "fileTemplateLibrary.category.all"), customTab: null };
+      }
+      const tab = getFileTemplateLibraryTemplateGroupTab(id, this.options.fileTemplateTabs);
+      return { id, label: tab?.name ?? id, customTab: tab };
+    });
+  }
+
+  private activeLibraryTab(): { id: string; label: string; customTab: FileTemplateTab | null } | null {
+    const tabs = this.libraryTabs();
+    const active = tabs.find((tab) => tab.id === this.activeLibraryTabId) ?? tabs[0] ?? null;
+    this.activeLibraryTabId = active?.id ?? FILE_TEMPLATE_LIBRARY_TAB_ALL;
+    return active;
+  }
+
+  private async addTemplateTab(value: string): Promise<void> {
+    const tab = createTemplateGroupFileTemplateTab(value);
     if (!tab) {
       return;
     }
     const tabs = normalizeFileTemplateTabs([...this.options.fileTemplateTabs, tab]);
     await this.saveTemplateTabs(tabs);
+    const tabId = getFileTemplateLibraryTemplateGroupTabId(tab.id);
+    this.activeLibraryTabId = tabId || FILE_TEMPLATE_LIBRARY_TAB_ALL;
+    await this.options.onSaveFileTemplateLibraryPreferences?.({
+      defaultTabId: this.activeLibraryTabId,
+      tabOrder: getVisibleFileTemplateLibraryTabIds(tabs, [...this.options.tabOrder, tabId])
+    });
+    this.options.tabOrder = getVisibleFileTemplateLibraryTabIds(tabs, [...this.options.tabOrder, tabId]);
+    this.options.defaultTabId = this.activeLibraryTabId;
     this.render();
   }
 
@@ -452,7 +586,8 @@ class FileTemplateLibraryModal extends Modal {
       focusOnDesktopOnly(this.titleInput);
       return;
     }
-    const template = this.items.find((item) => item.path === this.selectedPath) ?? this.items[0];
+    const currentItems = this.currentLibraryItems();
+    const template = currentItems.find((item) => item.path === this.selectedPath) ?? currentItems[0] ?? this.items[0];
     if (!template) {
       return;
     }
@@ -1207,12 +1342,15 @@ export class ProjectSendModal extends Modal {
       initialTag: tag,
       preferredPath: preferredPathOverride || this.options.getPreferredFileTemplatePath?.(tag) || this.options.preferredFileTemplatePath,
       fileTemplateTabs: this.fileTemplateTabs,
+      defaultTabId: this.options.fileTemplateLibraryDefaultTabId,
+      tabOrder: this.options.fileTemplateLibraryTabOrder,
       onLoad: this.options.onLoadFileTemplates,
       onToggleFavorite: this.options.onToggleFileTemplateFavorite,
       onDelete: this.options.onDeleteFileTemplate,
       onSaveTabs: async (tabs) => {
         await this.saveFileTemplateTabs(tabs);
       },
+      onSaveFileTemplateLibraryPreferences: this.options.onSaveFileTemplateLibraryPreferences,
       onCreate: async (template, title) => {
         const file = await this.options.onCreateFromFileTemplate(template.path, title, tag);
         if (!file) {

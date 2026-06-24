@@ -10,10 +10,14 @@ import {
   filterFileTemplateLibraryItemsForTab,
   filterFileTemplateLibraryItems,
   getFileTemplateLibraryCategoryTabId,
+  getFileTemplateLibraryTemplateGroupTab,
+  getFileTemplateLibraryTemplateGroupTabId,
+  getVisibleFileTemplateLibraryTabIds,
   normalizeFileTemplateDefaults,
   normalizeFileTemplateLibraryDefaultTabId,
   normalizeFileTemplateLibraryInteraction,
   normalizeFileTemplateLibraryTabOrder,
+  normalizeVisibleFileTemplateLibraryDefaultTabId,
   normalizeFileTemplateTabInteraction,
   normalizeFileTemplateTabs,
   normalizeFileTemplateLibraryPaths,
@@ -113,6 +117,31 @@ describe("file template library", () => {
       enableDesktopTabDrag: false,
       enableMobileTabDrag: true
     });
+  });
+
+  it("limits visible template-library tabs to all plus template groups", () => {
+    const tabs = normalizeFileTemplateTabs([
+      { id: "tag-medical", name: "病历", type: "tag-filter", tags: ["病历"] },
+      { id: "group-common", name: "常用模板", type: "template-group", templatePaths: ["我的资源/模板/项目模板.md"] },
+      { id: "group-case", name: "病历模板", type: "template-group", templatePaths: ["我的资源/模板/病历模板.md"] }
+    ]);
+
+    expect(
+      getVisibleFileTemplateLibraryTabIds(tabs, [
+        "favorite",
+        "custom:tag-medical",
+        "category:未分类",
+        "custom:group-case",
+        "recent",
+        "custom:group-common"
+      ])
+    ).toEqual(["all", "custom:group-case", "custom:group-common"]);
+    expect(normalizeVisibleFileTemplateLibraryDefaultTabId("custom:group-common", tabs)).toBe("custom:group-common");
+    expect(normalizeVisibleFileTemplateLibraryDefaultTabId("custom:tag-medical", tabs)).toBe(FILE_TEMPLATE_LIBRARY_TAB_ALL);
+    expect(normalizeVisibleFileTemplateLibraryDefaultTabId("favorite", tabs)).toBe(FILE_TEMPLATE_LIBRARY_TAB_ALL);
+    expect(getFileTemplateLibraryTemplateGroupTabId("group-common")).toBe("custom:group-common");
+    expect(getFileTemplateLibraryTemplateGroupTab("custom:group-case", tabs)?.name).toBe("病历模板");
+    expect(getFileTemplateLibraryTemplateGroupTab("custom:tag-medical", tabs)).toBeNull();
   });
 
   it("normalizes default template mappings by tag", () => {
