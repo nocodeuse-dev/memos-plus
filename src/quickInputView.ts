@@ -1,5 +1,6 @@
 import { ItemView, Platform, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import type MemosPlusPlugin from "../main";
+import { getIconOverride, renderConfigurableIcon } from "./configurableIcons";
 import { createComposerSession, type ComposerSession } from "./composerSession";
 import type { MemoItem } from "./markdown";
 import {
@@ -264,7 +265,7 @@ export class MemosPlusQuickInputView extends ItemView {
       attr: { type: "button" }
     });
     const icon = row.createSpan({ cls: "memos-plus-quick-directory-icon" });
-    setIcon(icon, entry.icon);
+    renderConfigurableIcon(icon, getIconOverride(this.plugin.settings.iconOverrides, entry.iconOverrideId, entry.icon), entry.icon);
     row.createSpan({ cls: "memos-plus-quick-directory-name", text: entry.title });
     if (showCount && entry.count !== "") {
       row.createSpan({ cls: "memos-plus-quick-directory-count", text: String(entry.count) });
@@ -323,7 +324,7 @@ export class MemosPlusQuickInputView extends ItemView {
     });
     if (item.type === "entry") {
       const icon = card.createSpan({ cls: "memos-plus-quick-directory-icon" });
-      setIcon(icon, item.icon);
+      renderConfigurableIcon(icon, getIconOverride(this.plugin.settings.iconOverrides, item.entry.iconOverrideId, item.icon), item.icon);
     }
     const body = card.createSpan({ cls: "memos-plus-quick-directory-result-body" });
     if (item.type === "memo") {

@@ -35,11 +35,10 @@ describe("settings top tabs source", () => {
     const tabIds = [...tabsSource.matchAll(/\{ id: "([^"]+)"/g)].map((match) => match[1]);
     expect(tabIds).toEqual([
       "layout",
-      "sendRules",
       "inputTools",
       "records",
-      "tasks",
       "fileTemplates",
+      "tasks",
       "directoryFilters",
       "display",
       "performanceData",
@@ -110,20 +109,27 @@ describe("settings top tabs source", () => {
     expect(settingsSource).not.toContain("templateManager.taskAutoKeywords");
   });
 
-  it("moves sending dialog tabs, sidebar quick input, mobile settings, and task cache to the requested groups", () => {
-    const sendSource = settingsSource.slice(settingsSource.indexOf("private renderSendRulesSettings"), settingsSource.indexOf("private renderInputToolSettings"));
+  it("groups settings by the stable workflow information architecture", () => {
+    const recordsSource = settingsSource.slice(settingsSource.indexOf("private renderRecordSettings"), settingsSource.indexOf("private renderDisplaySettings"));
     const inputSource = settingsSource.slice(settingsSource.indexOf("private renderInputToolSettings"), settingsSource.indexOf("private renderComposerAppearanceSettings"));
     const displaySource = settingsSource.slice(settingsSource.indexOf("private renderDisplaySettings"), settingsSource.indexOf("private renderLayoutSettings"));
+    const fileTemplateSource = settingsSource.slice(settingsSource.indexOf("private renderFileTemplateLibrarySettings"), settingsSource.indexOf("private openManagedTemplateModal"));
     const tasksSource = settingsSource.slice(settingsSource.indexOf("private renderTasksSettings"), settingsSource.indexOf("private renderTaskIndexSettings"));
     const sidebarSource = settingsSource.slice(settingsSource.indexOf("private renderSidebarLayoutSettings"), settingsSource.indexOf("private renderMobileLayoutSettings"));
     const mobileSource = settingsSource.slice(settingsSource.indexOf("private renderMobileLayoutSettings"), settingsSource.indexOf("private renderDirectoryFilterSettings"));
     const performanceSource = settingsSource.slice(settingsSource.indexOf("private renderPerformanceDataSettings"), settingsSource.indexOf("private renderAdvancedSettings"));
 
-    expect(sendSource).toContain("this.renderProjectSendTabSettings(container)");
-    expect(sendSource).toContain("this.renderManagedTemplateSettings(container)");
-    expect(inputSource).not.toContain("this.renderQuickInputSettings(container)");
+    expect(recordsSource).toContain("this.renderProjectWriteSettings(container)");
+    expect(recordsSource).toContain("this.renderManagedTemplateSettings(container)");
+    expect(recordsSource).toContain("this.renderSendToFileSettings(container)");
+    expect(recordsSource).toContain("this.renderProjectSendTabSettings(container)");
+    expect(recordsSource).not.toContain('t(lang, "settings.language")');
+    expect(inputSource).toContain("this.renderQuickInputSettings(container)");
     expect(inputSource).not.toContain("this.renderComposerAppearanceSettings(container)");
+    expect(displaySource).toContain("this.renderLanguageSetting(container)");
     expect(displaySource).toContain("this.renderComposerAppearanceSettings(container)");
+    expect(displaySource).toContain("this.renderMobileDisplaySettings(container)");
+    expect(fileTemplateSource).toContain("this.renderFileTemplateTabInteractionSettings(container)");
     expect(tasksSource).toContain("this.renderTaskIndexSummary(container)");
     expect(tasksSource).not.toContain("this.renderTaskIndexSettings(container)");
     expect(sidebarSource).toContain("this.renderQuickInputStartupCard(container)");

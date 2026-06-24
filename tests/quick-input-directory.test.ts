@@ -143,8 +143,8 @@ describe("quick input directory data", () => {
     );
     expect(titles.indexOf("待整理")).toBeGreaterThan(titles.indexOf("软件项目"));
     expect(titles.indexOf("#项目")).toBeGreaterThan(titles.indexOf("未完成任务"));
-    expect(entries.find((entry) => entry.title === "待整理")).toMatchObject({ type: "organizer", count: 2 });
-    expect(entries.find((entry) => entry.title === "未完成任务")).toMatchObject({ type: "organizer", count: 1 });
+    expect(entries.find((entry) => entry.title === "待整理")).toMatchObject({ type: "organizer", count: 2, iconOverrideId: "filter-inbox" });
+    expect(entries.find((entry) => entry.title === "未完成任务")).toMatchObject({ type: "organizer", count: 1, iconOverrideId: "task-incomplete" });
     expect(entries.find((entry) => entry.title === "#项目")).toMatchObject({ type: "tag", count: 1 });
   });
 

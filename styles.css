@@ -965,6 +965,15 @@
 
 .memos-plus-side-icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  min-height: 16px;
+}
+
+.memos-plus-emoji-icon {
+  font-size: 15px;
+  line-height: 1;
 }
 
 .memos-plus-side-label {

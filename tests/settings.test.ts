@@ -137,6 +137,7 @@ describe("DEFAULT_SETTINGS", () => {
 
   it("starts with no custom sidebar directory items", () => {
     expect(DEFAULT_SETTINGS.allMemosIcon).toBe("layout-grid");
+    expect(DEFAULT_SETTINGS.iconOverrides).toEqual({});
     expect(DEFAULT_SETTINGS.sidebarItems).toEqual([]);
   });
 
@@ -544,6 +545,18 @@ describe("normalizeSettings", () => {
   it("keeps a configurable icon for the fixed all-memos entry", () => {
     expect(normalizeSettings({}).allMemosIcon).toBe("layout-grid");
     expect(normalizeSettings({ allMemosIcon: " book-open " }).allMemosIcon).toBe("book-open");
+    expect(
+      normalizeSettings({
+        iconOverrides: {
+          "filter-important": { type: "emoji", value: "⭐" },
+          "task-due-today": { type: "lucide", value: "calendar-check" },
+          "bad-svg": { type: "svg", value: "<svg />" }
+        }
+      }).iconOverrides
+    ).toEqual({
+      "filter-important": { type: "emoji", value: "⭐" },
+      "task-due-today": { type: "lucide", value: "calendar-check" }
+    });
   });
 
   it("normalizes send-to-project settings", () => {
@@ -679,11 +692,13 @@ describe("normalizeSettings", () => {
     expect(source).toContain("this.fileTemplateLibraryDefaultTabOptions()");
     expect(source).toContain("createTemplateGroupFileTemplateTab");
     expect(source).toContain("normalizeVisibleFileTemplateLibraryDefaultTabId");
-    expect(source).not.toContain("settings.fileTemplateTabInteraction");
+    expect(source).toContain("settings.fileTemplateTabInteraction");
+    expect(source).toContain("this.renderFileTemplateTabInteractionSettings(container)");
     expect(source).not.toContain("settings.fileTemplateTabType.tag-filter");
     expect(source).not.toContain("convertFileTemplateTabType");
-    expect(source).not.toContain("enableDesktopDrag");
-    expect(source).not.toContain("enableMobileDrag");
+    expect(source).toContain("enableDesktopDrag");
+    expect(source).toContain("enableMobileDrag");
+    expect(source).not.toContain("settings.fileTemplateLibraryTabMobileDrag");
   });
 
   it("migrates legacy project send custom tags into tag-filter template tabs", () => {

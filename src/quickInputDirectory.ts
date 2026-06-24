@@ -1,5 +1,6 @@
 import { filterMemos, getAllTags } from "./filter";
 import type { DisplayModuleId } from "./displayModules";
+import { iconOverrideIdForOrganizerFilter, sidebarItemIconOverrideId } from "./configurableIcons";
 import { t } from "./i18n";
 import type { MemoItem } from "./markdown";
 import {
@@ -18,6 +19,7 @@ export type QuickInputDirectoryEntry =
       id: "all";
       title: string;
       icon: string;
+      iconOverrideId?: string;
       count: number | string;
     }
   | {
@@ -25,6 +27,7 @@ export type QuickInputDirectoryEntry =
       id: string;
       title: string;
       icon: string;
+      iconOverrideId?: string;
       count: number | string;
       item: SidebarGroupItem;
       children: QuickInputDirectoryEntry[];
@@ -34,6 +37,7 @@ export type QuickInputDirectoryEntry =
       id: string;
       title: string;
       icon: string;
+      iconOverrideId?: string;
       count: number | string;
       item: SidebarSearchItem;
       search: SavedSearch | null;
@@ -43,6 +47,7 @@ export type QuickInputDirectoryEntry =
       id: string;
       title: string;
       icon: string;
+      iconOverrideId?: string;
       count: number | string;
       filterId: OrganizerFilterId;
     }
@@ -51,6 +56,7 @@ export type QuickInputDirectoryEntry =
       id: string;
       title: string;
       icon: string;
+      iconOverrideId?: string;
       count: number | string;
       tag: string;
     };
@@ -115,6 +121,7 @@ export function buildQuickInputDirectoryEntries(
         id: "all",
         title: "全部笔记",
         icon: settings.allMemosIcon || "layout-grid",
+        iconOverrideId: "all-notes",
         count: includeCounts ? visibleMemos(settings, memos, options.today).length : ""
       });
       continue;
@@ -223,6 +230,7 @@ function organizerEntries(
       id: `organizer:${section.id}`,
       title: t(settings.language, organizerFilterLabelKey(section.id)),
       icon: section.icon,
+      iconOverrideId: iconOverrideIdForOrganizerFilter(section.id),
       count: includeCounts ? section.total : "",
       filterId: section.id
     }));
@@ -234,6 +242,7 @@ function tagEntries(settings: MemosPlusSettings, memos: MemoItem[], today: strin
     id: `tag:${tag}`,
     title: `#${tag}`,
     icon: "tag",
+    iconOverrideId: `tag:${tag}`,
     count: includeCounts ? tagMemos(settings, memos, tag, today).length : "",
     tag
   }));
@@ -270,6 +279,7 @@ function sidebarItemToEntry(
       id: item.id,
       title: item.title,
       icon: item.icon || "filter",
+      iconOverrideId: sidebarItemIconOverrideId(item.id),
       count: includeCounts && search ? countForSearch(settings, memos, search, today) : "",
       item,
       search
@@ -281,6 +291,7 @@ function sidebarItemToEntry(
     id: item.id,
     title: item.title,
     icon: item.icon || "folder",
+    iconOverrideId: sidebarItemIconOverrideId(item.id),
     count: includeCounts ? countForChildren(children) : "",
     item,
     children

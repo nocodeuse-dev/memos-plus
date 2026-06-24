@@ -20,6 +20,15 @@ import {
 } from "./composerTools";
 import type { SortOrder } from "./filter";
 import {
+  CONFIGURABLE_ICON_ITEM_DEFINITIONS,
+  normalizeIconOverrideConfig,
+  normalizeIconOverrides,
+  sidebarItemIconOverrideId,
+  type IconOverrideConfig,
+  type IconOverrideType,
+  type IconOverrides
+} from "./configurableIcons";
+import {
   DISPLAY_SURFACES,
   DISPLAY_LAYOUT_MODES,
   DEFAULT_VIEW_LAYOUTS,
@@ -192,6 +201,7 @@ export interface MemosPlusSettings {
   language: Language;
   defaultPrefix: MemoDefaultPrefix;
   allMemosIcon: string;
+  iconOverrides: IconOverrides;
   savedSearches: SavedSearch[];
   sidebarItems: SidebarItem[];
   linkCaptureDefaultTags: string[];
@@ -305,6 +315,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   language: DEFAULT_LANGUAGE,
   defaultPrefix: "list",
   allMemosIcon: "layout-grid",
+  iconOverrides: {},
   savedSearches: [],
   sidebarItems: [],
   linkCaptureDefaultTags: [],
@@ -359,11 +370,10 @@ type SettingsTabId =
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; labelKey: string }> = [
   { id: "layout", labelKey: "settings.tab.layout" },
-  { id: "sendRules", labelKey: "settings.tab.sendRules" },
   { id: "inputTools", labelKey: "settings.tab.input" },
   { id: "records", labelKey: "settings.tab.records" },
-  { id: "tasks", labelKey: "settings.tab.tasks" },
   { id: "fileTemplates", labelKey: "settings.tab.fileTemplates" },
+  { id: "tasks", labelKey: "settings.tab.tasks" },
   { id: "directoryFilters", labelKey: "settings.tab.filters" },
   { id: "display", labelKey: "settings.tab.display" },
   { id: "performanceData", labelKey: "settings.tab.performance" },
@@ -548,6 +558,7 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     language: raw.language === "en" ? "en" : "zh",
     defaultPrefix: typeof raw.defaultPrefix === "string" ? normalizeDefaultPrefix(raw.defaultPrefix) : DEFAULT_SETTINGS.defaultPrefix,
     allMemosIcon: normalizeTextSetting(raw.allMemosIcon, DEFAULT_SETTINGS.allMemosIcon),
+    iconOverrides: normalizeIconOverrides(raw.iconOverrides),
     savedSearches,
     sidebarItems: normalizeSidebarItems(raw.sidebarItems, savedSearches),
     linkCaptureDefaultTags: normalizeTagList(raw.linkCaptureDefaultTags),
@@ -624,7 +635,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         logMemosPlusDiagnostic("settings:diagnostic-export", { source: "settings" });
         await this.plugin.exportDiagnosticLog();
       });
-    });
+      });
   }
 
   private renderCurrentSettingsPanel(): void {
@@ -761,21 +772,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private renderRecordSettings(container: HTMLElement): void {
     const lang = this.plugin.settings.language;
-    this.renderSectionHeader(container, "settings.recordSettings", "settings.recordSettingsDesc");
-    new Setting(container)
-      .setName(t(lang, "settings.language"))
-      .setDesc(t(lang, "settings.languageDesc"))
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption("zh", "中文")
-          .addOption("en", "English")
-          .setValue(this.plugin.settings.language)
-          .onChange(async (value) => {
-            this.plugin.settings.language = value === "en" ? "en" : "zh";
-            await this.plugin.persistSettings();
-            this.display();
-          });
-      });
+    this.renderSectionHeader(container, "settings.sendWriteSettings", "settings.sendWriteSettingsDesc");
     new Setting(container)
       .setName(t(lang, "settings.folderPath"))
       .setDesc(t(lang, "settings.folderPathDesc"))
@@ -872,12 +869,89 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             await this.plugin.persistSettings();
           });
       });
+    this.renderProjectWriteSettings(container);
+    this.renderManagedTemplateSettings(container);
+    this.renderSendToFileSettings(container);
+    this.renderProjectSendTabSettings(container);
+  }
+
+  private renderProjectWriteSettings(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    this.renderSectionHeader(container, "settings.projectWriteSettings", "settings.projectWriteSettingsDesc");
+    new Setting(container)
+      .setName(t(lang, "settings.projectTag"))
+      .setDesc(t(lang, "settings.projectTagDesc"))
+      .addText((text) => {
+        text
+          .setPlaceholder("项目")
+          .setValue(this.plugin.settings.projectTag)
+          .onChange(async (value) => {
+            this.plugin.settings.projectTag = normalizeProjectTag(value) || DEFAULT_SETTINGS.projectTag;
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.projectFolderPath"))
+      .setDesc(t(lang, "settings.projectFolderPathDesc"))
+      .addText((text) => {
+        text
+          .setPlaceholder(DEFAULT_PROJECT_FOLDER)
+          .setValue(this.plugin.settings.projectFolderPath)
+          .onChange(async (value) => {
+            this.plugin.settings.projectFolderPath = normalizeVaultPath(value, DEFAULT_PROJECT_FOLDER);
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.defaultProjectSection"))
+      .setDesc(t(lang, "settings.defaultProjectSectionDesc"))
+      .addText((text) => {
+        text
+          .setPlaceholder(DEFAULT_SETTINGS.defaultProjectSection)
+          .setValue(this.plugin.settings.defaultProjectSection)
+          .onChange(async (value) => {
+            const section = normalizeTextSetting(value, DEFAULT_SETTINGS.defaultProjectSection);
+            this.plugin.settings.defaultProjectSection = section;
+            if (!this.plugin.settings.projectSections.includes(section)) {
+              this.plugin.settings.projectSections = [section, ...this.plugin.settings.projectSections].filter(uniqueNonEmpty);
+            }
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.showArchivedProjects"))
+      .setDesc(t(lang, "settings.showArchivedProjectsDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.showArchivedProjects).onChange(async (value) => {
+          this.plugin.settings.showArchivedProjects = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.projectSections"))
+      .setDesc(t(lang, "settings.projectSectionsDesc"))
+      .addTextArea((text) => {
+        text
+          .setPlaceholder(DEFAULT_PROJECT_SECTIONS.join("\n"))
+          .setValue(this.plugin.settings.projectSections.join("\n"))
+          .onChange(async (value) => {
+            const sections = normalizeProjectSections(value);
+            const defaultSection = normalizeTextSetting(this.plugin.settings.defaultProjectSection, DEFAULT_SETTINGS.defaultProjectSection);
+            this.plugin.settings.projectSections = sections.includes(defaultSection)
+              ? sections
+              : [defaultSection, ...sections].filter(uniqueNonEmpty);
+            await this.plugin.persistSettings();
+          });
+        text.inputEl.rows = 6;
+      });
   }
 
   private renderDisplaySettings(container: HTMLElement): void {
     const lang = this.plugin.settings.language;
     this.renderSectionHeader(container, "settings.displaySettings", "settings.displaySettingsDesc");
+    this.renderLanguageSetting(container);
     this.renderComposerAppearanceSettings(container);
+    this.renderMobileDisplaySettings(container);
     new Setting(container)
       .setName(t(lang, "settings.sortOrder"))
       .setDesc(t(lang, "settings.sortOrderDesc"))
@@ -910,6 +984,56 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.showArchived).onChange(async (value) => {
           this.plugin.settings.showArchived = value;
+          await this.plugin.persistSettings();
+        });
+      });
+  }
+
+  private renderLanguageSetting(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    new Setting(container)
+      .setName(t(lang, "settings.language"))
+      .setDesc(t(lang, "settings.languageDesc"))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("zh", "中文")
+          .addOption("en", "English")
+          .setValue(this.plugin.settings.language)
+          .onChange(async (value) => {
+            this.plugin.settings.language = value === "en" ? "en" : "zh";
+            await this.plugin.persistSettings();
+            this.display();
+          });
+      });
+  }
+
+  private renderMobileDisplaySettings(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    this.renderSectionHeader(container, "settings.mobileDisplaySettings", "settings.mobileDisplaySettingsDesc");
+    new Setting(container)
+      .setName(t(lang, "settings.mobileFab"))
+      .setDesc(t(lang, "settings.mobileFabDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.mobileFab).onChange(async (value) => {
+          this.plugin.settings.mobileFab = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.mobileLightHomeEnabled"))
+      .setDesc(t(lang, "settings.mobileLightHomeEnabledDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.mobileLightHomeEnabled).onChange(async (value) => {
+          this.plugin.settings.mobileLightHomeEnabled = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.mobileLightHomeShowLaterButton"))
+      .setDesc(t(lang, "settings.mobileLightHomeShowLaterButtonDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.mobileLightHomeShowLaterButton).onChange(async (value) => {
+          this.plugin.settings.mobileLightHomeShowLaterButton = value;
           await this.plugin.persistSettings();
         });
       });
@@ -1854,6 +1978,89 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   private renderDirectoryFilterSettings(container: HTMLElement): void {
     this.renderFilterSettings(container);
     this.renderOrganizerDirectorySettings(container);
+    this.renderIconOverrideSettings(container);
+  }
+
+  private renderIconOverrideSettings(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    this.renderSectionHeader(container, "settings.iconOverrides", "settings.iconOverridesDesc");
+    const wrap = container.createDiv({ cls: "memos-plus-organizer-settings-list memos-plus-icon-override-settings-list" });
+    for (const item of this.iconOverrideItems()) {
+      const current = this.plugin.settings.iconOverrides[item.id];
+      let type: IconOverrideType = current?.type ?? "lucide";
+      let value = current?.value ?? "";
+      new Setting(wrap)
+        .setName(item.label)
+        .setDesc(t(lang, "settings.iconOverrideItemDesc").replace("{fallback}", item.fallbackIcon))
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption("emoji", t(lang, "settings.iconOverrideTypeEmoji"))
+            .addOption("lucide", t(lang, "settings.iconOverrideTypeLucide"))
+            .setValue(type)
+            .onChange(async (nextType) => {
+              type = nextType === "emoji" ? "emoji" : "lucide";
+              await this.setIconOverride(item.id, { type, value });
+            });
+        })
+        .addText((text) => {
+          text
+            .setPlaceholder(type === "emoji" ? "⭐" : item.fallbackIcon)
+            .setValue(value)
+            .onChange(async (nextValue) => {
+              value = nextValue;
+              await this.setIconOverride(item.id, { type, value });
+            });
+        })
+        .addButton((button) => {
+          button.setButtonText(t(lang, "settings.iconOverrideReset")).onClick(async () => {
+            await this.setIconOverride(item.id, null);
+          });
+        });
+    }
+  }
+
+  private iconOverrideItems(): Array<{ id: string; label: string; fallbackIcon: string }> {
+    const lang = this.plugin.settings.language;
+    const base = CONFIGURABLE_ICON_ITEM_DEFINITIONS.map((definition) => ({
+      id: definition.id,
+      label: t(lang, definition.labelKey),
+      fallbackIcon: definition.fallbackIcon
+    }));
+    const sidebarItems = this.collectSidebarIconOverrideItems(this.plugin.settings.sidebarItems);
+    const seen = new Set<string>();
+    return [...base, ...sidebarItems].filter((item) => {
+      if (seen.has(item.id)) {
+        return false;
+      }
+      seen.add(item.id);
+      return true;
+    });
+  }
+
+  private collectSidebarIconOverrideItems(items: SidebarItem[]): Array<{ id: string; label: string; fallbackIcon: string }> {
+    return items.flatMap((item) => {
+      const current = {
+        id: sidebarItemIconOverrideId(item.id),
+        label: item.title,
+        fallbackIcon: item.icon || (item.type === "group" ? "folder" : "filter")
+      };
+      if (item.type === "group") {
+        return [current, ...this.collectSidebarIconOverrideItems(item.children)];
+      }
+      return [current];
+    });
+  }
+
+  private async setIconOverride(itemId: string, config: IconOverrideConfig | null): Promise<void> {
+    const next = { ...this.plugin.settings.iconOverrides };
+    const normalized = config ? normalizeIconOverrideConfig(config) : null;
+    if (normalized) {
+      next[itemId] = normalized;
+    } else {
+      delete next[itemId];
+    }
+    this.plugin.settings.iconOverrides = normalizeIconOverrides(next);
+    await this.persistLayoutAffectingSetting();
   }
 
   private renderPerformanceDataSettings(container: HTMLElement): void {
@@ -2189,6 +2396,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const lang = this.plugin.settings.language;
     this.renderSectionHeader(container, "settings.inputToolSettings", "settings.inputToolSettingsDesc");
     this.renderQuickCaptureContentSourceSettings(container);
+    this.renderQuickInputSettings(container);
     this.renderToolbarSettings(container);
     new Setting(container)
       .setName(t(lang, "settings.attachmentFolder"))
@@ -2962,6 +3170,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       });
 
     this.renderFileTemplateTabManagement(container);
+    this.renderFileTemplateTabInteractionSettings(container);
 
     const advancedLibrary = this.renderSettingsDetails(container, "settings.advancedOptions", "settings.fileTemplateLibraryAdvancedDesc");
     new Setting(advancedLibrary)
@@ -2976,6 +3185,66 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             await this.plugin.persistSettings();
           });
         text.inputEl.rows = 4;
+      });
+  }
+
+  private renderFileTemplateTabInteractionSettings(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    this.renderSectionHeader(container, "settings.fileTemplateTabInteraction", "settings.fileTemplateTabInteractionDesc");
+    new Setting(container)
+      .setName(t(lang, "settings.fileTemplateTabDesktopDrag"))
+      .setDesc(t(lang, "settings.fileTemplateTabDesktopDragDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.enableDesktopDrag).onChange(async (value) => {
+          this.plugin.settings.fileTemplateTabInteraction = normalizeFileTemplateTabInteraction({
+            ...this.plugin.settings.fileTemplateTabInteraction,
+            enableDesktopDrag: value
+          });
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.fileTemplateTabMobileReadOnly"))
+      .setDesc(t(lang, "settings.fileTemplateTabMobileReadOnlyDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly).onChange(async (value) => {
+          this.plugin.settings.fileTemplateTabInteraction = normalizeFileTemplateTabInteraction({
+            ...this.plugin.settings.fileTemplateTabInteraction,
+            mobileReadOnly: value
+          });
+          await this.plugin.persistSettings();
+          this.renderCurrentSettingsPanel();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.fileTemplateTabMobileDrag"))
+      .setDesc(t(lang, "settings.fileTemplateTabMobileDragDesc"))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.fileTemplateTabInteraction.enableMobileDrag)
+          .setDisabled(this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly)
+          .onChange(async (value) => {
+            this.plugin.settings.fileTemplateTabInteraction = normalizeFileTemplateTabInteraction({
+              ...this.plugin.settings.fileTemplateTabInteraction,
+              enableMobileDrag: value
+            });
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.fileTemplateTabMobileReorder"))
+      .setDesc(t(lang, "settings.fileTemplateTabMobileReorderDesc"))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.fileTemplateTabInteraction.enableMobileReorder)
+          .setDisabled(this.plugin.settings.fileTemplateTabInteraction.mobileReadOnly)
+          .onChange(async (value) => {
+            this.plugin.settings.fileTemplateTabInteraction = normalizeFileTemplateTabInteraction({
+              ...this.plugin.settings.fileTemplateTabInteraction,
+              enableMobileReorder: value
+            });
+            await this.plugin.persistSettings();
+          });
       });
   }
 

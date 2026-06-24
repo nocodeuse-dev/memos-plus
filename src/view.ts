@@ -2,6 +2,7 @@ import { ItemView, MarkdownRenderer, Menu, Notice, Platform, TFile, WorkspaceLea
 import type MemosPlusPlugin from "../main";
 import { createComposerSession, type ComposerSession } from "./composerSession";
 import type { ComposerSurface } from "./composerWidget";
+import { getIconOverride, iconOverrideIdForOrganizerFilter, renderConfigurableIcon, sidebarItemIconOverrideId } from "./configurableIcons";
 import { filterMemos, getAllTags, todayString } from "./filter";
 import type { MemoViewMode } from "./filter";
 import { IconPickerModal } from "./iconPicker";
@@ -234,6 +235,7 @@ export class MemosPlusView extends ItemView {
       this.renderSidebarItem(allRow, {
         label: t(lang, "views.all"),
         icon: this.plugin.settings.allMemosIcon,
+        iconOverrideId: "all-notes",
         count: this.countForView("all"),
         active: !this.activeSavedSearchId && !this.activeOrganizerSection() && this.mode === "all" && !this.year,
         onClick: () => this.selectView("all")
@@ -736,6 +738,7 @@ export class MemosPlusView extends ItemView {
       this.renderSidebarItem(row, {
         label: t(lang, section.labelKey),
         icon: section.icon,
+        iconOverrideId: iconOverrideIdForOrganizerFilter(section.id),
         count: section.id === "tasks" && taskIndexCounts ? this.formatTaskIndexCount(taskIndexCounts.tasks, taskIndexStatus) : section.total,
         active: this.activeOrganizerSection() === section.id,
         onClick: () => this.selectOrganizerSection(section.id)
@@ -748,6 +751,7 @@ export class MemosPlusView extends ItemView {
           this.renderSidebarItem(branchRow, {
             label: t(lang, branch.labelKey),
             icon: branch.icon,
+            iconOverrideId: iconOverrideIdForOrganizerFilter(branch.id),
             count:
               taskIndexCounts && isOrganizerTaskBranchId(branch.id)
                 ? this.formatTaskIndexCount(taskIndexCounts[branch.id], taskIndexStatus)
@@ -843,6 +847,7 @@ export class MemosPlusView extends ItemView {
     this.renderSidebarItem(row, {
       label: group.title,
       icon: group.collapsed ? "folder-closed" : group.icon,
+      iconOverrideId: sidebarItemIconOverrideId(group.id),
       count: this.countForGroup(group),
       active: false,
       depth,
@@ -868,6 +873,7 @@ export class MemosPlusView extends ItemView {
     this.renderSidebarItem(row, {
       label: item.title,
       icon: item.icon,
+      iconOverrideId: sidebarItemIconOverrideId(item.id),
       count: search ? this.countForSavedSearch(search) : 0,
       active: this.activeSavedSearchId === item.searchId,
       depth,
@@ -878,7 +884,7 @@ export class MemosPlusView extends ItemView {
 
   private renderSidebarItem(
     container: Element,
-    item: { label: string; icon: string; count: number | string; active: boolean; onClick: () => void; depth?: number }
+    item: { label: string; icon: string; count: number | string; active: boolean; onClick: () => void; depth?: number; iconOverrideId?: string }
   ): void {
     container.addClass(item.active ? "is-active" : "is-inactive");
     const button = container.createEl("button", { cls: "memos-plus-side-item" });
@@ -886,7 +892,7 @@ export class MemosPlusView extends ItemView {
       button.style.setProperty("--memos-plus-depth", String(item.depth));
     }
     const iconEl = button.createSpan({ cls: "memos-plus-side-icon" });
-    setIcon(iconEl, item.icon);
+    renderConfigurableIcon(iconEl, getIconOverride(this.plugin.settings.iconOverrides, item.iconOverrideId, item.icon), item.icon);
     button.createSpan({ cls: "memos-plus-side-label", text: item.label });
     button.createSpan({ cls: "memos-plus-side-count", text: String(item.count) });
     button.addEventListener("click", item.onClick);
