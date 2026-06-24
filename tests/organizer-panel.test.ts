@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { MemoItem } from "../src/markdown";
 import {
   DEFAULT_ORGANIZER_PANEL_SECTIONS,
+  DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS,
   buildOrganizerTaskBranchSections,
   buildOrganizerPanelSections,
   createOrganizerMemoState,
   filterMemosForOrganizerFilter,
   normalizeOrganizerMemoStates,
-  normalizeOrganizerPanelSections
+  normalizeOrganizerPanelSections,
+  normalizeTaskManagementVisibleItems
 } from "../src/organizerPanel";
 
 function memo(partial: Partial<MemoItem>): MemoItem {
@@ -52,6 +54,35 @@ describe("organizer panel helpers", () => {
     expect(sections.inbox).toEqual({ visible: false, desktopHeight: 480, mobileHeight: 80 });
     expect(sections.links).toEqual({ visible: true, desktopHeight: 180, mobileHeight: 160 });
     expect(sections.tasks.visible).toBe(true);
+  });
+
+  it("normalizes task management visible items with all items enabled by default", () => {
+    expect(DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS).toEqual({
+      incomplete: true,
+      priorityHighest: true,
+      priorityHigh: true,
+      priorityMedium: true,
+      priorityLow: true,
+      priorityLowest: true,
+      priorityNone: true,
+      overdue: true,
+      dueToday: true,
+      dueThisWeek: true
+    });
+
+    expect(
+      normalizeTaskManagementVisibleItems({
+        incomplete: false,
+        priorityHighest: false,
+        overdue: false,
+        unknown: false
+      })
+    ).toEqual({
+      ...DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS,
+      incomplete: false,
+      priorityHighest: false,
+      overdue: false
+    });
   });
 
   it("keeps organizer state in plugin data without requiring markdown tags", () => {
@@ -124,5 +155,37 @@ describe("organizer panel helpers", () => {
       "none",
       "highest"
     ]);
+  });
+
+  it("hides individual task management items without changing task counts", () => {
+    const taskMemos = [
+      memo({ id: "highest", content: "- [ ] 紧急任务 🔺 📅 2026-06-18", hasOpenTask: true, date: "2026-06-18", datetime: new Date(2026, 5, 18, 9, 0) }),
+      memo({ id: "high", content: "- [ ] 高优先级任务 ⏫ 📅 2026-06-19", hasOpenTask: true })
+    ];
+    const visibleItems = normalizeTaskManagementVisibleItems({
+      incomplete: false,
+      priorityHighest: false,
+      overdue: false
+    });
+
+    const sections = buildOrganizerPanelSections(taskMemos, {
+      today: "2026-06-19",
+      states: {},
+      sectionSettings: DEFAULT_ORGANIZER_PANEL_SECTIONS,
+      taskManagementVisibleItems: visibleItems,
+      limit: 0
+    });
+    const branches = buildOrganizerTaskBranchSections(taskMemos, {
+      today: "2026-06-19",
+      showPriorityBranches: true,
+      showDateBranches: true,
+      visibleItems
+    });
+
+    expect(sections.map((section) => section.id)).not.toContain("tasks");
+    expect(branches.map((branch) => branch.id)).not.toContain("task-priority-highest");
+    expect(branches.map((branch) => branch.id)).not.toContain("task-overdue");
+    expect(branches.map((branch) => branch.id)).toContain("task-priority-high");
+    expect(filterMemosForOrganizerFilter("task-overdue", taskMemos, { today: "2026-06-19", states: {} }).map((item) => item.id)).toEqual(["highest"]);
   });
 });

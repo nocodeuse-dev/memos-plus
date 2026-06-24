@@ -167,6 +167,26 @@ describe("quick input directory data", () => {
     expect(titles.indexOf("全部笔记")).toBeLessThan(titles.indexOf("#项目"));
   });
 
+  it("hides the incomplete task management item in the sidebar quick input directory", () => {
+    const currentSettings = {
+      ...settings(),
+      taskManagementVisibleItems: {
+        ...DEFAULT_SETTINGS.taskManagementVisibleItems,
+        incomplete: false
+      }
+    };
+    const entries = buildQuickInputDirectoryEntries(currentSettings, memos, {
+      today: "2026-06-13",
+      limit: 20,
+      visibleModules: new Set(["organizeDirectory", "taskDirectory"]),
+      moduleOrder: ["taskDirectory", "organizeDirectory"]
+    });
+
+    const titles = entries.map((entry) => entry.title);
+    expect(titles).not.toContain("未完成任务");
+    expect(titles).toEqual(expect.arrayContaining(["待整理", "今日新增"]));
+  });
+
   it("shows filtered content below the clicked directory item and respects limits", () => {
     const currentSettings = settings();
     const entries = buildQuickInputDirectoryEntries(currentSettings, memos, { today: "2026-06-13", limit: 6 });

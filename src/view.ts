@@ -707,6 +707,7 @@ export class MemosPlusView extends ItemView {
       today,
       states: settings.organizerMemoStates,
       sectionSettings: settings.organizerPanelSections,
+      taskManagementVisibleItems: settings.taskManagementVisibleItems,
       limit: 0
     }).filter((section) => (section.id === "tasks" ? showTasks : showSections));
     const taskBranches = showTasks
@@ -714,6 +715,7 @@ export class MemosPlusView extends ItemView {
           today,
           showPriorityBranches: settings.organizerTaskPriorityBranchesEnabled,
           showDateBranches: settings.organizerTaskDateBranchesEnabled,
+          visibleItems: settings.taskManagementVisibleItems,
           limit: 0
         })
       : [];

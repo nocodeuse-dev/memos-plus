@@ -85,12 +85,16 @@ import {
   DEFAULT_ORGANIZER_PANEL_DESKTOP_HEIGHT,
   DEFAULT_ORGANIZER_PANEL_MOBILE_HEIGHT,
   DEFAULT_ORGANIZER_PANEL_SECTIONS,
+  DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS,
   ORGANIZER_PANEL_SECTION_DEFINITIONS,
+  TASK_MANAGEMENT_VISIBLE_ITEM_DEFINITIONS,
   normalizeOrganizerMemoStates,
   normalizeOrganizerPanelHeight,
   normalizeOrganizerPanelSections,
+  normalizeTaskManagementVisibleItems,
   type OrganizerMemoStates,
-  type OrganizerPanelSectionsSettings
+  type OrganizerPanelSectionsSettings,
+  type TaskManagementVisibleItemsSettings
 } from "./organizerPanel";
 import {
   DEFAULT_MOBILE_LIGHT_HOME_RECENT_COUNT,
@@ -144,6 +148,7 @@ export interface MemosPlusSettings {
   organizerTaskPriorityBranchesEnabled: boolean;
   organizerTaskDateBranchesEnabled: boolean;
   organizerTasksDefaultExpanded: boolean;
+  taskManagementVisibleItems: TaskManagementVisibleItemsSettings;
   taskVaultFilterEnabled: boolean;
   taskIndexEnabled: boolean;
   taskIndexAutoBuild: boolean;
@@ -264,6 +269,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   organizerTaskPriorityBranchesEnabled: true,
   organizerTaskDateBranchesEnabled: true,
   organizerTasksDefaultExpanded: false,
+  taskManagementVisibleItems: DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS,
   taskVaultFilterEnabled: true,
   taskIndexEnabled: true,
   taskIndexAutoBuild: true,
@@ -491,6 +497,7 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
       typeof raw.organizerTaskDateBranchesEnabled === "boolean" ? raw.organizerTaskDateBranchesEnabled : DEFAULT_SETTINGS.organizerTaskDateBranchesEnabled,
     organizerTasksDefaultExpanded:
       typeof raw.organizerTasksDefaultExpanded === "boolean" ? raw.organizerTasksDefaultExpanded : DEFAULT_SETTINGS.organizerTasksDefaultExpanded,
+    taskManagementVisibleItems: normalizeTaskManagementVisibleItems(raw.taskManagementVisibleItems),
     taskVaultFilterEnabled:
       typeof raw.taskVaultFilterEnabled === "boolean" ? raw.taskVaultFilterEnabled : DEFAULT_SETTINGS.taskVaultFilterEnabled,
     taskIndexEnabled: typeof raw.taskIndexEnabled === "boolean" ? raw.taskIndexEnabled : DEFAULT_SETTINGS.taskIndexEnabled,
@@ -1106,7 +1113,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             allNotes: { label: "全部笔记", variant: "nav" },
             projectDirectory: { label: "项目", variant: "nav" },
             projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
-            organizeDirectory: { label: "整理", variant: "nav" },
+            organizeDirectory: { label: "任务管理", variant: "nav" },
             taskDirectory: { label: "任务", variant: "nav" },
             tagFilters: { label: "标签", variant: "nav" },
             statsCards: { label: "统计卡片", variant: "panel" },
@@ -1202,7 +1209,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             allNotes: { label: "全部笔记 32", variant: "nav" },
             projectDirectory: { label: "项目", variant: "nav" },
             projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
-            organizeDirectory: { label: "整理", variant: "nav" },
+            organizeDirectory: { label: "任务管理", variant: "nav" },
             taskDirectory: { label: "任务", variant: "nav" },
             tagFilters: { label: "标签", variant: "nav" }
           },
@@ -1275,7 +1282,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             allNotes: { label: "全部笔记", variant: "nav" },
             projectDirectory: { label: "项目", variant: "nav" },
             projectFilters: { label: "项目筛选", variant: "nav" },
-            organizeDirectory: { label: "整理", variant: "nav" },
+            organizeDirectory: { label: "任务管理", variant: "nav" },
             taskDirectory: { label: "任务", variant: "nav" },
             tagFilters: { label: "标签", variant: "nav" },
             statsCards: { label: "统计", variant: "panel" },
@@ -2108,7 +2115,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.organizerPanelEnabled).onChange(async (value) => {
           this.plugin.settings.organizerPanelEnabled = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     new Setting(container)
@@ -2117,7 +2124,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.organizerTaskPriorityBranchesEnabled).onChange(async (value) => {
           this.plugin.settings.organizerTaskPriorityBranchesEnabled = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     new Setting(container)
@@ -2126,7 +2133,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.organizerTaskDateBranchesEnabled).onChange(async (value) => {
           this.plugin.settings.organizerTaskDateBranchesEnabled = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     new Setting(container)
@@ -2135,9 +2142,26 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.organizerTasksDefaultExpanded).onChange(async (value) => {
           this.plugin.settings.organizerTasksDefaultExpanded = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
+
+    this.renderSectionHeader(container, "settings.taskManagementVisibleItems", "settings.taskManagementVisibleItemsDesc");
+    const taskManagementWrap = container.createDiv({ cls: "memos-plus-organizer-settings-list" });
+    for (const definition of TASK_MANAGEMENT_VISIBLE_ITEM_DEFINITIONS) {
+      new Setting(taskManagementWrap)
+        .setName(t(lang, definition.labelKey))
+        .setDesc(t(lang, "settings.taskManagementVisibleItemDesc"))
+        .addToggle((toggle) => {
+          toggle.setValue(this.plugin.settings.taskManagementVisibleItems[definition.id]).onChange(async (value) => {
+            this.plugin.settings.taskManagementVisibleItems = normalizeTaskManagementVisibleItems({
+              ...this.plugin.settings.taskManagementVisibleItems,
+              [definition.id]: value
+            });
+            await this.persistLayoutAffectingSetting();
+          });
+        });
+    }
 
     const sectionWrap = container.createDiv({ cls: "memos-plus-organizer-settings-list" });
     for (const definition of ORGANIZER_PANEL_SECTION_DEFINITIONS) {
@@ -2155,7 +2179,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
                 visible: value
               }
             });
-            await this.plugin.persistSettings();
+            await this.persistLayoutAffectingSetting();
           });
         });
     }

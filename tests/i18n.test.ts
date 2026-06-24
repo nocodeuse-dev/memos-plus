@@ -12,6 +12,12 @@ describe("i18n", () => {
     expect(t("en", "settings.language")).toBe("Language");
   });
 
+  it("labels the organizer directory as task management for users", () => {
+    expect(t("zh", "organizer.directory")).toBe("任务管理");
+    expect(t("zh", "settings.organizerPanel")).toBe("任务管理");
+    expect(t("en", "organizer.directory")).toBe("Task management");
+  });
+
   it("falls back to the key for unknown labels", () => {
     expect(t("zh", "missing.key")).toBe("missing.key");
   });

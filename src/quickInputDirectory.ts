@@ -214,6 +214,7 @@ function organizerEntries(
     today,
     states: settings.organizerMemoStates,
     sectionSettings: settings.organizerPanelSections,
+    taskManagementVisibleItems: settings.taskManagementVisibleItems,
     limit: 0
   })
     .filter((section) => (section.id === "tasks" ? showTasks : showSections))

@@ -12,6 +12,17 @@ export type OrganizerTaskBranchId =
   | "task-overdue"
   | "task-due-today"
   | "task-due-this-week";
+export type TaskManagementVisibleItemId =
+  | "incomplete"
+  | "priorityHighest"
+  | "priorityHigh"
+  | "priorityMedium"
+  | "priorityLow"
+  | "priorityLowest"
+  | "priorityNone"
+  | "overdue"
+  | "dueToday"
+  | "dueThisWeek";
 export type OrganizerFilterId = OrganizerPanelSectionId | OrganizerTaskBranchId;
 export type OrganizerMemoLastAction = "organized" | "archived" | "transferred" | "deleted";
 
@@ -22,6 +33,7 @@ export interface OrganizerPanelSectionSettings {
 }
 
 export type OrganizerPanelSectionsSettings = Record<OrganizerPanelSectionId, OrganizerPanelSectionSettings>;
+export type TaskManagementVisibleItemsSettings = Record<TaskManagementVisibleItemId, boolean>;
 
 export interface OrganizerMemoState {
   organized: boolean;
@@ -84,6 +96,39 @@ export const ORGANIZER_TASK_BRANCH_DEFINITIONS: OrganizerTaskBranchDefinition[] 
   ...ORGANIZER_TASK_DATE_BRANCH_DEFINITIONS
 ];
 
+export const TASK_MANAGEMENT_VISIBLE_ITEM_DEFINITIONS: Array<{ id: TaskManagementVisibleItemId; labelKey: string }> = [
+  { id: "incomplete", labelKey: "organizer.section.tasks" },
+  { id: "priorityHighest", labelKey: "organizer.taskBranch.priorityHighest" },
+  { id: "priorityHigh", labelKey: "organizer.taskBranch.priorityHigh" },
+  { id: "priorityMedium", labelKey: "organizer.taskBranch.priorityMedium" },
+  { id: "priorityLow", labelKey: "organizer.taskBranch.priorityLow" },
+  { id: "priorityLowest", labelKey: "organizer.taskBranch.priorityLowest" },
+  { id: "priorityNone", labelKey: "organizer.taskBranch.priorityNone" },
+  { id: "overdue", labelKey: "organizer.taskBranch.overdue" },
+  { id: "dueToday", labelKey: "organizer.taskBranch.dueToday" },
+  { id: "dueThisWeek", labelKey: "organizer.taskBranch.dueThisWeek" }
+];
+
+export const DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS: TaskManagementVisibleItemsSettings = TASK_MANAGEMENT_VISIBLE_ITEM_DEFINITIONS.reduce(
+  (items, definition) => {
+    items[definition.id] = true;
+    return items;
+  },
+  {} as TaskManagementVisibleItemsSettings
+);
+
+const TASK_BRANCH_VISIBLE_ITEM_IDS: Record<OrganizerTaskBranchId, TaskManagementVisibleItemId> = {
+  "task-priority-highest": "priorityHighest",
+  "task-priority-high": "priorityHigh",
+  "task-priority-medium": "priorityMedium",
+  "task-priority-low": "priorityLow",
+  "task-priority-lowest": "priorityLowest",
+  "task-priority-none": "priorityNone",
+  "task-overdue": "overdue",
+  "task-due-today": "dueToday",
+  "task-due-this-week": "dueThisWeek"
+};
+
 export const DEFAULT_ORGANIZER_PANEL_DESKTOP_HEIGHT = 220;
 export const DEFAULT_ORGANIZER_PANEL_MOBILE_HEIGHT = 160;
 
@@ -122,6 +167,15 @@ export function normalizeOrganizerPanelSections(value: unknown): OrganizerPanelS
   }, {} as OrganizerPanelSectionsSettings);
 }
 
+export function normalizeTaskManagementVisibleItems(value: unknown): TaskManagementVisibleItemsSettings {
+  const raw = isRecord(value) ? value : {};
+  return TASK_MANAGEMENT_VISIBLE_ITEM_DEFINITIONS.reduce((items, definition) => {
+    const candidate = raw[definition.id];
+    items[definition.id] = typeof candidate === "boolean" ? candidate : DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS[definition.id];
+    return items;
+  }, {} as TaskManagementVisibleItemsSettings);
+}
+
 export function normalizeOrganizerMemoStates(value: unknown): OrganizerMemoStates {
   if (!isRecord(value)) {
     return {};
@@ -156,10 +210,15 @@ export function buildOrganizerPanelSections(
     today: string;
     states: OrganizerMemoStates;
     sectionSettings: OrganizerPanelSectionsSettings;
+    taskManagementVisibleItems?: TaskManagementVisibleItemsSettings;
     limit: number;
   }
 ): OrganizerPanelSectionData[] {
+  const visibleItems = options.taskManagementVisibleItems ?? DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS;
   return ORGANIZER_PANEL_SECTION_DEFINITIONS.flatMap((definition) => {
+    if (definition.id === "tasks" && !visibleItems.incomplete) {
+      return [];
+    }
     const settings = options.sectionSettings[definition.id] ?? DEFAULT_ORGANIZER_PANEL_SECTIONS[definition.id];
     if (!settings.visible) {
       return [];
@@ -185,10 +244,12 @@ export function buildOrganizerTaskBranchSections(
     today: string;
     showPriorityBranches: boolean;
     showDateBranches: boolean;
+    visibleItems?: TaskManagementVisibleItemsSettings;
     limit?: number;
   }
 ): OrganizerPanelSectionData[] {
-  const definitions = getOrganizerTaskBranchDefinitions(options);
+  const visibleItems = options.visibleItems ?? DEFAULT_TASK_MANAGEMENT_VISIBLE_ITEMS;
+  const definitions = getOrganizerTaskBranchDefinitions(options).filter((definition) => taskManagementBranchIsVisible(definition.id, visibleItems));
   return definitions.map((definition) => {
     const filtered = filterMemosForOrganizerTaskBranch(definition.id, memos, options.today);
     return {
@@ -199,6 +260,10 @@ export function buildOrganizerTaskBranchSections(
       items: options.limit && options.limit > 0 ? filtered.slice(0, options.limit) : []
     };
   });
+}
+
+export function taskManagementBranchIsVisible(branchId: OrganizerTaskBranchId, visibleItems: TaskManagementVisibleItemsSettings): boolean {
+  return visibleItems[TASK_BRANCH_VISIBLE_ITEM_IDS[branchId]] !== false;
 }
 
 export function getOrganizerTaskBranchDefinitions(options: { showPriorityBranches: boolean; showDateBranches: boolean }): OrganizerTaskBranchDefinition[] {

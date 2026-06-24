@@ -39,7 +39,18 @@ describe("organizer panel source integration", () => {
     expect(settingsSource).toContain("organizerTaskPriorityBranchesEnabled");
     expect(settingsSource).toContain("organizerTaskDateBranchesEnabled");
     expect(settingsSource).toContain("organizerTasksDefaultExpanded");
+    expect(settingsBlock).toContain("settings.taskManagementVisibleItems");
+    expect(settingsBlock).toContain("TASK_MANAGEMENT_VISIBLE_ITEM_DEFINITIONS");
+    expect(settingsBlock).toContain("normalizeTaskManagementVisibleItems");
+    expect(settingsBlock).toContain("this.persistLayoutAffectingSetting()");
     expect(settingsBlock).not.toContain("organizerPanelDesktopHeight");
     expect(settingsBlock).not.toContain("organizerPanelMobileHeight");
+  });
+
+  it("passes task management visible items into the real sidebar rendering path", () => {
+    const organizerBlock = viewSource.slice(viewSource.indexOf("private renderOrganizerDirectory"), viewSource.indexOf("private renderOrganizerTaskToggle"));
+
+    expect(organizerBlock).toContain("taskManagementVisibleItems: settings.taskManagementVisibleItems");
+    expect(organizerBlock).toContain("visibleItems: settings.taskManagementVisibleItems");
   });
 });

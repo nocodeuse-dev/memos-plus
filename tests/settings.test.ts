@@ -156,6 +156,18 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.organizerTaskPriorityBranchesEnabled).toBe(true);
     expect(DEFAULT_SETTINGS.organizerTaskDateBranchesEnabled).toBe(true);
     expect(DEFAULT_SETTINGS.organizerTasksDefaultExpanded).toBe(false);
+    expect(DEFAULT_SETTINGS.taskManagementVisibleItems).toEqual({
+      incomplete: true,
+      priorityHighest: true,
+      priorityHigh: true,
+      priorityMedium: true,
+      priorityLow: true,
+      priorityLowest: true,
+      priorityNone: true,
+      overdue: true,
+      dueToday: true,
+      dueThisWeek: true
+    });
     expect(DEFAULT_SETTINGS.taskVaultFilterEnabled).toBe(true);
     expect(DEFAULT_SETTINGS.taskIndexEnabled).toBe(true);
     expect(DEFAULT_SETTINGS.taskIndexAutoBuild).toBe(true);
@@ -259,6 +271,10 @@ describe("normalizeSettings", () => {
       organizerTaskPriorityBranchesEnabled: false,
       organizerTaskDateBranchesEnabled: false,
       organizerTasksDefaultExpanded: true,
+      taskManagementVisibleItems: {
+        priorityHighest: false,
+        overdue: false
+      },
       taskVaultFilterEnabled: false,
       taskIndexEnabled: false,
       taskIndexAutoBuild: false,
@@ -284,6 +300,9 @@ describe("normalizeSettings", () => {
     expect(settings.organizerTaskPriorityBranchesEnabled).toBe(false);
     expect(settings.organizerTaskDateBranchesEnabled).toBe(false);
     expect(settings.organizerTasksDefaultExpanded).toBe(true);
+    expect(settings.taskManagementVisibleItems.priorityHighest).toBe(false);
+    expect(settings.taskManagementVisibleItems.overdue).toBe(false);
+    expect(settings.taskManagementVisibleItems.priorityHigh).toBe(true);
     expect(settings.taskVaultFilterEnabled).toBe(false);
     expect(settings.taskIndexEnabled).toBe(false);
     expect(settings.taskIndexAutoBuild).toBe(false);
