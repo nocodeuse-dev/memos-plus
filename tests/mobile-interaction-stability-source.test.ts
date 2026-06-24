@@ -61,6 +61,15 @@ describe("mobile interaction stability source", () => {
     expect(templateManagerModalSource).not.toContain("advancedInput.focus();");
   });
 
+  it("keeps the quick capture modal shell stable across keyboard viewport cleanup", () => {
+    const clearKeyboardBlock =
+      composerWidgetSource.match(/private clearVisualViewportKeyboardInset\(\): void \{[\s\S]*?\n {2}\}/)?.[0] ?? "";
+    expect(quickCaptureSource).toContain('this.modalEl.addClass("memos-plus-quick-capture-keyboard-shell")');
+    expect(quickCaptureSource).toContain('this.modalEl.removeClass("memos-plus-quick-capture-keyboard-shell", "is-keyboard-open")');
+    expect(clearKeyboardBlock).toContain('surface.classList.remove("is-keyboard-open")');
+    expect(clearKeyboardBlock).not.toContain("memos-plus-quick-capture-keyboard-shell");
+  });
+
   it("does not refocus the main composer after closing the task options modal on mobile", () => {
     const taskToolBlock = composerWidgetSource.match(/private async applyTaskTool\(\): Promise<void> \{[\s\S]*?\n {2}\}/)?.[0] ?? "";
     expect(taskToolBlock).toContain("focusComposerAfterTaskModal");

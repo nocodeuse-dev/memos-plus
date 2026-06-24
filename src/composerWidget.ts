@@ -405,16 +405,13 @@ export class ComposerWidget {
   }
 
   private clearVisualViewportKeyboardInset(): void {
-    const { content, shell, modalShell } = this.getKeyboardAwareSurfaces();
+    const { content, shell } = this.getKeyboardAwareSurfaces();
     for (const surface of [content, shell].filter((item): item is HTMLElement => item instanceof HTMLElement)) {
       surface.style.removeProperty("--memos-plus-keyboard-inset");
       surface.style.removeProperty("--memos-plus-keyboard-shift");
       surface.style.removeProperty("--memos-plus-mobile-viewport-height");
       surface.style.removeProperty("--memos-plus-mobile-viewport-top");
       surface.classList.remove("is-keyboard-open");
-    }
-    if (modalShell) {
-      shell?.classList.remove("memos-plus-quick-capture-keyboard-shell");
     }
   }
 
