@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { debounce, effectivePageSize, iconPickerResultLimit, shouldUseLightweightMode, vaultSearchNeedsContent } from "../src/performance";
+import {
+  debounce,
+  effectivePageSize,
+  iconPickerResultLimit,
+  modalDebounceDelay,
+  modalResultLimit,
+  shouldUseLightweightMode,
+  vaultSearchNeedsContent
+} from "../src/performance";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/settings";
 
 vi.mock("obsidian", () => ({
@@ -35,6 +43,17 @@ describe("performance defaults", () => {
   it("limits icon picker rendering more aggressively on mobile", () => {
     expect(iconPickerResultLimit(false)).toBe(100);
     expect(iconPickerResultLimit(true)).toBe(50);
+  });
+
+  it("applies mobile performance mode to modal result limits and debounce", () => {
+    const settings = normalizeSettings({ mobilePerformanceMode: true, performanceSafeMode: false });
+
+    expect(modalResultLimit(settings, false)).toBe(120);
+    expect(modalResultLimit(settings, true)).toBe(30);
+    expect(modalDebounceDelay(settings, false)).toBe(200);
+    expect(modalDebounceDelay(settings, true)).toBe(350);
+    expect(modalResultLimit({ ...settings, performanceSafeMode: true }, false)).toBe(20);
+    expect(modalDebounceDelay({ ...settings, performanceSafeMode: true }, false)).toBe(350);
   });
 
   it("treats only text and task vault-search conditions as requiring file body reads", () => {

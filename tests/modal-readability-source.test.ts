@@ -41,7 +41,8 @@ describe("modal readability styles", () => {
     expect(templateMeta).toContain("text-overflow: ellipsis;");
     expect(styles).toContain(".memos-plus-project-send-modal-shell,");
     expect(styles).toContain(".memos-plus-file-template-modal");
-    expect(styles).toContain("max-height: calc(100vh - 24px);");
+    expect(styles).toContain("max-height: calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 24px);");
+    expect(styles).toContain("overscroll-behavior: contain;");
     expect(styles).toContain("width: 100%;");
     expect(styles).toContain("scrollbar-width: none;");
   });

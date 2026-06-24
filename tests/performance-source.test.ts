@@ -73,6 +73,33 @@ describe("performance source safeguards", () => {
     expect(searchContentSource.indexOf("this.shouldSkipEmptyMobileFileSearch(query)")).toBeLessThan(searchContentSource.indexOf("this.searchFilesCached(query)"));
   });
 
+  it("applies mobile performance settings to send-modal search, result limits, and stale async renders", () => {
+    const searchSource = projectModalSource.slice(
+      projectModalSource.indexOf("private async renderFileSearch()"),
+      projectModalSource.indexOf("private shouldSkipEmptyMobileFileSearch")
+    );
+    const searchContentSource = projectModalSource.slice(
+      projectModalSource.indexOf("private async renderFileSearchContent"),
+      projectModalSource.indexOf("private shouldSkipEmptyMobileFileSearch")
+    );
+    const headingPickerSource = projectModalSource.slice(
+      projectModalSource.indexOf("private async renderHeadingPicker"),
+      projectModalSource.indexOf("private renderFilePositionButtons")
+    );
+
+    expect(projectModalSource).toContain("performanceSettings");
+    expect(readFileSync("src/projectDelivery.ts", "utf8")).toContain("performanceSettings: {");
+    expect(projectModalSource).toContain("modalResultLimit");
+    expect(projectModalSource).toContain("modalDebounceDelay");
+    expect(searchSource).toContain("this.modalDebounceDelay()");
+    expect(projectModalSource).toContain("private nextRenderToken()");
+    expect(searchContentSource).toContain("const renderToken = this.nextRenderToken()");
+    expect(searchContentSource).toContain("this.isRenderTokenCurrent(renderToken, list)");
+    expect(headingPickerSource).toContain("const renderToken = this.nextRenderToken()");
+    expect(headingPickerSource).toContain("this.isRenderTokenCurrent(renderToken, contentEl)");
+    expect(projectModalSource).not.toContain("files.slice(0, mobileModalResultLimit())");
+  });
+
   it("caches tagged file and search results inside the send modal", () => {
     const taggedFilesSource = projectModalSource.slice(
       projectModalSource.indexOf("private async loadTaggedFileTabResults"),
@@ -106,6 +133,17 @@ describe("performance source safeguards", () => {
     expect(projectModalSource).toContain("loadHeadingsCached");
     expect(headingPickerSource).toContain("this.loadHeadingsCached(info.file)");
     expect(headingPickerSource).not.toContain("this.options.onLoadHeadings(info.file)");
+  });
+
+  it("records the mobile-sensitive template-library to heading-picker modal path", () => {
+    const openTemplateSource = projectModalSource.slice(
+      projectModalSource.indexOf("private openFileTemplateLibraryModal"),
+      projectModalSource.indexOf("private templateCreateTitle")
+    );
+
+    expect(projectModalSource).toContain("logMemosPlusDiagnostic");
+    expect(openTemplateSource).toContain('logMemosPlusDiagnostic("modal:open-template-library"');
+    expect(openTemplateSource).toContain('logMemosPlusDiagnostic("modal:template-created-heading-picker"');
   });
 
   it("does not use the legacy project insert template fallback at write time", () => {

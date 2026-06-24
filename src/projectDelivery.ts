@@ -112,6 +112,10 @@ async function selectProjectTarget(
       customTagTabs: host.settings.projectSendTagTabs,
       fileTemplateTabs: host.settings.fileTemplateTabs,
       fileTemplateTabInteraction: host.settings.fileTemplateTabInteraction,
+      performanceSettings: {
+        mobilePerformanceMode: host.settings.mobilePerformanceMode,
+        performanceSafeMode: host.settings.performanceSafeMode
+      },
       fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId,
       fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder,
       tabOrder: host.settings.projectSendTabOrder,

@@ -5,6 +5,9 @@ import { isTaskSearchField } from "./taskSearch";
 export const MOBILE_PAGE_SIZE = 20;
 export const DESKTOP_ICON_PICKER_LIMIT = 100;
 export const MOBILE_ICON_PICKER_LIMIT = 50;
+export const DESKTOP_MODAL_RESULT_LIMIT = 120;
+export const MOBILE_MODAL_RESULT_LIMIT = 30;
+export const SAFE_MODAL_RESULT_LIMIT = 20;
 export const DESKTOP_DEBOUNCE_MS = 200;
 export const MOBILE_DEBOUNCE_MS = 350;
 
@@ -28,7 +31,18 @@ export function iconPickerResultLimit(isMobile: boolean): number {
   return isMobile ? MOBILE_ICON_PICKER_LIMIT : DESKTOP_ICON_PICKER_LIMIT;
 }
 
+export function modalResultLimit(settings: Pick<MemosPlusSettings, "mobilePerformanceMode" | "performanceSafeMode">, isMobile: boolean): number {
+  if (settings.performanceSafeMode) {
+    return SAFE_MODAL_RESULT_LIMIT;
+  }
+  return shouldUseLightweightMode(settings, isMobile) ? MOBILE_MODAL_RESULT_LIMIT : DESKTOP_MODAL_RESULT_LIMIT;
+}
+
 export function debounceDelay(settings: Pick<MemosPlusSettings, "mobilePerformanceMode" | "performanceSafeMode">, isMobile: boolean): number {
+  return shouldUseLightweightMode(settings, isMobile) ? MOBILE_DEBOUNCE_MS : DESKTOP_DEBOUNCE_MS;
+}
+
+export function modalDebounceDelay(settings: Pick<MemosPlusSettings, "mobilePerformanceMode" | "performanceSafeMode">, isMobile: boolean): number {
   return shouldUseLightweightMode(settings, isMobile) ? MOBILE_DEBOUNCE_MS : DESKTOP_DEBOUNCE_MS;
 }
 

@@ -201,7 +201,7 @@ describe("mobile interaction stability source", () => {
     expect(savedSearchModalSource).toContain("renderMobileSafePreviewPlaceholder");
     expect(savedSearchModalSource).not.toContain("const matches = search.conditions.length > 0 ? await this.options.searchVault(search) : [];");
 
-    expect(projectSendModalSource).toContain("mobileModalResultLimit");
+    expect(projectSendModalSource).toContain("modalResultLimit");
     expect(projectSendModalSource).not.toContain(".slice(0, 120)");
     expect(projectSendModalSource).not.toContain(".slice(0, 100)");
     expect(templateManagerModalSource).not.toContain("TemplatePathPickerModal");

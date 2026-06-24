@@ -29,9 +29,10 @@ import {
 } from "./fileTemplateLibrary";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
+import { logMemosPlusDiagnostic } from "./diagnostics";
 import { focusOnDesktopOnly } from "./modalFocus";
-import { mobileModalResultLimit, registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
-import { debounce } from "./performance";
+import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
+import { debounce, modalDebounceDelay, modalResultLimit } from "./performance";
 import { createTaskOptionsForm } from "./taskOptionsForm";
 import { resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
@@ -41,6 +42,11 @@ type SendMode = "search" | "custom-tag";
 
 const FIXED_SEND_TABS: SendMode[] = ["search"];
 const CUSTOM_TAB_PREFIX = "custom:";
+
+interface ModalPerformanceSettings {
+  mobilePerformanceMode: boolean;
+  performanceSafeMode: boolean;
+}
 
 export interface ProjectSendChoice {
   file: TFile;
@@ -72,6 +78,7 @@ interface ProjectSendModalOptions {
   customTagTabs?: string[];
   fileTemplateTabs: FileTemplateTab[];
   fileTemplateTabInteraction: FileTemplateTabInteractionSettings;
+  performanceSettings: ModalPerformanceSettings;
   fileTemplateLibraryDefaultTabId: string;
   fileTemplateLibraryTabOrder: string[];
   tabOrder: string[];
@@ -283,6 +290,7 @@ class FileTemplateLibraryModal extends Modal {
   private titleInput!: HTMLInputElement;
   private listEl!: HTMLElement;
   private closed = false;
+  private renderToken = 0;
 
   constructor(
     app: App,
@@ -294,6 +302,7 @@ class FileTemplateLibraryModal extends Modal {
       fileTemplateTabs: FileTemplateTab[];
       defaultTabId: string;
       tabOrder: string[];
+      performanceSettings: ModalPerformanceSettings;
       onLoad: () => Promise<FileTemplateLibraryItem[]>;
       onCreate: (template: FileTemplateLibraryItem, title: string) => Promise<void>;
       onToggleFavorite: (templatePath: string) => Promise<void>;
@@ -317,11 +326,26 @@ class FileTemplateLibraryModal extends Modal {
   onClose(): void {
     registerMemosPlusModalClose(this, "FileTemplateLibraryModal");
     this.closed = true;
+    this.nextRenderToken();
     this.items = [];
     this.contentEl.empty();
   }
 
+  private nextRenderToken(): number {
+    this.renderToken += 1;
+    return this.renderToken;
+  }
+
+  private isRenderTokenCurrent(token: number, element?: HTMLElement): boolean {
+    return !this.closed && token === this.renderToken && (!element || element.isConnected);
+  }
+
+  private modalResultLimit(): number {
+    return modalResultLimit(this.options.performanceSettings, Platform.isMobile);
+  }
+
   private async load(): Promise<void> {
+    const renderToken = this.nextRenderToken();
     const { contentEl } = this;
     const lang = this.options.language;
     contentEl.empty();
@@ -332,14 +356,14 @@ class FileTemplateLibraryModal extends Modal {
       this.items = await this.options.onLoad();
     } catch (error) {
       console.error("[Memos Plus] Failed to load file templates", error);
-      if (contentEl.isConnected) {
+      if (this.isRenderTokenCurrent(renderToken, contentEl)) {
         contentEl.empty();
         contentEl.addClass("memos-plus-modal", "memos-plus-file-template-modal");
         contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileTemplateLibrary.empty") });
       }
       return;
     }
-    if (this.closed) {
+    if (!this.isRenderTokenCurrent(renderToken, contentEl)) {
       return;
     }
     if (!this.items.some((item) => item.path === this.selectedPath)) {
@@ -418,7 +442,7 @@ class FileTemplateLibraryModal extends Modal {
     }
     const lang = this.options.language;
     this.listEl.empty();
-    const items = this.currentLibraryItems().slice(0, mobileModalResultLimit());
+    const items = this.currentLibraryItems().slice(0, this.modalResultLimit());
     const activeTab = this.activeLibraryTab();
     if (items.length === 0) {
       this.listEl.createDiv({
@@ -536,6 +560,9 @@ class FileTemplateLibraryModal extends Modal {
     try {
       await this.options.onToggleFavorite(path);
       this.items = await this.options.onLoad();
+      if (this.closed) {
+        return;
+      }
       this.renderList();
     } catch (error) {
       console.error("[Memos Plus] Failed to toggle file template favorite", error);
@@ -571,6 +598,9 @@ class FileTemplateLibraryModal extends Modal {
     try {
       await this.options.onDelete(item.path);
       this.items = await this.options.onLoad();
+      if (this.closed) {
+        return;
+      }
       if (this.selectedPath === item.path) {
         this.selectedPath = this.items[0]?.path ?? "";
       }
@@ -621,6 +651,7 @@ export class ProjectSendModal extends Modal {
   private readonly fileHeadingsCache = new Map<string, FileHeadingInfo[]>();
   private draggedTabId = "";
   private closed = false;
+  private renderToken = 0;
 
   constructor(app: App, private readonly options: ProjectSendModalOptions) {
     super(app);
@@ -647,6 +678,7 @@ export class ProjectSendModal extends Modal {
   onClose(): void {
     registerMemosPlusModalClose(this, "ProjectSendModal");
     this.closed = true;
+    this.nextRenderToken();
     this.taggedFilesCache.clear();
     this.fileSearchCache.clear();
     this.fileHeadingsCache.clear();
@@ -655,6 +687,23 @@ export class ProjectSendModal extends Modal {
       this.settled = true;
       this.options.onChoose(null);
     }
+  }
+
+  private nextRenderToken(): number {
+    this.renderToken += 1;
+    return this.renderToken;
+  }
+
+  private isRenderTokenCurrent(token: number, element?: HTMLElement): boolean {
+    return !this.closed && token === this.renderToken && (!element || element.isConnected);
+  }
+
+  private modalResultLimit(): number {
+    return modalResultLimit(this.options.performanceSettings, Platform.isMobile);
+  }
+
+  private modalDebounceDelay(): number {
+    return modalDebounceDelay(this.options.performanceSettings, Platform.isMobile);
   }
 
   private async loadTaggedFilesCached(tag: string): Promise<TaggedFileInfo[]> {
@@ -901,13 +950,14 @@ export class ProjectSendModal extends Modal {
     this.tagQuery = tab.tags[0] ?? tab.name;
     const title = `${t(lang, "fileSend.selectFile")} · ${tab.tags.map((tag) => `#${tag}`).join(" / ")}`;
     this.renderShell().createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
+    const renderToken = this.nextRenderToken();
     let files: TaggedFileInfo[] = [];
     try {
       files = await this.loadTaggedFileTabResults(tab);
     } catch (error) {
       console.error("[Memos Plus] Failed to load custom tag files", error);
     }
-    if (this.mode !== "custom-tag" || this.activeFileTemplateTabId !== tab.id) {
+    if (this.mode !== "custom-tag" || this.activeFileTemplateTabId !== tab.id || !this.isRenderTokenCurrent(renderToken, this.contentEl)) {
       return;
     }
     this.renderFileList(files, title, () => void this.renderFileTemplateTab(tab.id), undefined, tab.tags[0] ?? "");
@@ -919,17 +969,18 @@ export class ProjectSendModal extends Modal {
     this.activeFileTemplateTabId = tab.id;
     const contentEl = this.renderShell();
     contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
+    const renderToken = this.nextRenderToken();
     let templates: FileTemplateLibraryItem[] = [];
     try {
       templates = await this.options.onLoadFileTemplates();
     } catch (error) {
       console.error("[Memos Plus] Failed to load template group tab", error);
     }
-    if (this.mode !== "custom-tag" || this.activeFileTemplateTabId !== tab.id || this.closed) {
+    if (this.mode !== "custom-tag" || this.activeFileTemplateTabId !== tab.id || !this.isRenderTokenCurrent(renderToken, contentEl)) {
       return;
     }
     const list = this.renderShell().createDiv({ cls: "memos-plus-file-template-list memos-plus-template-group-tab-list" });
-    const items = filterFileTemplateLibraryItemsForTab(templates, tab).slice(0, mobileModalResultLimit());
+    const items = filterFileTemplateLibraryItemsForTab(templates, tab).slice(0, this.modalResultLimit());
     if (items.length === 0) {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileTemplateLibrary.emptyGroup") });
     }
@@ -984,7 +1035,7 @@ export class ProjectSendModal extends Modal {
     const createFile = this.renderFileSearchCreateButton(footer);
     const renderDebounced = debounce(() => {
       void this.renderFileSearchContent(list);
-    }, 200);
+    }, this.modalDebounceDelay());
     search.addEventListener("input", () => {
       this.fileQuery = search.value;
       this.updateFileSearchCreateButton(createFile);
@@ -994,7 +1045,11 @@ export class ProjectSendModal extends Modal {
   }
 
   private async renderFileSearchContent(list: HTMLElement): Promise<void> {
+    const renderToken = this.nextRenderToken();
     const query = this.fileQuery;
+    if (!this.isRenderTokenCurrent(renderToken, list)) {
+      return;
+    }
     list.empty();
     if (this.shouldSkipEmptyMobileFileSearch(query)) {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(this.options.language, "fileSend.searchFiles") });
@@ -1002,6 +1057,9 @@ export class ProjectSendModal extends Modal {
     }
     const cached = this.fileSearchCache.get(query.trim().toLowerCase());
     if (cached) {
+      if (!this.isRenderTokenCurrent(renderToken, list)) {
+        return;
+      }
       this.renderFileListItems(list, cached, () => void this.renderFileSearch(), undefined, "", false);
       return;
     }
@@ -1012,7 +1070,7 @@ export class ProjectSendModal extends Modal {
     } catch (error) {
       console.error("[Memos Plus] Failed to search files", error);
     }
-    if (query !== this.fileQuery) {
+    if (query !== this.fileQuery || !this.isRenderTokenCurrent(renderToken, list)) {
       return;
     }
     list.empty();
@@ -1041,7 +1099,7 @@ export class ProjectSendModal extends Modal {
         this.renderTemplateCreateButton(list, createTag);
       }
     }
-    for (const info of files.slice(0, mobileModalResultLimit())) {
+    for (const info of files.slice(0, this.modalResultLimit())) {
       const button = this.renderFileInfoOption(list, info);
       button.addEventListener("click", () => void withMobileClickLock(button, () => this.renderHeadingPicker(info, refresh, back)));
     }
@@ -1095,6 +1153,7 @@ export class ProjectSendModal extends Modal {
     const lang = this.options.language;
     const contentEl = this.renderFileStepHeader(info.name, back ?? refresh);
     contentEl.createDiv({ cls: "memos-plus-project-section-hint", text: info.path });
+    const renderToken = this.nextRenderToken();
 
     const position = createSelectField(contentEl, t(lang, "fileSend.selectPosition"), [
       ["heading-top", t(lang, "fileSend.position.headingTop")],
@@ -1154,7 +1213,7 @@ export class ProjectSendModal extends Modal {
     } catch (error) {
       console.error("[Memos Plus] Failed to load headings", error);
     }
-    if (this.closed) {
+    if (!this.isRenderTokenCurrent(renderToken, contentEl)) {
       return;
     }
     const list = contentEl.createDiv({ cls: "memos-plus-project-section-grid memos-plus-heading-target-grid" });
@@ -1169,7 +1228,7 @@ export class ProjectSendModal extends Modal {
     }
 
     const defaultHeading = this.defaultInsertHeading();
-    for (const heading of headings) {
+    for (const heading of headings.slice(0, this.modalResultLimit())) {
       const button = list.createEl("button", {
         cls: `memos-plus-project-section${heading.heading === defaultHeading ? " is-default" : ""}`,
         attr: { type: "button" }
@@ -1336,6 +1395,14 @@ export class ProjectSendModal extends Modal {
   }
 
   private openFileTemplateLibraryModal(tag = "", preferredPathOverride = ""): void {
+    this.nextRenderToken();
+    logMemosPlusDiagnostic("modal:open-template-library", {
+      from: "ProjectSendModal",
+      activeTab: this.activeTabId(),
+      tag,
+      preferredPathOverride: Boolean(preferredPathOverride),
+      queryLength: this.fileQuery.trim().length
+    });
     new FileTemplateLibraryModal(this.app, {
       language: this.options.language,
       initialTitle: this.templateCreateTitle(tag),
@@ -1344,6 +1411,7 @@ export class ProjectSendModal extends Modal {
       fileTemplateTabs: this.fileTemplateTabs,
       defaultTabId: this.options.fileTemplateLibraryDefaultTabId,
       tabOrder: this.options.fileTemplateLibraryTabOrder,
+      performanceSettings: this.options.performanceSettings,
       onLoad: this.options.onLoadFileTemplates,
       onToggleFavorite: this.options.onToggleFileTemplateFavorite,
       onDelete: this.options.onDeleteFileTemplate,
@@ -1361,6 +1429,12 @@ export class ProjectSendModal extends Modal {
         } catch (error) {
           console.error("[Memos Plus] Failed to mark file template as recent", error);
         }
+        logMemosPlusDiagnostic("modal:template-created-heading-picker", {
+          from: "FileTemplateLibraryModal",
+          file: file.path,
+          template: template.path,
+          tag
+        });
         await this.renderCreatedFileHeadingPicker(file, tag);
       }
     }).open();

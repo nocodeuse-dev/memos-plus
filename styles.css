@@ -2732,13 +2732,28 @@
   .memos-plus-file-template-modal-shell {
     width: calc(100vw - 16px);
     max-width: calc(100vw - 16px);
+    max-height: calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 16px);
+    overflow: hidden;
+    overscroll-behavior: contain;
+    touch-action: manipulation;
+  }
+
+  .memos-plus-project-send-modal-shell .modal-content,
+  .memos-plus-file-template-modal-shell .modal-content {
+    max-height: calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 16px);
+    overflow: hidden !important;
+    overscroll-behavior: contain;
   }
 
   .memos-plus-project-send-modal,
   .memos-plus-file-template-modal {
     width: 100%;
     max-width: 100%;
-    max-height: calc(100vh - 24px);
+    max-height: calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 24px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .memos-plus-project-send-tabs,
@@ -2748,7 +2763,9 @@
 
   .memos-plus-project-list,
   .memos-plus-file-template-list {
-    max-height: min(560px, 58vh);
+    max-height: min(520px, 54dvh);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .memos-plus-project-option,
