@@ -147,12 +147,19 @@ function cleanKnownShareTitle(text: string, url: string): string {
     return quoted[1].trim();
   }
 
-  return text
-    .replace(url, "")
-    .replace(/[\w.]+\s+[\w@.]+\s+\d+\/\d+\s+[\w:/]+/g, "")
-    .replace(/复制此链接.*$/g, "")
-    .replace(/打开抖音.*$/g, "")
+  const urlIndex = text.indexOf(url);
+  const titleSource = urlIndex >= 0 ? text.slice(0, urlIndex) : text.replace(url, "");
+
+  return titleSource
+    .replace(/^\s*\d+(?:\.\d+)?\s*/, "")
+    .replace(/^复制(?:此链接)?\s*/, "")
+    .replace(/^打开抖音[，,、\s]*(?:看看|搜索)?\s*/, "")
+    .replace(/^看看[，,、\s]*/, "")
+    .replace(/\s*复制此链接.*$/g, "")
+    .replace(/\s*打开抖音搜索.*$/g, "")
     .replace(/#[^\s#]+/g, "")
+    .replace(/^【([^】]+)】\s*/, "$1 ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 

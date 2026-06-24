@@ -26,6 +26,17 @@ describe("link capture parsing", () => {
     expect(fetchTitle).not.toHaveBeenCalled();
   });
 
+  it("keeps the Douyin title after the copy/open prompt", async () => {
+    const fetchTitle = vi.fn(async () => "Fetched title");
+    const shareText =
+      "4.89 复制打开抖音，看看【云潮新闻的作品】刘强东：机器人会取代快递员，京东已为70万快递员兄... https://v.douyin.com/vUSBveHR_yI/ 05/21 :7pm aNj:/ T@y.gO";
+
+    await expect(resolveClipboardMarkdownLink(shareText, fetchTitle)).resolves.toBe(
+      "[云潮新闻的作品 刘强东：机器人会取代快递员，京东已为70万快递员兄...](https://v.douyin.com/vUSBveHR_yI/)"
+    );
+    expect(fetchTitle).not.toHaveBeenCalled();
+  });
+
   it("prefers site-specific and Open Graph titles before HTML title", () => {
     expect(extractTitle("https://mp.weixin.qq.com/s/abc", '<script>var msg_title = "微信文章标题";</script>')).toBe("微信文章标题");
     expect(extractTitle("https://example.com", '<meta property="og:title" content="Open Graph"><title>Fallback</title>')).toBe(
