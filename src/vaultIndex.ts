@@ -51,7 +51,7 @@ export class VaultMetadataIndex {
 
   getAllTagOptions(): string[] {
     const tags = new Set<string>();
-    for (const entry of this.entries().values()) {
+    for (const entry of this.scanEntries()) {
       for (const tag of entry.tags) {
         tags.add(tag);
       }
@@ -64,30 +64,35 @@ export class VaultMetadataIndex {
     if (!query) {
       return [];
     }
-    return this.getEntries()
-      .flatMap((entry) => {
-        const matchTags = entry.tags.filter((tag) => tagMatchesQuery(tag, query));
-        return matchTags.length > 0 ? [taggedFileInfoFromEntry(entry, matchTags)] : [];
-      })
-      .sort((left, right) => {
-        const leftScore = Math.min(...left.matchTags.map((tag) => tagMatchScore(tag, query)));
-        const rightScore = Math.min(...right.matchTags.map((tag) => tagMatchScore(tag, query)));
-        return leftScore - rightScore || right.updatedAt - left.updatedAt || left.name.localeCompare(right.name) || left.path.localeCompare(right.path);
-      });
+    const result: TaggedFileInfo[] = [];
+    for (const entry of this.scanEntries()) {
+      const matchTags = entry.tags.filter((tag) => tagMatchesQuery(tag, query));
+      if (matchTags.length > 0) {
+        result.push(taggedFileInfoFromEntry(entry, matchTags));
+      }
+    }
+    return result.sort((left, right) => {
+      const leftScore = Math.min(...left.matchTags.map((tag) => tagMatchScore(tag, query)));
+      const rightScore = Math.min(...right.matchTags.map((tag) => tagMatchScore(tag, query)));
+      return leftScore - rightScore || right.updatedAt - left.updatedAt || left.name.localeCompare(right.name) || left.path.localeCompare(right.path);
+    });
   }
 
   searchMarkdownFileInfos(query: string): TaggedFileInfo[] {
     const normalizedQuery = query.trim().toLowerCase();
-    return this.getEntries()
-      .filter((entry) => !normalizedQuery || `${entry.basename} ${entry.path}`.toLowerCase().includes(normalizedQuery))
-      .map((entry) => taggedFileInfoFromEntry(entry, []))
-      .sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name) || left.path.localeCompare(right.path));
+    const result: TaggedFileInfo[] = [];
+    for (const entry of this.scanEntries()) {
+      if (!normalizedQuery || `${entry.basename} ${entry.path}`.toLowerCase().includes(normalizedQuery)) {
+        result.push(taggedFileInfoFromEntry(entry, []));
+      }
+    }
+    return result.sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name) || left.path.localeCompare(right.path));
   }
 
   getRecentFileInfos(paths: string[]): TaggedFileInfo[] {
     const result: TaggedFileInfo[] = [];
     for (const path of paths.map((item) => normalizePath(item)).filter(Boolean)) {
-      const entry = this.getEntry(path);
+      const entry = this.buildEntryForPath(path);
       if (entry) {
         result.push(taggedFileInfoFromEntry(entry, []));
       }
@@ -100,10 +105,13 @@ export class VaultMetadataIndex {
     if (!normalizedTag) {
       return [];
     }
-    return this.getEntries()
-      .filter((entry) => entry.tags.some((tag) => normalizeProjectTag(tag) === normalizedTag))
-      .map((entry) => entry.file)
-      .sort((left, right) => left.basename.localeCompare(right.basename) || left.path.localeCompare(right.path));
+    const result: TFile[] = [];
+    for (const entry of this.scanEntries()) {
+      if (entry.tags.some((tag) => normalizeProjectTag(tag) === normalizedTag)) {
+        result.push(entry.file);
+      }
+    }
+    return result.sort((left, right) => left.basename.localeCompare(right.basename) || left.path.localeCompare(right.path));
   }
 
   getProjectInfos(projectTag: string, options: ProjectInfoOptions): ProjectInfo[] {
@@ -112,18 +120,21 @@ export class VaultMetadataIndex {
       return [];
     }
     const recentRank = new Map(options.recentProjectPaths.slice(0, 5).map((path, index) => [normalizePath(path), index]));
-    return this.getEntries()
-      .filter((entry) => entry.tags.some((tag) => normalizeProjectTag(tag) === normalizedTag))
-      .map((entry) => {
-        const status = normalizeProjectStatus(entry.status) ?? "进行中";
-        return {
-          file: entry.file,
-          name: entry.basename,
-          status,
-          updatedAt: entry.mtime,
-          isRecent: recentRank.has(entry.path)
-        };
-      })
+    const result: ProjectInfo[] = [];
+    for (const entry of this.scanEntries()) {
+      if (!entry.tags.some((tag) => normalizeProjectTag(tag) === normalizedTag)) {
+        continue;
+      }
+      const status = normalizeProjectStatus(entry.status) ?? "进行中";
+      result.push({
+        file: entry.file,
+        name: entry.basename,
+        status,
+        updatedAt: entry.mtime,
+        isRecent: recentRank.has(entry.path)
+      });
+    }
+    return result
       .filter((project) => options.showArchivedProjects || (project.status !== "完成" && project.status !== "归档"))
       .sort((left, right) => {
         const leftRecent = recentRank.get(normalizePath(left.file.path));
@@ -136,7 +147,7 @@ export class VaultMetadataIndex {
   }
 
   getFileHeadings(fileOrPath: TFile | string): FileHeadingInfo[] {
-    return this.getEntry(fileOrPath)?.headings ?? [];
+    return this.buildEntryForPath(fileOrPath)?.headings ?? [];
   }
 
   scanFileTemplateLibrary(settings: FileTemplateLibrarySettings): FileTemplateLibraryItem[] {
@@ -144,13 +155,13 @@ export class VaultMetadataIndex {
     const prefix = folder ? `${folder}/` : "";
     const favorites = new Set(normalizeVaultPaths(settings.fileTemplateLibraryFavorites));
     const recent = new Set(normalizeVaultPaths(settings.fileTemplateLibraryRecent));
-    return this.getEntries()
-      .filter((entry) => {
-        const path = entry.path;
-        return path === `${folder}.md` || (prefix ? path.startsWith(prefix) : true);
-      })
-      .sort((left, right) => left.path.localeCompare(right.path))
-      .map((entry) => ({
+    const result: FileTemplateLibraryItem[] = [];
+    for (const entry of this.scanEntries()) {
+      const path = entry.path;
+      if (!(path === `${folder}.md` || (prefix ? path.startsWith(prefix) : true))) {
+        continue;
+      }
+      result.push({
         path: entry.path,
         name: entry.basename || entry.name.replace(/\.md$/i, ""),
         category: categoryForTemplatePath(entry.path, folder),
@@ -159,7 +170,23 @@ export class VaultMetadataIndex {
         isFavorite: favorites.has(entry.path),
         isRecent: recent.has(entry.path),
         file: entry.file
-      }));
+      });
+    }
+    return result.sort((left, right) => left.path.localeCompare(right.path));
+  }
+
+  private *scanEntries(): Iterable<VaultIndexFile> {
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      yield this.buildEntry(file);
+    }
+  }
+
+  private buildEntryForPath(fileOrPath: TFile | string): VaultIndexFile | undefined {
+    const file = typeof fileOrPath === "string" ? this.app.vault.getAbstractFileByPath(normalizePath(fileOrPath)) : fileOrPath;
+    if (file instanceof TFile && file.extension === "md") {
+      return this.buildEntry(file);
+    }
+    return undefined;
   }
 
   private entries(): Map<string, VaultIndexFile> {

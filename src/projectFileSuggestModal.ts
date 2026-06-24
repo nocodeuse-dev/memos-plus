@@ -1062,11 +1062,18 @@ export class ProjectSendModal extends Modal {
     const renderDebounced = debounce(() => this.renderProjectListContent(list), 200);
     search.addEventListener("input", () => {
       this.query = search.value;
+      if (!this.shouldDeferProjectLoadForMobile()) {
+        void this.ensureProjectsLoaded(list);
+      }
       renderDebounced();
     });
 
-    this.renderProjectListContent(list);
-    void this.ensureProjectsLoaded(list);
+    if (this.shouldDeferProjectLoadForMobile()) {
+      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "projectSend.searchPlaceholder") });
+    } else {
+      this.renderProjectListContent(list);
+      void this.ensureProjectsLoaded(list);
+    }
 
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
     if (this.options.onSaveDefault) {
@@ -1292,6 +1299,10 @@ export class ProjectSendModal extends Modal {
   private async renderFileSearchContent(list: HTMLElement): Promise<void> {
     const query = this.fileQuery;
     list.empty();
+    if (this.shouldSkipEmptyMobileFileSearch(query)) {
+      list.createDiv({ cls: "memos-plus-project-empty", text: t(this.options.language, "fileSend.searchFiles") });
+      return;
+    }
     const cached = this.fileSearchCache.get(query.trim().toLowerCase());
     if (cached) {
       this.renderFileListItems(list, cached, () => void this.renderFileSearch(), undefined, "", false);
@@ -1309,6 +1320,14 @@ export class ProjectSendModal extends Modal {
     }
     list.empty();
     this.renderFileListItems(list, files, () => void this.renderFileSearch(), undefined, "", false);
+  }
+
+  private shouldDeferProjectLoadForMobile(): boolean {
+    return Platform.isMobile && !this.query.trim() && !this.projectsLoaded && !this.projectsLoading;
+  }
+
+  private shouldSkipEmptyMobileFileSearch(query: string): boolean {
+    return Platform.isMobile && !query.trim();
   }
 
   private renderFileList(files: TaggedFileInfo[], title: string, refresh: () => void, back?: () => void, createTag = ""): void {

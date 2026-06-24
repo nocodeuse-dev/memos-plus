@@ -47,7 +47,7 @@ function createApp(caches: Record<string, unknown>, mtimes: Record<string, numbe
 }
 
 describe("VaultMetadataIndex", () => {
-  it("builds a reusable metadata index for files, tags, projects, headings, and template library items", () => {
+  it("builds metadata results for files, tags, projects, headings, and template library items", () => {
     const { app } = createApp(
       {
         "我的资源/Memos/memos plus.md": {
@@ -97,7 +97,6 @@ describe("VaultMetadataIndex", () => {
       ["疾病模板", "疾病", ["病", "模板", "医学"], true]
     ]);
     expect(app.vault.read).not.toHaveBeenCalled();
-    expect(app.vault.getMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
   it("invalidates one changed file without forcing immediate full rebuild", () => {
@@ -119,6 +118,23 @@ describe("VaultMetadataIndex", () => {
 
     expect(index.getEntry(fileObjects[0])?.tags).toEqual(["新"]);
     expect(index.getAllTagOptions()).toEqual(["保留", "新"]);
-    expect(app.vault.getMarkdownFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps send-target scans out of the reusable full-vault cache", () => {
+    const { app } = createApp({
+      "项目.md": { frontmatter: { tags: ["项目"] } },
+      "资料.md": { frontmatter: { tags: ["旧"] } }
+    });
+    const index = new VaultMetadataIndex(app as never);
+
+    expect(index.getProjectInfos("项目", { recentProjectPaths: [], showArchivedProjects: false }).map((project) => project.file.path)).toEqual(["项目.md"]);
+    (app.metadataCache.getFileCache as ReturnType<typeof vi.fn>).mockImplementation((file: TFile) => {
+      if (file.path === "资料.md") {
+        return { frontmatter: { tags: ["新"] } };
+      }
+      return { frontmatter: { tags: ["项目"] } };
+    });
+
+    expect(index.getTaggedFileInfos("新").map((info) => info.path)).toEqual(["资料.md"]);
   });
 });

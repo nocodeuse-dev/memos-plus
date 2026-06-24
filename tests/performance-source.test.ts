@@ -63,6 +63,29 @@ describe("performance source safeguards", () => {
     expect(projectModalSource).toContain("ensureRecentFilesLoaded");
   });
 
+  it("does not prewarm the full project list on mobile before a search", () => {
+    const projectListSource = projectModalSource.slice(
+      projectModalSource.indexOf("private renderProjectList(): void"),
+      projectModalSource.indexOf("private renderProjectListContent")
+    );
+
+    expect(projectModalSource).toContain("shouldDeferProjectLoadForMobile");
+    expect(projectListSource).toContain("this.shouldDeferProjectLoadForMobile()");
+    expect(projectListSource).toContain("if (this.shouldDeferProjectLoadForMobile())");
+    expect(projectListSource).toContain("if (!this.shouldDeferProjectLoadForMobile())");
+  });
+
+  it("does not run an empty full-vault file search on mobile", () => {
+    const searchContentSource = projectModalSource.slice(
+      projectModalSource.indexOf("private async renderFileSearchContent"),
+      projectModalSource.indexOf("private renderFileList(")
+    );
+
+    expect(projectModalSource).toContain("shouldSkipEmptyMobileFileSearch");
+    expect(searchContentSource).toContain("this.shouldSkipEmptyMobileFileSearch(query)");
+    expect(searchContentSource.indexOf("this.shouldSkipEmptyMobileFileSearch(query)")).toBeLessThan(searchContentSource.indexOf("this.searchFilesCached(query)"));
+  });
+
   it("caches tagged file and search results inside the send modal", () => {
     const taggedFilesSource = projectModalSource.slice(
       projectModalSource.indexOf("private async renderTaggedFiles"),
