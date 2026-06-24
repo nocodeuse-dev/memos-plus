@@ -35,6 +35,15 @@ describe("visual layout settings source", () => {
     expect(previewSource).not.toContain("module.description");
   });
 
+  it("uses shared ordered regions for layout previews instead of fixed region order", () => {
+    const previewSource = settingsSource.slice(settingsSource.indexOf("private renderHomeLayoutMockup"), settingsSource.indexOf("private renderLayoutPreviewRegion"));
+
+    expect(settingsSource).toContain("orderedLayoutRegions");
+    expect(settingsSource).toContain("HOME_SIDEBAR_PREVIEW_LAYOUT_GROUP");
+    expect(previewSource).toContain("this.renderOrderedLayoutPreview");
+    expect(previewSource).not.toContain("const stats = shell.createDiv({ cls: \"memos-plus-layout-home-sidepanel\" })");
+  });
+
   it("updates only the preview and inspector when a preview module is selected", () => {
     expect(settingsSource).toContain("selectLayoutModule");
     expect(settingsSource).toContain("preview.empty()");
@@ -72,12 +81,29 @@ describe("visual layout settings source", () => {
     expect(i18nSource).toContain('"settings.layoutDesigner.moveDown": "下移"');
   });
 
+  it("adds desktop drag sorting and a mobile lightweight layout editor", () => {
+    const previewRegionSource = settingsSource.slice(settingsSource.indexOf("private renderLayoutPreviewRegion"), settingsSource.indexOf("private selectLayoutModule"));
+    const mobileEditorSource = settingsSource.slice(settingsSource.indexOf("private renderMobileLayoutModuleList"), settingsSource.indexOf("private renderHomeLayoutMockup"));
+
+    expect(previewRegionSource).toContain("Platform.isMobile");
+    expect(previewRegionSource).toContain('button.setAttr("draggable", "true")');
+    expect(previewRegionSource).toContain("dragstart");
+    expect(previewRegionSource).toContain("dropLayoutPreviewModule");
+    expect(settingsSource).toContain("private renderMobileLayoutModuleList");
+    expect(mobileEditorSource).toContain("settings.layoutDesigner.mobileListHint");
+    expect(mobileEditorSource).toContain("this.moveLayoutModule(surface, module.id, -1");
+    expect(mobileEditorSource).toContain("this.moveLayoutModule(surface, module.id, 1");
+    expect(i18nSource).toContain('"settings.layoutDesigner.mobileListHint"');
+  });
+
   it("persists layout changes through a refresh path that updates real views, not only the preview", () => {
     const setViewLayoutSource = settingsSource.slice(settingsSource.indexOf("private async setViewLayout"), settingsSource.indexOf("private renderMobileLightHomeSettings"));
     const syncSource = settingsSource.slice(settingsSource.indexOf("private renderDisplayContentSyncSettings"), settingsSource.indexOf("private renderViewLayoutSettings"));
+    const layoutAffectingSource = settingsSource.slice(settingsSource.indexOf("private async persistLayoutAffectingSetting"), settingsSource.indexOf("private renderDisplayContentSettings"));
 
     expect(setViewLayoutSource).toContain('this.plugin.refreshLayoutViews("layout-settings")');
     expect(syncSource).toContain('this.plugin.refreshLayoutViews("layout-settings")');
+    expect(layoutAffectingSource).toContain('this.plugin.refreshLayoutViews("layout-settings")');
     expect(syncSource).not.toContain("await this.plugin.persistSettings();\n          this.display();");
   });
 

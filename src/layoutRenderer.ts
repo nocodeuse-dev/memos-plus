@@ -27,6 +27,14 @@ export interface LayoutSurfaceModules {
   modules: ReadonlySet<DisplayModuleId>;
 }
 
+export interface OrderedLayoutRegion {
+  regionId: string;
+  moduleIds: DisplayModuleId[];
+  triggerModuleId: DisplayModuleId;
+  index: number;
+  grouped: boolean;
+}
+
 export interface LayoutModuleRenderContext extends LayoutSurfaceModules {
   surface: DisplaySurface;
   layout: ViewLayoutSettings;
@@ -62,6 +70,41 @@ export function resolveLayoutSurfaceModules(layout: ViewLayoutSettings, surface:
 export function orderedModulesInGroup(orderedModules: readonly DisplayModuleId[], groupModules: readonly DisplayModuleId[]): DisplayModuleId[] {
   const group = new Set(groupModules);
   return orderedModules.filter((moduleId) => group.has(moduleId));
+}
+
+export function orderedLayoutRegions(
+  orderedModules: readonly DisplayModuleId[],
+  groups: Record<string, readonly DisplayModuleId[]> = {}
+): OrderedLayoutRegion[] {
+  const regions: OrderedLayoutRegion[] = [];
+  const renderedGroups = new Set<string>();
+  for (let index = 0; index < orderedModules.length; index += 1) {
+    const moduleId = orderedModules[index];
+    const group = findGroupForModule(groups, moduleId);
+    if (!group) {
+      regions.push({
+        regionId: moduleId,
+        moduleIds: [moduleId],
+        triggerModuleId: moduleId,
+        index,
+        grouped: false
+      });
+      continue;
+    }
+    const [groupId, groupModules] = group;
+    if (renderedGroups.has(groupId)) {
+      continue;
+    }
+    renderedGroups.add(groupId);
+    regions.push({
+      regionId: groupId,
+      moduleIds: orderedModulesInGroup(orderedModules, groupModules),
+      triggerModuleId: moduleId,
+      index,
+      grouped: true
+    });
+  }
+  return regions;
 }
 
 export async function renderLayoutSurface(options: RenderLayoutSurfaceOptions): Promise<LayoutSurfaceModules> {

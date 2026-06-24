@@ -34,8 +34,11 @@ import {
   type ViewLayoutSettings
 } from "./displayModules";
 import {
+  COMPOSER_LAYOUT_GROUP,
+  HOME_TOOLBAR_LAYOUT_GROUP,
   HOME_RESULTS_LAYOUT_GROUP,
   SIDEBAR_NAVIGATION_LAYOUT_GROUP,
+  orderedLayoutRegions,
   orderedModulesInGroup,
   resolveLayoutSurfaceModules
 } from "./layoutRenderer";
@@ -361,6 +364,35 @@ const SETTINGS_TABS: Array<{ id: SettingsTabId; labelKey: string }> = [
   { id: "advanced", labelKey: "settings.tab.advanced" }
 ];
 
+const HOME_SIDEBAR_PREVIEW_LAYOUT_GROUP: readonly DisplayModuleId[] = [
+  ...SIDEBAR_NAVIGATION_LAYOUT_GROUP,
+  "statsCards",
+  "heatmap"
+];
+
+const MOBILE_NAVIGATION_PREVIEW_LAYOUT_GROUP: readonly DisplayModuleId[] = HOME_SIDEBAR_PREVIEW_LAYOUT_GROUP;
+
+const HOME_PREVIEW_LAYOUT_GROUPS: Record<string, readonly DisplayModuleId[]> = {
+  toolbar: HOME_TOOLBAR_LAYOUT_GROUP,
+  composer: COMPOSER_LAYOUT_GROUP,
+  sidebar: HOME_SIDEBAR_PREVIEW_LAYOUT_GROUP,
+  results: HOME_RESULTS_LAYOUT_GROUP
+};
+
+const SIDEBAR_PREVIEW_LAYOUT_GROUPS: Record<string, readonly DisplayModuleId[]> = {
+  headerActions: ["settingsButton", "refreshButton"],
+  composer: COMPOSER_LAYOUT_GROUP,
+  directory: SIDEBAR_NAVIGATION_LAYOUT_GROUP,
+  results: HOME_RESULTS_LAYOUT_GROUP
+};
+
+const MOBILE_PREVIEW_LAYOUT_GROUPS: Record<string, readonly DisplayModuleId[]> = {
+  toolbar: HOME_TOOLBAR_LAYOUT_GROUP,
+  composer: COMPOSER_LAYOUT_GROUP,
+  navigation: MOBILE_NAVIGATION_PREVIEW_LAYOUT_GROUP,
+  results: HOME_RESULTS_LAYOUT_GROUP
+};
+
 interface HorizontalScrollContainer {
   scrollLeft: number;
   getBoundingClientRect(): Pick<DOMRect, "left" | "right">;
@@ -554,6 +586,8 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   private currentSettingTab: SettingsTabId = "layout";
   private selectedLayoutSurface: DisplaySurface = "home";
   private selectedLayoutModuleId: DisplayModuleId = "quickInput";
+  private draggedLayoutSurface: DisplaySurface | "" = "";
+  private draggedLayoutModuleId: DisplayModuleId | "" = "";
   private settingsTabsEl: HTMLElement | null = null;
   private settingsPanelEl: HTMLElement | null = null;
 
@@ -970,6 +1004,10 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private renderLayoutPreview(container: HTMLElement, surface: DisplaySurface, inspector: HTMLElement): void {
     const mockup = container.createDiv({ cls: `memos-plus-layout-mockup memos-plus-layout-mockup-${surface}` });
+    if (Platform.isMobile) {
+      this.renderMobileLayoutModuleList(mockup, container, surface, inspector);
+      return;
+    }
     if (surface === "sidebar") {
       this.renderSidebarLayoutMockup(mockup, container, inspector);
       return;
@@ -981,152 +1019,305 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.renderHomeLayoutMockup(mockup, container, inspector);
   }
 
+  private renderMobileLayoutModuleList(container: HTMLElement, preview: HTMLElement, surface: DisplaySurface, inspector: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    container.createEl("p", {
+      cls: "setting-item-description memos-plus-layout-mobile-list-hint",
+      text: t(lang, "settings.layoutDesigner.mobileListHint")
+    });
+    const list = container.createDiv({ cls: "memos-plus-layout-mobile-list" });
+    for (const moduleId of this.orderedPreviewModules(surface, modulesForSurface(surface).map((module) => module.id))) {
+      const module = getDisplayModule(moduleId);
+      if (!module) {
+        continue;
+      }
+      const visible = this.isDisplayModuleVisible(surface, module.id);
+      const row = list.createDiv({
+        cls: `memos-plus-layout-mobile-row${visible ? "" : " is-hidden"}${this.getSelectedLayoutModule(surface).id === module.id ? " is-selected" : ""}`
+      });
+      const label = row.createEl("button", {
+        cls: "memos-plus-layout-mobile-row-label",
+        text: module.name,
+        attr: { type: "button" }
+      });
+      label.addEventListener("click", async () => {
+        if (!visible) {
+          await this.setDisplayModuleVisible(surface, module.id, true);
+        }
+        this.selectLayoutModule(surface, module.id, preview, inspector);
+      });
+      const controls = row.createDiv({ cls: "memos-plus-layout-mobile-row-controls" });
+      const visibility = controls.createEl("input", { type: "checkbox" });
+      visibility.checked = visible;
+      visibility.addEventListener("change", async () => {
+        await this.setDisplayModuleVisible(surface, module.id, visibility.checked);
+        preview.empty();
+        inspector.empty();
+        this.renderLayoutPreview(preview, surface, inspector);
+        this.renderLayoutModuleInspector(inspector, surface, module.id, preview);
+      });
+      const moveUp = controls.createEl("button", {
+        text: t(lang, "settings.layoutDesigner.moveUp"),
+        attr: { type: "button" }
+      });
+      moveUp.disabled = !visible || !this.canMoveLayoutModule(surface, module.id, -1);
+      moveUp.addEventListener("click", async () => {
+        await this.moveLayoutModule(surface, module.id, -1);
+        this.selectLayoutModule(surface, module.id, preview, inspector);
+      });
+      const moveDown = controls.createEl("button", {
+        text: t(lang, "settings.layoutDesigner.moveDown"),
+        attr: { type: "button" }
+      });
+      moveDown.disabled = !visible || !this.canMoveLayoutModule(surface, module.id, 1);
+      moveDown.addEventListener("click", async () => {
+        await this.moveLayoutModule(surface, module.id, 1);
+        this.selectLayoutModule(surface, module.id, preview, inspector);
+      });
+    }
+  }
+
   private renderHomeLayoutMockup(container: HTMLElement, preview: HTMLElement, inspector: HTMLElement): void {
     const top = container.createDiv({ cls: "memos-plus-layout-home-topbar" });
-    this.renderLayoutPreviewRegion(top, preview, "home", "searchBox", "搜索区", inspector, "pill");
-    this.renderLayoutPreviewRegion(top, preview, "home", "settingsButton", "设置", inspector, "icon");
-    this.renderLayoutPreviewRegion(top, preview, "home", "refreshButton", "刷新", inspector, "icon");
-
-    const composer = container.createDiv({ cls: "memos-plus-layout-home-composer" });
-    this.renderLayoutPreviewRegion(composer, preview, "home", "quickInput", "快速输入", inspector, "large");
-    const composerTools = composer.createDiv({ cls: "memos-plus-layout-mini-toolbar" });
-    this.renderLayoutPreviewRegion(composerTools, preview, "home", "inputToolbar", "工具栏", inspector, "chip");
-    this.renderLayoutPreviewRegion(composerTools, preview, "home", "moreMenu", "更多", inspector, "chip");
-    this.renderLayoutPreviewRegion(composerTools, preview, "home", "sendButton", "发送", inspector, "send");
+    this.renderLayoutPreviewRegionsInOrder(
+      top,
+      preview,
+      "home",
+      HOME_TOOLBAR_LAYOUT_GROUP,
+      {
+        searchBox: { label: "搜索区", variant: "pill" },
+        settingsButton: { label: "设置", variant: "icon" },
+        refreshButton: { label: "刷新", variant: "icon" }
+      },
+      inspector
+    );
 
     const shell = container.createDiv({ cls: "memos-plus-layout-home-shell" });
     const sidebar = shell.createDiv({ cls: "memos-plus-layout-home-sidebar" });
-    this.renderLayoutPreviewRegionsInOrder(
-      sidebar,
-      preview,
-      "home",
-      SIDEBAR_NAVIGATION_LAYOUT_GROUP,
-      {
-        allNotes: { label: "全部笔记", variant: "nav" },
-        projectDirectory: { label: "项目", variant: "nav" },
-        projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
-        organizeDirectory: { label: "整理", variant: "nav" },
-        taskDirectory: { label: "任务", variant: "nav" },
-        tagFilters: { label: "标签", variant: "nav" }
-      },
-      inspector
-    );
-
     const main = shell.createDiv({ cls: "memos-plus-layout-home-main" });
-    this.renderLayoutPreviewRegionsInOrder(
-      main,
-      preview,
-      "home",
-      HOME_RESULTS_LAYOUT_GROUP,
-      {
-        fileCount: { label: "18 文件 · 所有项目", variant: "meta" },
-        fileList: { label: "文件列表", variant: "cards" }
-      },
-      inspector
-    );
-
-    const stats = shell.createDiv({ cls: "memos-plus-layout-home-sidepanel" });
-    this.renderLayoutPreviewRegion(stats, preview, "home", "statsCards", "统计卡片", inspector, "panel");
-    this.renderLayoutPreviewRegion(stats, preview, "home", "heatmap", "热力图", inspector, "heatmap");
+    this.renderOrderedLayoutPreview(shell, preview, "home", HOME_PREVIEW_LAYOUT_GROUPS, ["sidebar", "composer", "results"], (regionId, moduleIds) => {
+      if (regionId === "sidebar") {
+        this.renderLayoutPreviewRegionsInOrder(
+          sidebar,
+          preview,
+          "home",
+          moduleIds,
+          {
+            allNotes: { label: "全部笔记", variant: "nav" },
+            projectDirectory: { label: "项目", variant: "nav" },
+            projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
+            organizeDirectory: { label: "整理", variant: "nav" },
+            taskDirectory: { label: "任务", variant: "nav" },
+            tagFilters: { label: "标签", variant: "nav" },
+            statsCards: { label: "统计卡片", variant: "panel" },
+            heatmap: { label: "热力图", variant: "heatmap" }
+          },
+          inspector
+        );
+        return;
+      }
+      if (regionId === "composer") {
+        const composer = main.createDiv({ cls: "memos-plus-layout-home-composer" });
+        this.renderLayoutPreviewRegionsInOrder(
+          composer,
+          preview,
+          "home",
+          moduleIds,
+          {
+            quickInput: { label: "快速输入", variant: "large" },
+            inputToolbar: { label: "工具栏", variant: "chip" },
+            moreMenu: { label: "更多", variant: "chip" },
+            sendButton: { label: "发送", variant: "send" }
+          },
+          inspector
+        );
+        return;
+      }
+      if (regionId === "results") {
+        this.renderLayoutPreviewRegionsInOrder(
+          main,
+          preview,
+          "home",
+          moduleIds,
+          {
+            fileCount: { label: "18 文件 · 所有项目", variant: "meta" },
+            fileList: { label: "文件列表", variant: "cards" }
+          },
+          inspector
+        );
+      }
+    });
   }
 
   private renderSidebarLayoutMockup(container: HTMLElement, preview: HTMLElement, inspector: HTMLElement): void {
     const card = container.createDiv({ cls: "memos-plus-layout-sidebar-card" });
-    const header = card.createDiv({ cls: "memos-plus-layout-sidebar-header" });
-    const titleWrap = header.createDiv();
-    titleWrap.createDiv({ cls: "memos-plus-layout-mini-title", text: "Memos Plus 快速输入" });
-    titleWrap.createDiv({ cls: "memos-plus-layout-mini-subtitle", text: "发送到项目" });
-    const headerActions = header.createDiv({ cls: "memos-plus-layout-mini-actions" });
-    this.renderLayoutPreviewRegion(headerActions, preview, "sidebar", "settingsButton", "设置", inspector, "icon");
-    this.renderLayoutPreviewRegion(headerActions, preview, "sidebar", "refreshButton", "刷新", inspector, "icon");
-
-    const composer = card.createDiv({ cls: "memos-plus-layout-sidebar-composer" });
-    this.renderLayoutPreviewRegion(composer, preview, "sidebar", "quickInput", "快速输入", inspector, "large");
-    const toolbar = composer.createDiv({ cls: "memos-plus-layout-mini-toolbar" });
-    this.renderLayoutPreviewRegion(toolbar, preview, "sidebar", "inputToolbar", "# 图片 任务", inspector, "chip");
-    this.renderLayoutPreviewRegion(toolbar, preview, "sidebar", "moreMenu", "更多", inspector, "chip");
-    this.renderLayoutPreviewRegion(toolbar, preview, "sidebar", "sendButton", "发送", inspector, "send");
-
-    const directory = card.createDiv({ cls: "memos-plus-layout-sidebar-directory" });
-    const directoryHead = directory.createDiv({ cls: "memos-plus-layout-directory-title" });
-    directoryHead.createSpan({ text: "目录" });
-    directoryHead.createSpan({ text: "+" });
-    this.renderLayoutPreviewRegionsInOrder(
-      directory,
-      preview,
-      "sidebar",
-      SIDEBAR_NAVIGATION_LAYOUT_GROUP,
-      {
-        allNotes: { label: "全部笔记 32", variant: "nav" },
-        projectDirectory: { label: "项目", variant: "nav" },
-        projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
-        organizeDirectory: { label: "整理", variant: "nav" },
-        taskDirectory: { label: "任务", variant: "nav" },
-        tagFilters: { label: "标签", variant: "nav" }
-      },
-      inspector
-    );
-
-    const results = card.createDiv({ cls: "memos-plus-layout-sidebar-results" });
-    this.renderLayoutPreviewRegionsInOrder(
-      results,
-      preview,
-      "sidebar",
-      HOME_RESULTS_LAYOUT_GROUP,
-      {
-        fileCount: { label: "18 文件 · 项目", variant: "meta" },
-        fileList: { label: "文件卡片列表", variant: "cards" }
-      },
-      inspector
-    );
+    this.renderOrderedLayoutPreview(card, preview, "sidebar", SIDEBAR_PREVIEW_LAYOUT_GROUPS, ["headerActions", "composer", "directory", "results"], (regionId, moduleIds) => {
+      if (regionId === "headerActions") {
+        const header = card.createDiv({ cls: "memos-plus-layout-sidebar-header" });
+        const titleWrap = header.createDiv();
+        titleWrap.createDiv({ cls: "memos-plus-layout-mini-title", text: "Memos Plus 快速输入" });
+        titleWrap.createDiv({ cls: "memos-plus-layout-mini-subtitle", text: "发送到项目" });
+        const headerActions = header.createDiv({ cls: "memos-plus-layout-mini-actions" });
+        this.renderLayoutPreviewRegionsInOrder(
+          headerActions,
+          preview,
+          "sidebar",
+          moduleIds,
+          {
+            settingsButton: { label: "设置", variant: "icon" },
+            refreshButton: { label: "刷新", variant: "icon" }
+          },
+          inspector
+        );
+        return;
+      }
+      if (regionId === "composer") {
+        const composer = card.createDiv({ cls: "memos-plus-layout-sidebar-composer" });
+        this.renderLayoutPreviewRegionsInOrder(
+          composer,
+          preview,
+          "sidebar",
+          moduleIds,
+          {
+            quickInput: { label: "快速输入", variant: "large" },
+            inputToolbar: { label: "# 图片 任务", variant: "chip" },
+            moreMenu: { label: "更多", variant: "chip" },
+            sendButton: { label: "发送", variant: "send" }
+          },
+          inspector
+        );
+        return;
+      }
+      if (regionId === "directory") {
+        const directory = card.createDiv({ cls: "memos-plus-layout-sidebar-directory" });
+        const directoryHead = directory.createDiv({ cls: "memos-plus-layout-directory-title" });
+        directoryHead.createSpan({ text: "目录" });
+        directoryHead.createSpan({ text: "+" });
+        this.renderLayoutPreviewRegionsInOrder(
+          directory,
+          preview,
+          "sidebar",
+          moduleIds,
+          {
+            allNotes: { label: "全部笔记 32", variant: "nav" },
+            projectDirectory: { label: "项目", variant: "nav" },
+            projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
+            organizeDirectory: { label: "整理", variant: "nav" },
+            taskDirectory: { label: "任务", variant: "nav" },
+            tagFilters: { label: "标签", variant: "nav" }
+          },
+          inspector
+        );
+        return;
+      }
+      if (regionId === "results") {
+        const results = card.createDiv({ cls: "memos-plus-layout-sidebar-results" });
+        this.renderLayoutPreviewRegionsInOrder(
+          results,
+          preview,
+          "sidebar",
+          moduleIds,
+          {
+            fileCount: { label: "18 文件 · 项目", variant: "meta" },
+            fileList: { label: "文件卡片列表", variant: "cards" }
+          },
+          inspector
+        );
+      }
+    });
   }
 
   private renderMobileLayoutMockup(container: HTMLElement, preview: HTMLElement, inspector: HTMLElement): void {
     const phone = container.createDiv({ cls: "memos-plus-layout-phone-frame" });
     const screen = phone.createDiv({ cls: "memos-plus-layout-phone-screen" });
-    const top = screen.createDiv({ cls: "memos-plus-layout-mobile-top" });
-    this.renderLayoutPreviewRegion(top, preview, "mobile", "quickInput", "快速输入", inspector, "large");
-    const mobileTools = top.createDiv({ cls: "memos-plus-layout-mini-toolbar" });
-    this.renderLayoutPreviewRegion(mobileTools, preview, "mobile", "inputToolbar", "工具栏", inspector, "chip");
-    this.renderLayoutPreviewRegion(mobileTools, preview, "mobile", "moreMenu", "更多", inspector, "chip");
-    this.renderLayoutPreviewRegion(mobileTools, preview, "mobile", "sendButton", "发送", inspector, "send");
+    this.renderOrderedLayoutPreview(screen, preview, "mobile", MOBILE_PREVIEW_LAYOUT_GROUPS, ["composer", "toolbar", "navigation", "results"], (regionId, moduleIds) => {
+      if (regionId === "composer") {
+        const top = screen.createDiv({ cls: "memos-plus-layout-mobile-top" });
+        this.renderLayoutPreviewRegionsInOrder(
+          top,
+          preview,
+          "mobile",
+          moduleIds,
+          {
+            quickInput: { label: "快速输入", variant: "large" },
+            inputToolbar: { label: "工具栏", variant: "chip" },
+            moreMenu: { label: "更多", variant: "chip" },
+            sendButton: { label: "发送", variant: "send" }
+          },
+          inspector
+        );
+        return;
+      }
+      if (regionId === "toolbar") {
+        const nav = screen.createDiv({ cls: "memos-plus-layout-mobile-nav" });
+        this.renderLayoutPreviewRegionsInOrder(
+          nav,
+          preview,
+          "mobile",
+          moduleIds,
+          {
+            searchBox: { label: "搜索", variant: "pill" },
+            settingsButton: { label: "设置", variant: "icon" },
+            refreshButton: { label: "刷新", variant: "icon" }
+          },
+          inspector
+        );
+        return;
+      }
+      if (regionId === "navigation") {
+        const directory = screen.createDiv({ cls: "memos-plus-layout-mobile-directory" });
+        this.renderLayoutPreviewRegionsInOrder(
+          directory,
+          preview,
+          "mobile",
+          moduleIds,
+          {
+            allNotes: { label: "全部笔记", variant: "nav" },
+            projectDirectory: { label: "项目", variant: "nav" },
+            projectFilters: { label: "项目筛选", variant: "nav" },
+            organizeDirectory: { label: "整理", variant: "nav" },
+            taskDirectory: { label: "任务", variant: "nav" },
+            tagFilters: { label: "标签", variant: "nav" },
+            statsCards: { label: "统计", variant: "panel" },
+            heatmap: { label: "热力图", variant: "heatmap" }
+          },
+          inspector
+        );
+        return;
+      }
+      if (regionId === "results") {
+        const content = screen.createDiv({ cls: "memos-plus-layout-mobile-content" });
+        this.renderLayoutPreviewRegionsInOrder(
+          content,
+          preview,
+          "mobile",
+          moduleIds,
+          {
+            fileCount: { label: "最近 10 条", variant: "meta" },
+            fileList: { label: "最近笔记", variant: "cards" }
+          },
+          inspector
+        );
+      }
+    });
+  }
 
-    const nav = screen.createDiv({ cls: "memos-plus-layout-mobile-nav" });
-    this.renderLayoutPreviewRegion(nav, preview, "mobile", "searchBox", "搜索", inspector, "pill");
-    this.renderLayoutPreviewRegion(nav, preview, "mobile", "settingsButton", "设置", inspector, "icon");
-    this.renderLayoutPreviewRegion(nav, preview, "mobile", "refreshButton", "刷新", inspector, "icon");
-
-    const directory = screen.createDiv({ cls: "memos-plus-layout-mobile-directory" });
-    this.renderLayoutPreviewRegionsInOrder(
-      directory,
-      preview,
-      "mobile",
-      SIDEBAR_NAVIGATION_LAYOUT_GROUP,
-      {
-        allNotes: { label: "全部笔记", variant: "nav" },
-        projectDirectory: { label: "项目", variant: "nav" },
-        projectFilters: { label: "项目筛选", variant: "nav" },
-        organizeDirectory: { label: "整理", variant: "nav" },
-        taskDirectory: { label: "任务", variant: "nav" },
-        tagFilters: { label: "标签", variant: "nav" }
-      },
-      inspector
-    );
-
-    const content = screen.createDiv({ cls: "memos-plus-layout-mobile-content" });
-    this.renderLayoutPreviewRegionsInOrder(
-      content,
-      preview,
-      "mobile",
-      HOME_RESULTS_LAYOUT_GROUP,
-      {
-        fileCount: { label: "最近 10 条", variant: "meta" },
-        fileList: { label: "最近笔记", variant: "cards" }
-      },
-      inspector
-    );
-    this.renderLayoutPreviewRegion(content, preview, "mobile", "statsCards", "统计", inspector, "panel");
-    this.renderLayoutPreviewRegion(content, preview, "mobile", "heatmap", "热力图", inspector, "heatmap");
+  private renderOrderedLayoutPreview(
+    container: HTMLElement,
+    preview: HTMLElement,
+    surface: DisplaySurface,
+    groups: Record<string, readonly DisplayModuleId[]>,
+    fallbackRegionOrder: readonly string[],
+    renderRegion: (regionId: string, moduleIds: readonly DisplayModuleId[]) => void
+  ): void {
+    const orderedModules = resolveLayoutSurfaceModules(this.getViewLayout(surface), surface).orderedModules;
+    const orderedRegions = orderedLayoutRegions(orderedModules, groups)
+      .map((region) => region.regionId)
+      .filter((regionId) => Object.prototype.hasOwnProperty.call(groups, regionId));
+    const regionIds = [...orderedRegions, ...fallbackRegionOrder.filter((regionId) => !orderedRegions.includes(regionId))];
+    for (const regionId of regionIds) {
+      renderRegion(regionId, groups[regionId] ?? []);
+    }
   }
 
   private renderLayoutPreviewRegionsInOrder(
@@ -1186,6 +1377,72 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       }
       this.selectLayoutModule(surface, module.id, preview, inspector);
     });
+    if (!Platform.isMobile && visible) {
+      button.setAttr("draggable", "true");
+      button.addEventListener("dragstart", (event) => {
+        this.draggedLayoutSurface = surface;
+        this.draggedLayoutModuleId = module.id;
+        button.addClass("is-dragging");
+        event.dataTransfer?.setData("text/plain", module.id);
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+        }
+      });
+      button.addEventListener("dragend", () => {
+        this.clearLayoutPreviewDragState(preview);
+      });
+      button.addEventListener("dragover", (event) => {
+        if (!this.canDropLayoutPreviewModule(surface, module.id)) {
+          return;
+        }
+        event.preventDefault();
+        button.addClass("is-drop-target");
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "move";
+        }
+      });
+      button.addEventListener("dragleave", () => {
+        button.removeClass("is-drop-target");
+      });
+      button.addEventListener("drop", async (event) => {
+        await this.dropLayoutPreviewModule(event, surface, module.id, preview, inspector);
+      });
+    }
+  }
+
+  private canDropLayoutPreviewModule(surface: DisplaySurface, targetModuleId: DisplayModuleId): boolean {
+    return this.draggedLayoutSurface === surface && this.draggedLayoutModuleId !== "" && this.draggedLayoutModuleId !== targetModuleId;
+  }
+
+  private async dropLayoutPreviewModule(
+    event: DragEvent,
+    surface: DisplaySurface,
+    targetModuleId: DisplayModuleId,
+    preview: HTMLElement,
+    inspector: HTMLElement
+  ): Promise<void> {
+    if (!this.canDropLayoutPreviewModule(surface, targetModuleId)) {
+      this.clearLayoutPreviewDragState(preview);
+      return;
+    }
+    event.preventDefault();
+    const sourceModuleId = this.draggedLayoutModuleId;
+    if (sourceModuleId === "") {
+      this.clearLayoutPreviewDragState(preview);
+      return;
+    }
+    await this.moveLayoutModuleBefore(surface, sourceModuleId, targetModuleId);
+    this.clearLayoutPreviewDragState(preview);
+    this.selectLayoutModule(surface, sourceModuleId, preview, inspector);
+  }
+
+  private clearLayoutPreviewDragState(preview: HTMLElement): void {
+    this.draggedLayoutSurface = "";
+    this.draggedLayoutModuleId = "";
+    for (const element of Array.from(preview.querySelectorAll<HTMLElement>(".memos-plus-layout-region"))) {
+      element.removeClass("is-dragging");
+      element.removeClass("is-drop-target");
+    }
   }
 
   private selectLayoutModule(surface: DisplaySurface, moduleId: DisplayModuleId, preview: HTMLElement, inspector: HTMLElement): void {
@@ -1254,7 +1511,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             } else {
               this.plugin.settings.defaultSendAction = normalizeDefaultSendAction(value);
             }
-            await this.plugin.persistSettings();
+            await this.persistLayoutAffectingSetting();
           });
       });
 
@@ -1265,7 +1522,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         .addToggle((toggle) => {
           toggle.setValue(this.plugin.settings.quickInputShowDirectory).onChange(async (value) => {
             this.plugin.settings.quickInputShowDirectory = value;
-            await this.plugin.persistSettings();
+            await this.persistLayoutAffectingSetting();
           });
         });
     }
@@ -1290,7 +1547,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.organizerPanelEnabled).onChange(async (value) => {
           this.plugin.settings.organizerPanelEnabled = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     this.renderLayoutInspectorActions(container, surface, module, preview, "directoryFilters");
@@ -1305,7 +1562,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.organizerTasksDefaultExpanded).onChange(async (value) => {
           this.plugin.settings.organizerTasksDefaultExpanded = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     new Setting(container)
@@ -1314,7 +1571,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.organizerTaskPriorityBranchesEnabled).onChange(async (value) => {
           this.plugin.settings.organizerTaskPriorityBranchesEnabled = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     new Setting(container)
@@ -1323,7 +1580,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.organizerTaskDateBranchesEnabled).onChange(async (value) => {
           this.plugin.settings.organizerTaskDateBranchesEnabled = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     new Setting(container)
@@ -1332,7 +1589,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.taskVaultFilterEnabled).onChange(async (value) => {
           this.plugin.settings.taskVaultFilterEnabled = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
           if (value && this.plugin.settings.taskIndexEnabled) {
             this.plugin.taskIndex.scheduleBuild(0);
           }
@@ -1486,6 +1743,32 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     );
   }
 
+  private async moveLayoutModuleBefore(surface: DisplaySurface, sourceModuleId: DisplayModuleId, targetModuleId: DisplayModuleId): Promise<void> {
+    const layout = this.getViewLayout(surface);
+    const orderedModules = resolveLayoutSurfaceModules(layout, surface).orderedModules;
+    const sourceIndex = orderedModules.indexOf(sourceModuleId);
+    const targetIndex = orderedModules.indexOf(targetModuleId);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+      return;
+    }
+    const nextOrder = [...orderedModules];
+    const [source] = nextOrder.splice(sourceIndex, 1);
+    const nextTargetIndex = nextOrder.indexOf(targetModuleId);
+    nextOrder.splice(nextTargetIndex, 0, source);
+    await this.setViewLayout(
+      surface,
+      normalizeViewLayout(
+        {
+          mode: "custom",
+          visibleModules: nextOrder,
+          order: nextOrder,
+          compactMode: layout.compactMode
+        },
+        surface
+      )
+    );
+  }
+
   private fullSettingsTabForModule(moduleId: DisplayModuleId): SettingsTabId {
     if (moduleId === "taskDirectory" || moduleId === "organizeDirectory" || moduleId === "projectDirectory" || moduleId === "projectFilters" || moduleId === "tagFilters") {
       return "directoryFilters";
@@ -1554,6 +1837,11 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         });
       });
     this.renderMobileLightHomeSettings(container);
+  }
+
+  private async persistLayoutAffectingSetting(): Promise<void> {
+    await this.plugin.persistSettings();
+    await this.plugin.refreshLayoutViews("layout-settings");
   }
 
   private renderDirectoryFilterSettings(container: HTMLElement): void {
@@ -1985,7 +2273,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.quickInputDefaultSendAction)
           .onChange(async (value) => {
             this.plugin.settings.quickInputDefaultSendAction = normalizeQuickInputSendAction(value);
-            await this.plugin.persistSettings();
+            await this.persistLayoutAffectingSetting();
           });
       });
     new Setting(container)
@@ -1994,7 +2282,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.quickInputShowDirectory).onChange(async (value) => {
           this.plugin.settings.quickInputShowDirectory = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     new Setting(container)
@@ -2049,7 +2337,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.quickInputEnabled).onChange(async (value) => {
           this.plugin.settings.quickInputEnabled = value;
-          await this.plugin.persistSettings();
+          await this.persistLayoutAffectingSetting();
         });
       });
     if (className) {
