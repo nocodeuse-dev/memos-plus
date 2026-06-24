@@ -375,7 +375,6 @@ const SETTINGS_TABS: Array<{ id: SettingsTabId; labelKey: string }> = [
   { id: "fileTemplates", labelKey: "settings.tab.fileTemplates" },
   { id: "tasks", labelKey: "settings.tab.tasks" },
   { id: "directoryFilters", labelKey: "settings.tab.filters" },
-  { id: "display", labelKey: "settings.tab.display" },
   { id: "performanceData", labelKey: "settings.tab.performance" },
   { id: "advanced", labelKey: "settings.tab.advanced" }
 ];
@@ -671,7 +670,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         this.renderDirectoryFilterSettings(container);
         return;
       case "display":
-        this.renderDisplaySettings(container);
+        this.renderLayoutSettings(container);
         return;
       case "performanceData":
         this.renderPerformanceDataSettings(container);
@@ -1048,6 +1047,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
     this.renderSectionHeader(container, "settings.displayContentSync", "settings.displayContentSyncDesc");
     this.renderDisplayContentSyncSettings(container);
+    this.renderDisplaySettings(container);
   }
 
   private renderLayoutSurfaceSwitcher(container: HTMLElement, workspace: HTMLElement): void {

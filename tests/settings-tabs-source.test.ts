@@ -40,10 +40,10 @@ describe("settings top tabs source", () => {
       "fileTemplates",
       "tasks",
       "directoryFilters",
-      "display",
       "performanceData",
       "advanced"
     ]);
+    expect(tabsSource).not.toContain('labelKey: "settings.tab.display"');
 
     const tabButtonSource = settingsSource.slice(settingsSource.indexOf("private renderSettingsTabButton"), settingsSource.indexOf("private renderSectionHeader"));
     expect(tabButtonSource).toContain("this.switchSettingsTab(tab.id, button)");
@@ -54,6 +54,8 @@ describe("settings top tabs source", () => {
   });
 
   it("defines the requested settings tab labels in i18n keys", () => {
+    expect(i18nSource).toContain('"settings.tab.layout": "界面与外观"');
+    expect(i18nSource).toContain('"settings.tab.layout": "Interface and appearance"');
     for (const key of [
       "settings.tab.sendRules",
       "settings.tab.input",
@@ -62,7 +64,6 @@ describe("settings top tabs source", () => {
       "settings.tab.fileTemplates",
       "settings.tab.filters",
       "settings.tab.layout",
-      "settings.tab.display",
       "settings.tab.performance",
       "settings.tab.advanced",
       "settings.layoutDesigner.surface.home",
@@ -112,6 +113,7 @@ describe("settings top tabs source", () => {
     const recordsSource = settingsSource.slice(settingsSource.indexOf("private renderRecordSettings"), settingsSource.indexOf("private renderDisplaySettings"));
     const inputSource = settingsSource.slice(settingsSource.indexOf("private renderInputToolSettings"), settingsSource.indexOf("private renderComposerAppearanceSettings"));
     const displaySource = settingsSource.slice(settingsSource.indexOf("private renderDisplaySettings"), settingsSource.indexOf("private renderLayoutSettings"));
+    const layoutSource = settingsSource.slice(settingsSource.indexOf("private renderLayoutSettings"), settingsSource.indexOf("private renderLayoutSurfaceSwitcher"));
     const fileTemplateSource = settingsSource.slice(settingsSource.indexOf("private renderFileTemplateLibrarySettings"), settingsSource.indexOf("private openManagedTemplateModal"));
     const tasksSource = settingsSource.slice(settingsSource.indexOf("private renderTasksSettings"), settingsSource.indexOf("private renderTaskIndexSettings"));
     const sidebarSource = settingsSource.slice(settingsSource.indexOf("private renderSidebarLayoutSettings"), settingsSource.indexOf("private renderMobileLayoutSettings"));
@@ -128,6 +130,7 @@ describe("settings top tabs source", () => {
     expect(displaySource).toContain("this.renderLanguageSetting(container)");
     expect(displaySource).toContain("this.renderComposerAppearanceSettings(container)");
     expect(displaySource).toContain("this.renderMobileDisplaySettings(container)");
+    expect(layoutSource).toContain("this.renderDisplaySettings(container)");
     expect(fileTemplateSource).toContain("this.renderFileTemplateTabInteractionSettings(container)");
     expect(tasksSource).toContain("this.renderTaskIndexSummary(container)");
     expect(tasksSource).toContain("this.renderTaskIndexSettings(container)");
