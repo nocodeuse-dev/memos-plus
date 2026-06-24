@@ -6,7 +6,6 @@ import type { MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 import { updateRecentFileTargetPaths } from "./fileSend";
 import { ProjectSendModal, type ProjectSendChoice } from "./projectFileSuggestModal";
-import { updateRecentProjectPaths } from "./projectSend";
 import { createDefaultProjectTemplate, resolveTemplateClearAfterSend, type ManagedTemplate } from "./templateManager";
 
 export interface ProjectDeliveryHost {
@@ -17,7 +16,7 @@ export interface ProjectDeliveryHost {
 }
 
 export interface ProjectDeliveryResult {
-  mode: "project" | "file";
+  mode: "file";
   file: TFile;
   template?: ManagedTemplate;
   clearAfterSend?: boolean;
@@ -64,14 +63,10 @@ export async function sendContentToProject(
       preformatted: prepared.preformatted,
       template
     });
-    if (choice.mode === "project") {
-      host.settings.recentProjectPaths = updateRecentProjectPaths(host.settings.recentProjectPaths, choice.file.path);
-    } else {
-      host.settings.recentFileTargetPaths = updateRecentFileTargetPaths(host.settings.recentFileTargetPaths, choice.file.path);
-    }
+    host.settings.recentFileTargetPaths = updateRecentFileTargetPaths(host.settings.recentFileTargetPaths, choice.file.path);
     await host.persistSettings();
     return {
-      mode: choice.mode === "project" ? "project" : "file",
+      mode: "file",
       file: choice.file,
       template,
       clearAfterSend: resolveTemplateClearAfterSend(template, host.settings.clearAfterSave)
@@ -108,7 +103,6 @@ async function selectProjectTarget(
         promptOnCreate: host.settings.taskPromptOnCreate
       },
       enableFileTargets: host.settings.sendToFileEnabled,
-      commonFileTags: host.settings.sendToFileCommonTags,
       customTagTabs: host.settings.projectSendTagTabs,
       fileTemplateTabs: host.settings.fileTemplateTabs,
       fileTemplateTabInteraction: host.settings.fileTemplateTabInteraction,
@@ -122,18 +116,6 @@ async function selectProjectTarget(
       defaultFileTag: host.settings.sendToFileDefaultTag,
       defaultFileInsertPosition: host.settings.sendToFileDefaultInsertPosition,
       noHeadingBehavior: host.settings.sendToFileNoHeadingBehavior,
-      onLoadProjects: () => host.store.getProjects(),
-      onLoadRecentFiles: () => host.store.getRecentFileTargets(),
-      onCreateProject: async (name) => {
-        const file = await host.store.createProject(name);
-        return {
-          file,
-          name: file.basename,
-          status: "进行中",
-          updatedAt: file.stat?.mtime ?? Date.now(),
-          isRecent: false
-        };
-      },
       onLoadFileTemplates: () => host.store.getFileTemplateLibraryItems(),
       onCreateFromFileTemplate: async (templatePath, title, tag) => host.store.createFileFromLibraryTemplate(templatePath, title, { tag }),
       onToggleFileTemplateFavorite: async (templatePath) => {
@@ -157,7 +139,6 @@ async function selectProjectTarget(
       },
       preferredFileTemplatePath: "",
       getPreferredFileTemplatePath: (tag) => preferredFileTemplatePathForTag(host.settings, tag),
-      onLoadTags: () => host.store.getAllFileSendTags(),
       onLoadTaggedFiles: (tagQuery) => host.store.getTaggedFileTargets(tagQuery),
       onSearchFiles: (query) => host.store.searchFileTargets(query),
       onLoadHeadings: (file) => host.store.getFileTargetHeadings(file),

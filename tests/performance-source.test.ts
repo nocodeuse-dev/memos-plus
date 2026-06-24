@@ -44,35 +44,22 @@ describe("performance source safeguards", () => {
     expect(renderTimelineBody).not.toContain("getAllTags(this.memos)");
   });
 
-  it("does not load all file-send tags as soon as the project modal opens", () => {
+  it("keeps fixed project, tag, and recent loaders out of the send modal open path", () => {
     const onOpenBody = projectModalSource.match(/onOpen\(\): void \{([\s\S]*?)\n {2}\}/)?.[1] ?? "";
-    expect(onOpenBody).not.toContain("loadTags");
-    expect(projectModalSource).toContain("ensureTagsLoaded");
-  });
-
-  it("loads project and recent file targets lazily inside the send modal", () => {
     const projectDeliverySource = readFileSync("src/projectDelivery.ts", "utf8");
     const sendBody = projectDeliverySource.match(/export async function sendContentToProject\([\s\S]*?\n\}: Promise<ProjectDeliveryResult \| null> \{([\s\S]*?)\n\}/)?.[1] ?? "";
     const selectBody = projectDeliverySource.match(/async function selectProjectTarget\([\s\S]*?\n\): Promise<ProjectSendChoice \| null> \{([\s\S]*?)\n\}/)?.[1] ?? "";
 
+    expect(onOpenBody).not.toContain("loadTags");
     expect(sendBody).not.toContain("await host.store.getProjects()");
     expect(selectBody).not.toContain("await host.store.getRecentFileTargets()");
-    expect(selectBody).toContain("onLoadProjects");
-    expect(selectBody).toContain("onLoadRecentFiles");
-    expect(projectModalSource).toContain("ensureProjectsLoaded");
-    expect(projectModalSource).toContain("ensureRecentFilesLoaded");
-  });
-
-  it("does not prewarm the full project list on mobile before a search", () => {
-    const projectListSource = projectModalSource.slice(
-      projectModalSource.indexOf("private renderProjectList(): void"),
-      projectModalSource.indexOf("private renderProjectListContent")
-    );
-
-    expect(projectModalSource).toContain("shouldDeferProjectLoadForMobile");
-    expect(projectListSource).toContain("this.shouldDeferProjectLoadForMobile()");
-    expect(projectListSource).toContain("if (this.shouldDeferProjectLoadForMobile())");
-    expect(projectListSource).toContain("if (!this.shouldDeferProjectLoadForMobile())");
+    expect(selectBody).not.toContain("onLoadProjects");
+    expect(selectBody).not.toContain("onLoadRecentFiles");
+    expect(selectBody).not.toContain("onLoadTags");
+    expect(projectModalSource).not.toContain("ensureProjectsLoaded");
+    expect(projectModalSource).not.toContain("ensureRecentFilesLoaded");
+    expect(projectModalSource).not.toContain("ensureTagsLoaded");
+    expect(projectModalSource).not.toContain("shouldDeferProjectLoadForMobile");
   });
 
   it("does not run an empty full-vault file search on mobile", () => {
@@ -88,12 +75,12 @@ describe("performance source safeguards", () => {
 
   it("caches tagged file and search results inside the send modal", () => {
     const taggedFilesSource = projectModalSource.slice(
-      projectModalSource.indexOf("private async renderTaggedFiles"),
+      projectModalSource.indexOf("private async loadTaggedFileTabResults"),
       projectModalSource.indexOf("private async renderCustomTagFiles")
     );
     const customTagSource = projectModalSource.slice(
       projectModalSource.indexOf("private async renderCustomTagFiles"),
-      projectModalSource.indexOf("private renderRecentFiles")
+      projectModalSource.indexOf("private async renderTemplateGroupTab")
     );
     const searchContentSource = projectModalSource.slice(
       projectModalSource.indexOf("private async renderFileSearchContent"),

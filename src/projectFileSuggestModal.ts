@@ -36,22 +36,21 @@ import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
 import { mobileModalResultLimit, registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import { debounce } from "./performance";
-import type { ProjectInfo } from "./projectSend";
 import { createTaskOptionsForm } from "./taskOptionsForm";
 import { resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
 
-type SendMode = "project" | "tag" | "recent" | "search" | "custom-tag";
-type FixedSendMode = Exclude<SendMode, "custom-tag">;
+type ProjectSendInitialMode = "project" | "tag" | "recent" | "search";
+type SendMode = "search" | "custom-tag";
 
-const FIXED_SEND_TABS: FixedSendMode[] = ["project", "tag", "recent", "search"];
+const FIXED_SEND_TABS: SendMode[] = ["search"];
 const CUSTOM_TAB_PREFIX = "custom:";
 
 export interface ProjectSendChoice {
   file: TFile;
   section: string;
   task?: ProjectTaskOptions;
-  mode?: "project" | "file";
+  mode?: "file";
   fileTarget?: FileSendTarget;
   template?: ManagedTemplate;
 }
@@ -71,10 +70,9 @@ interface ProjectSendModalOptions {
   language: Language;
   content: string;
   defaultHeading: string;
-  initialMode?: SendMode;
+  initialMode?: ProjectSendInitialMode;
   taskSettings: ProjectSendTaskSettings;
   enableFileTargets: boolean;
-  commonFileTags: string[];
   customTagTabs?: string[];
   fileTemplateTabs: FileTemplateTab[];
   fileTemplateTabInteraction: FileTemplateTabInteractionSettings;
@@ -89,16 +87,12 @@ interface ProjectSendModalOptions {
   defaultFileTag: string;
   defaultFileInsertPosition: FileInsertPosition;
   noHeadingBehavior: NoHeadingBehavior;
-  onLoadProjects: () => Promise<ProjectInfo[]>;
-  onLoadRecentFiles: () => Promise<TaggedFileInfo[]>;
-  onCreateProject: (name: string) => Promise<ProjectInfo | null>;
   onLoadFileTemplates: () => Promise<FileTemplateLibraryItem[]>;
   onCreateFromFileTemplate: (templatePath: string, title: string, tag?: string) => Promise<TFile | null>;
   onToggleFileTemplateFavorite: (templatePath: string) => Promise<void>;
   onDeleteFileTemplate: (templatePath: string) => Promise<void>;
   onMarkFileTemplateRecent: (templatePath: string) => Promise<void>;
   getPreferredFileTemplatePath?: (tag: string) => string;
-  onLoadTags: () => Promise<string[]>;
   onLoadTaggedFiles: (tagQuery: string) => Promise<TaggedFileInfo[]>;
   onSearchFiles: (query: string) => Promise<TaggedFileInfo[]>;
   onLoadHeadings: (file: TFile) => Promise<FileHeadingInfo[]>;
@@ -690,23 +684,13 @@ interface FileTemplateLibraryTabView {
 export class ProjectSendModal extends Modal {
   private settled = false;
   private mode: SendMode;
-  private query = "";
   private tagQuery = "";
   private fileQuery = "";
-  private tagOptions: string[] = [];
   private fileTemplateTabs: FileTemplateTab[] = [];
   private tabOrder: string[] = [];
   private hiddenTabs: string[] = [];
   private activeFileTemplateTabId = "";
   private currentTemplateId = "";
-  private tagsLoaded = false;
-  private tagsLoading = false;
-  private projects: ProjectInfo[] = [];
-  private projectsLoaded = false;
-  private projectsLoading = false;
-  private recentFiles: TaggedFileInfo[] = [];
-  private recentFilesLoaded = false;
-  private recentFilesLoading = false;
   private readonly taggedFilesCache = new Map<string, TaggedFileInfo[]>();
   private readonly fileSearchCache = new Map<string, TaggedFileInfo[]>();
   private readonly fileHeadingsCache = new Map<string, FileHeadingInfo[]>();
@@ -715,7 +699,7 @@ export class ProjectSendModal extends Modal {
 
   constructor(app: App, private readonly options: ProjectSendModalOptions) {
     super(app);
-    this.mode = options.initialMode ?? "project";
+    this.mode = "search";
     this.currentTemplateId = options.initialTemplateId ?? options.templates[0]?.id ?? "";
     this.tagQuery = options.defaultFileTag;
     this.fileTemplateTabs = normalizeFileTemplateTabs(options.fileTemplateTabs);
@@ -738,9 +722,6 @@ export class ProjectSendModal extends Modal {
   onClose(): void {
     registerMemosPlusModalClose(this, "ProjectSendModal");
     this.closed = true;
-    this.projects = [];
-    this.recentFiles = [];
-    this.tagOptions = [];
     this.taggedFilesCache.clear();
     this.fileSearchCache.clear();
     this.fileHeadingsCache.clear();
@@ -748,60 +729,6 @@ export class ProjectSendModal extends Modal {
     if (!this.settled) {
       this.settled = true;
       this.options.onChoose(null);
-    }
-  }
-
-  private async ensureTagsLoaded(): Promise<void> {
-    if (this.tagsLoaded || this.tagsLoading) {
-      return;
-    }
-    this.tagsLoading = true;
-    try {
-      this.tagOptions = await this.options.onLoadTags();
-      this.tagsLoaded = true;
-    } catch (error) {
-      console.error("[Memos Plus] Failed to load tags", error);
-    } finally {
-      this.tagsLoading = false;
-    }
-    if (!this.closed && this.mode === "tag") {
-      this.renderTagPicker();
-    }
-  }
-
-  private async ensureProjectsLoaded(list?: HTMLElement): Promise<void> {
-    if (this.projectsLoaded || this.projectsLoading) {
-      return;
-    }
-    this.projectsLoading = true;
-    try {
-      this.projects = await this.options.onLoadProjects();
-      this.projectsLoaded = true;
-    } catch (error) {
-      console.error("[Memos Plus] Failed to load projects", error);
-    } finally {
-      this.projectsLoading = false;
-    }
-    if (!this.closed && this.mode === "project" && list?.isConnected) {
-      this.renderProjectListContent(list);
-    }
-  }
-
-  private async ensureRecentFilesLoaded(): Promise<void> {
-    if (this.recentFilesLoaded || this.recentFilesLoading) {
-      return;
-    }
-    this.recentFilesLoading = true;
-    try {
-      this.recentFiles = await this.options.onLoadRecentFiles();
-      this.recentFilesLoaded = true;
-    } catch (error) {
-      console.error("[Memos Plus] Failed to load recent files", error);
-    } finally {
-      this.recentFilesLoading = false;
-    }
-    if (!this.closed && this.mode === "recent") {
-      this.renderRecentFiles();
     }
   }
 
@@ -846,20 +773,7 @@ export class ProjectSendModal extends Modal {
       void this.renderFileTemplateTab(this.activeFileTemplateTabId);
       return;
     }
-    if (this.mode === "tag") {
-      void this.ensureTagsLoaded();
-      this.renderTagPicker();
-      return;
-    }
-    if (this.mode === "recent") {
-      this.renderRecentFiles();
-      return;
-    }
-    if (this.mode === "search") {
-      void this.renderFileSearch();
-      return;
-    }
-    this.renderProjectList();
+    void this.renderFileSearch();
   }
 
   private renderDefaultMemoTemplate(): void {
@@ -944,8 +858,8 @@ export class ProjectSendModal extends Modal {
   private visibleTabIds(): string[] {
     const hidden = new Set(this.hiddenTabs);
     const ids = normalizeTabOrder(this.tabOrder, this.fileTemplateTabs).filter((id) => !hidden.has(id));
-    const available = ids.filter((id) => id === "project" || this.options.enableFileTargets || getCustomTabFromTabId(id, this.fileTemplateTabs));
-    return available.length > 0 ? available : ["project"];
+    const available = ids.filter((id) => id === "search" || getCustomTabFromTabId(id, this.fileTemplateTabs));
+    return available.length > 0 ? available : ["search"];
   }
 
   private activeTabId(): string {
@@ -972,14 +886,14 @@ export class ProjectSendModal extends Modal {
     if (visible.includes(active)) {
       return;
     }
-    const fallback = visible[0] ?? "project";
+    const fallback = visible[0] ?? "search";
     const customTab = getCustomTabFromTabId(fallback, this.fileTemplateTabs);
     if (customTab) {
       this.mode = "custom-tag";
       this.activeFileTemplateTabId = customTab.id;
       return;
     }
-    this.mode = isFixedSendMode(fallback) ? fallback : "project";
+    this.mode = "search";
     this.activeFileTemplateTabId = "";
   }
 
@@ -994,16 +908,7 @@ export class ProjectSendModal extends Modal {
     }
     this.mode = id;
     this.activeFileTemplateTabId = "";
-    if (id === "project") {
-      this.renderProjectList();
-    } else if (id === "tag") {
-      void this.ensureTagsLoaded();
-      this.renderTagPicker();
-    } else if (id === "recent") {
-      this.renderRecentFiles();
-    } else {
-      void this.renderFileSearch();
-    }
+    void this.renderFileSearch();
   }
 
   private startTabDrag(event: DragEvent, id: string, button: HTMLButtonElement): void {
@@ -1049,134 +954,12 @@ export class ProjectSendModal extends Modal {
     return isMobileTemplateTabsReadOnly(this.options.fileTemplateTabInteraction);
   }
 
-  private renderProjectList(): void {
-    const lang = this.options.language;
-    const contentEl = this.renderShell();
-
-    const search = contentEl.createEl("input", {
-      cls: "memos-plus-project-search",
-      attr: { type: "search", placeholder: t(lang, "projectSend.searchPlaceholder") }
-    });
-    search.value = this.query;
-    const list = contentEl.createDiv({ cls: "memos-plus-project-list" });
-    const renderDebounced = debounce(() => this.renderProjectListContent(list), 200);
-    search.addEventListener("input", () => {
-      this.query = search.value;
-      if (!this.shouldDeferProjectLoadForMobile()) {
-        void this.ensureProjectsLoaded(list);
-      }
-      renderDebounced();
-    });
-
-    if (this.shouldDeferProjectLoadForMobile()) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "projectSend.searchPlaceholder") });
-    } else {
-      this.renderProjectListContent(list);
-      void this.ensureProjectsLoaded(list);
-    }
-
-    const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
-    if (this.options.onSaveDefault) {
-      this.renderDirectSendButton(footer);
-    }
-    const add = footer.createEl("button", { cls: "memos-plus-project-add", attr: { type: "button" } });
-    setIcon(add, "folder-plus");
-    add.createSpan({ text: t(lang, "projectSend.addProject") });
-    add.addEventListener("click", () => this.openFileTemplateLibraryModal("project"));
-  }
-
-  private renderProjectListContent(list: HTMLElement): void {
-    const lang = this.options.language;
-    list.empty();
-    if (this.projectsLoading || !this.projectsLoaded) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
-      return;
-    }
-    const projects = this.filteredProjects();
-    if (projects.length === 0) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "projectSend.noProjects") });
-      this.renderTemplateCreateButton(list, "project");
-    }
-    for (const project of projects) {
-      const button = this.renderProjectOption(list, project);
-      button.addEventListener("click", () => void withMobileClickLock(button, () => this.renderProjectHeadingPicker(project)));
-    }
-  }
-
-  private renderTagPicker(): void {
-    const lang = this.options.language;
-    const contentEl = this.renderShell();
-    const search = contentEl.createEl("input", {
-      cls: "memos-plus-project-search",
-      attr: { type: "search", placeholder: t(lang, "fileSend.searchTags") }
-    });
-    search.value = this.tagQuery;
-    const list = contentEl.createDiv({ cls: "memos-plus-project-list memos-plus-tag-target-list" });
-    const renderDebounced = debounce(() => this.renderTagPickerContent(list), 200);
-    search.addEventListener("input", () => {
-      this.tagQuery = search.value;
-      renderDebounced();
-    });
-
-    this.renderTagPickerContent(list);
-  }
-
-  private renderTagPickerContent(list: HTMLElement): void {
-    const lang = this.options.language;
-    list.empty();
-    if (this.tagsLoading) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
-      return;
-    }
-
-    const normalizedQuery = this.tagQuery.trim().replace(/^#+/, "").toLowerCase();
-    const commonTags = this.options.commonFileTags.filter((tag) => !normalizedQuery || tag.toLowerCase().includes(normalizedQuery));
-    const vaultTags = this.tagOptions.filter((tag) => !normalizedQuery || tag.toLowerCase().includes(normalizedQuery));
-    const tags = uniqueTags([...commonTags, ...vaultTags]).slice(0, 80);
-
-    if (tags.length === 0) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "savedSearch.noTagOptions") });
-      const createTag = normalizeFileTag(this.tagQuery);
-      if (createTag) {
-        this.renderTemplateCreateButton(list, "file", createTag);
-      }
-    }
-    if (commonTags.length > 0) {
-      list.createDiv({ cls: "memos-plus-file-target-label", text: t(lang, "fileSend.commonTags") });
-    }
-    for (const tag of tags) {
-      const button = list.createEl("button", { cls: "memos-plus-project-option", attr: { type: "button" } });
-      const title = button.createDiv({ cls: "memos-plus-project-option-title" });
-      setIcon(title.createSpan({ cls: "memos-plus-file-target-icon" }), "tag");
-      title.createSpan({ text: tag });
-      button.addEventListener("click", () => void withMobileClickLock(button, () => this.renderTaggedFiles(tag)));
-    }
-  }
-
-  private async renderTaggedFiles(tag: string): Promise<void> {
-    const lang = this.options.language;
-    this.tagQuery = tag;
-    const contentEl = this.renderFileStepHeader(t(lang, "fileSend.selectFile"), () => this.renderTagPicker());
-    contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.selectFile") });
-    let files: TaggedFileInfo[] = [];
-    try {
-      files = await this.loadTaggedFilesCached(tag);
-    } catch (error) {
-      console.error("[Memos Plus] Failed to load tagged files", error);
-    }
-    if (this.closed) {
-      return;
-    }
-    this.renderFileList(files, `${t(lang, "fileSend.selectFile")} · #${tag}`, () => void this.renderTaggedFiles(tag), () => this.renderTagPicker(), tag);
-  }
-
   private async renderFileTemplateTab(tabId: string): Promise<void> {
     const tab = this.fileTemplateTabs.find((item) => item.id === tabId);
     if (!tab) {
-      this.mode = "tag";
+      this.mode = "search";
       this.activeFileTemplateTabId = "";
-      void this.ensureTagsLoaded();
-      this.renderTagPicker();
+      void this.renderFileSearch();
       return;
     }
     if (tab.type === "template-group") {
@@ -1227,7 +1010,7 @@ export class ProjectSendModal extends Modal {
     }
     for (const item of items) {
       const row = this.renderTemplateGroupOption(list, item);
-      row.addEventListener("click", () => void withMobileClickLock(row, () => this.openFileTemplateLibraryModal("file", "", tab.id, item.path)));
+      row.addEventListener("click", () => void withMobileClickLock(row, () => this.openFileTemplateLibraryModal("", tab.id, item.path)));
     }
     const footer = this.contentEl.createDiv({ cls: "memos-plus-project-footer" });
     if (this.options.onSaveDefault) {
@@ -1258,17 +1041,6 @@ export class ProjectSendModal extends Modal {
       text: [item.category, item.tags.map((tag) => `#${tag}`).join(" "), formatUpdatedAt(item.updatedAt, this.options.language)].filter(Boolean).join(" · ")
     });
     return row;
-  }
-
-  private renderRecentFiles(): void {
-    const lang = this.options.language;
-    if (this.recentFilesLoading || !this.recentFilesLoaded) {
-      const contentEl = this.renderShell();
-      contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
-      void this.ensureRecentFilesLoaded();
-      return;
-    }
-    this.renderFileList(this.recentFiles, t(lang, "fileSend.mode.recent"), () => this.renderRecentFiles());
   }
 
   private async renderFileSearch(): Promise<void> {
@@ -1322,10 +1094,6 @@ export class ProjectSendModal extends Modal {
     this.renderFileListItems(list, files, () => void this.renderFileSearch(), undefined, "", false);
   }
 
-  private shouldDeferProjectLoadForMobile(): boolean {
-    return Platform.isMobile && !this.query.trim() && !this.projectsLoaded && !this.projectsLoading;
-  }
-
   private shouldSkipEmptyMobileFileSearch(query: string): boolean {
     return Platform.isMobile && !query.trim();
   }
@@ -1345,22 +1113,13 @@ export class ProjectSendModal extends Modal {
     if (files.length === 0) {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.noFiles") });
       if (showInlineCreate) {
-        this.renderTemplateCreateButton(list, "file", createTag);
+        this.renderTemplateCreateButton(list, createTag);
       }
     }
     for (const info of files.slice(0, mobileModalResultLimit())) {
       const button = this.renderFileInfoOption(list, info);
       button.addEventListener("click", () => void withMobileClickLock(button, () => this.renderHeadingPicker(info, refresh, back)));
     }
-  }
-
-  private renderProjectOption(container: HTMLElement, project: ProjectInfo): HTMLButtonElement {
-    return this.renderSendListOption(container, {
-      title: project.name,
-      icon: "folder",
-      metaParts: this.projectMetaParts(project),
-      titleAttr: project.file.path
-    });
   }
 
   private renderFileInfoOption(container: HTMLElement, info: TaggedFileInfo): HTMLButtonElement {
@@ -1402,23 +1161,15 @@ export class ProjectSendModal extends Modal {
     return button;
   }
 
-  private projectMetaParts(project: ProjectInfo): string[] {
-    return [project.isRecent ? t(this.options.language, "projectSend.recent") : "", project.status, formatUpdatedAt(project.updatedAt, this.options.language)];
-  }
-
   private fileMetaParts(info: TaggedFileInfo): string[] {
     const tags = (info.matchTags.length > 0 ? info.matchTags : info.tags).slice(0, 4).map((tag) => `#${tag}`).join(" · ");
-    return [this.isRecentFile(info) ? t(this.options.language, "projectSend.recent") : "", info.status ?? "", tags, formatUpdatedAt(info.updatedAt, this.options.language)];
+    return [info.status ?? "", tags, formatUpdatedAt(info.updatedAt, this.options.language)];
   }
 
-  private isRecentFile(info: TaggedFileInfo): boolean {
-    return this.recentFiles.some((recent) => recent.path === info.path);
-  }
-
-  private async renderHeadingPicker(info: TaggedFileInfo, refresh: () => void, back?: () => void, mode: "file" | "project" = "file"): Promise<void> {
+  private async renderHeadingPicker(info: TaggedFileInfo, refresh: () => void, back?: () => void): Promise<void> {
     const lang = this.options.language;
     const contentEl = this.renderFileStepHeader(info.name, back ?? refresh);
-    contentEl.createDiv({ cls: "memos-plus-project-section-hint", text: mode === "project" ? t(lang, "projectSend.chooseSection") : info.path });
+    contentEl.createDiv({ cls: "memos-plus-project-section-hint", text: info.path });
 
     const position = createSelectField(contentEl, t(lang, "fileSend.selectPosition"), [
       ["heading-top", t(lang, "fileSend.position.headingTop")],
@@ -1463,7 +1214,7 @@ export class ProjectSendModal extends Modal {
     });
     createHeading.addEventListener("click", () =>
       void withMobileClickLock(createHeading, () =>
-        this.handleFileTargetChoice(info.file, "", "new-heading", () => void this.renderHeadingPicker(info, refresh, back, mode), mode, false, buildNewHeadingTarget(""))
+        this.handleFileTargetChoice(info.file, "", "new-heading", () => void this.renderHeadingPicker(info, refresh, back), false, buildNewHeadingTarget(""))
       )
     );
     const updateNewHeadingVisibility = (): void => {
@@ -1484,11 +1235,11 @@ export class ProjectSendModal extends Modal {
     const list = contentEl.createDiv({ cls: "memos-plus-project-section-grid memos-plus-heading-target-grid" });
     if (headings.length === 0) {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.noHeadings") });
-      if (position.value !== "new-heading" && mode !== "project" && (this.options.noHeadingBehavior === "file-start" || this.options.noHeadingBehavior === "file-end")) {
-        this.handleFileTargetChoice(info.file, "", this.options.noHeadingBehavior, () => void this.renderHeadingPicker(info, refresh, back, mode), mode);
+      if (position.value !== "new-heading" && (this.options.noHeadingBehavior === "file-start" || this.options.noHeadingBehavior === "file-end")) {
+        this.handleFileTargetChoice(info.file, "", this.options.noHeadingBehavior, () => void this.renderHeadingPicker(info, refresh, back));
         return;
       }
-      this.renderFilePositionButtons(list, info.file, () => void this.renderHeadingPicker(info, refresh, back, mode), mode, true);
+      this.renderFilePositionButtons(list, info.file, () => void this.renderHeadingPicker(info, refresh, back), true);
       return;
     }
 
@@ -1506,8 +1257,7 @@ export class ProjectSendModal extends Modal {
             info.file,
             heading.heading,
             selectedPosition,
-            () => void this.renderHeadingPicker(info, refresh, back, mode),
-            mode,
+            () => void this.renderHeadingPicker(info, refresh, back),
             false,
             selectedPosition === "new-heading" ? buildNewHeadingTarget(heading.heading) : {}
           );
@@ -1515,22 +1265,22 @@ export class ProjectSendModal extends Modal {
       );
     }
 
-    this.renderFilePositionButtons(list, info.file, () => void this.renderHeadingPicker(info, refresh, back, mode), mode);
+    this.renderFilePositionButtons(list, info.file, () => void this.renderHeadingPicker(info, refresh, back));
   }
 
-  private renderFilePositionButtons(container: HTMLElement, file: TFile, backAction?: () => void, mode: "file" | "project" = "file", includeCreateHeading = false): void {
+  private renderFilePositionButtons(container: HTMLElement, file: TFile, backAction?: () => void, includeCreateHeading = false): void {
     const lang = this.options.language;
     for (const [position, label] of [
       ["file-end", t(lang, "fileSend.position.fileEnd")],
       ["file-start", t(lang, "fileSend.position.fileStart")]
     ] as Array<[FileInsertPosition, string]>) {
       const button = container.createEl("button", { cls: "memos-plus-project-section", attr: { type: "button" }, text: label });
-      button.addEventListener("click", () => void withMobileClickLock(button, () => this.handleFileTargetChoice(file, "", position, backAction, mode)));
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.handleFileTargetChoice(file, "", position, backAction)));
     }
     if (includeCreateHeading) {
       const heading = this.defaultInsertHeading();
       const button = container.createEl("button", { cls: "memos-plus-project-section is-default", attr: { type: "button" }, text: `${t(lang, "fileSend.position.createHeading")}：${heading}` });
-      button.addEventListener("click", () => void withMobileClickLock(button, () => this.handleFileTargetChoice(file, heading, "heading-top", backAction, mode, true)));
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.handleFileTargetChoice(file, heading, "heading-top", backAction, true)));
     }
   }
 
@@ -1550,10 +1300,6 @@ export class ProjectSendModal extends Modal {
     return contentEl;
   }
 
-  private async renderProjectHeadingPicker(project: ProjectInfo): Promise<void> {
-    await this.renderHeadingPicker(projectInfoToTaggedFileInfo(project), () => void this.renderProjectHeadingPicker(project), () => this.renderProjectList(), "project");
-  }
-
   private defaultInsertHeading(): string {
     return this.options.defaultHeading.trim() || "收集箱";
   }
@@ -1563,7 +1309,6 @@ export class ProjectSendModal extends Modal {
     heading: string,
     position: FileInsertPosition,
     backAction?: () => void,
-    mode: "file" | "project" = "file",
     createHeadingIfMissing = false,
     targetOptions: Partial<FileSendTarget> = {}
   ): void {
@@ -1573,20 +1318,13 @@ export class ProjectSendModal extends Modal {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(this.options.language, `fileSend.position.${position === "file-start" ? "fileStart" : position === "new-heading" ? "newHeading" : "fileEnd"}`)}`,
         backAction ?? (() => this.renderCurrentMode()),
-        (task) =>
-          mode === "project"
-            ? this.chooseProjectFileTarget(file, heading, position, this.currentTemplate(), task, createHeadingIfMissing, targetOptions)
-            : this.chooseFile(file, heading, position, this.currentTemplate(), task, createHeadingIfMissing, targetOptions),
+        (task) => this.chooseFile(file, heading, position, this.currentTemplate(), task, createHeadingIfMissing, targetOptions),
         true,
         this.taskContentModeForCurrentTemplate()
       );
       return;
     }
     const task = decision === "task" ? this.defaultTaskOptions() : undefined;
-    if (mode === "project") {
-      this.chooseProjectFileTarget(file, heading, position, this.currentTemplate(), task, createHeadingIfMissing, targetOptions);
-      return;
-    }
     this.chooseFile(file, heading, position, this.currentTemplate(), task, createHeadingIfMissing, targetOptions);
   }
 
@@ -1638,11 +1376,11 @@ export class ProjectSendModal extends Modal {
     });
   }
 
-  private renderTemplateCreateButton(container: HTMLElement, target: "project" | "file", tag = ""): void {
+  private renderTemplateCreateButton(container: HTMLElement, tag = ""): void {
     const button = container.createEl("button", { cls: "memos-plus-project-add memos-plus-template-create-button", attr: { type: "button" } });
     setIcon(button, "plus");
     button.createSpan({ text: t(this.options.language, "fileTemplateLibrary.useTemplateCreate") });
-    button.addEventListener("click", () => this.openFileTemplateLibraryModal(target, tag));
+    button.addEventListener("click", () => this.openFileTemplateLibraryModal(tag));
   }
 
   private renderFileSearchCreateButton(container: HTMLElement): HTMLButtonElement {
@@ -1653,7 +1391,7 @@ export class ProjectSendModal extends Modal {
     setIcon(button, "file-plus");
     button.createSpan({ cls: "memos-plus-project-add-label" });
     this.updateFileSearchCreateButton(button);
-    button.addEventListener("click", () => void withMobileClickLock(button, () => this.openFileTemplateLibraryModal("file")));
+    button.addEventListener("click", () => void withMobileClickLock(button, () => this.openFileTemplateLibraryModal()));
     return button;
   }
 
@@ -1672,10 +1410,10 @@ export class ProjectSendModal extends Modal {
     labelEl?.setText(label);
   }
 
-  private openFileTemplateLibraryModal(target: "project" | "file", tag = "", activeTabId = "", preferredPathOverride = ""): void {
+  private openFileTemplateLibraryModal(tag = "", activeTabId = "", preferredPathOverride = ""): void {
     new FileTemplateLibraryModal(this.app, {
       language: this.options.language,
-      initialTitle: this.templateCreateTitle(target, tag),
+      initialTitle: this.templateCreateTitle(tag),
       initialTag: tag,
       preferredPath: preferredPathOverride || this.options.getPreferredFileTemplatePath?.(tag) || this.options.preferredFileTemplatePath,
       initialActiveTabId: activeTabId,
@@ -1701,16 +1439,6 @@ export class ProjectSendModal extends Modal {
         } catch (error) {
           console.error("[Memos Plus] Failed to mark file template as recent", error);
         }
-        if (target === "project") {
-          await this.renderProjectHeadingPicker({
-            file,
-            name: file.basename,
-            status: "进行中",
-            updatedAt: file.stat?.mtime ?? Date.now(),
-            isRecent: false
-          });
-          return;
-        }
         await this.renderCreatedFileHeadingPicker(file, tag);
       }
     }).open();
@@ -1718,69 +1446,11 @@ export class ProjectSendModal extends Modal {
 
   private async renderCreatedFileHeadingPicker(file: TFile, tag = ""): Promise<void> {
     const info = createdFileToTaggedFileInfo(file, tag);
-    await this.renderHeadingPicker(info, () => void this.renderCreatedFileHeadingPicker(file, tag), () => this.renderCurrentMode(), "file");
+    await this.renderHeadingPicker(info, () => void this.renderCreatedFileHeadingPicker(file, tag), () => this.renderCurrentMode());
   }
 
-  private templateCreateTitle(target: "project" | "file", tag = ""): string {
-    if (target === "project") {
-      return this.query.trim();
-    }
+  private templateCreateTitle(tag = ""): string {
     return this.fileQuery.trim() || this.tagQuery.trim() || tag;
-  }
-
-  private renderCreateProject(): void {
-    const lang = this.options.language;
-    const contentEl = this.renderFileStepHeader(t(lang, "projectSend.addProject"), () => this.renderProjectList());
-
-    const input = contentEl.createEl("input", {
-      cls: "memos-plus-project-name-input",
-      attr: { type: "text", placeholder: t(lang, "projectSend.projectNamePlaceholder") }
-    });
-    const create = contentEl.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "projectSend.createProject") });
-    const submit = async (): Promise<void> => {
-      const name = input.value.trim();
-      if (!name) {
-        new Notice(t(lang, "projectSend.projectNameRequired"));
-        focusOnDesktopOnly(input);
-        return;
-      }
-      create.setAttr("disabled", "true");
-      try {
-        const project = await this.options.onCreateProject(name);
-        if (project) {
-          await this.renderProjectHeadingPicker(project);
-        }
-      } catch (error) {
-        console.error("[Memos Plus] Failed to create project", error);
-      } finally {
-        create.removeAttribute("disabled");
-      }
-    };
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void withMobileClickLock(create, submit);
-      }
-    });
-    create.addEventListener("click", () => void withMobileClickLock(create, submit));
-    focusOnDesktopOnly(input);
-  }
-
-  private chooseProjectFileTarget(
-    file: TFile,
-    heading: string,
-    position: FileInsertPosition,
-    template = this.currentTemplate(),
-    task?: ProjectTaskOptions,
-    createHeadingIfMissing = false,
-    targetOptions: Partial<FileSendTarget> = {}
-  ): void {
-    if (this.settled) {
-      return;
-    }
-    this.settled = true;
-    this.options.onChoose({ file, section: heading, task, mode: "project", fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions }, template });
-    this.close();
   }
 
   private chooseFile(
@@ -1798,14 +1468,6 @@ export class ProjectSendModal extends Modal {
     this.settled = true;
     this.options.onChoose({ file, section: heading, task, mode: "file", fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions }, template });
     this.close();
-  }
-
-  private filteredProjects(): ProjectInfo[] {
-    const query = this.query.trim().toLowerCase();
-    if (!query) {
-      return this.projects;
-    }
-    return this.projects.filter((project) => `${project.name} ${project.status}`.toLowerCase().includes(query));
   }
 
   private renderDirectSendButton(container: HTMLElement): void {
@@ -1905,10 +1567,9 @@ export class ProjectSendModal extends Modal {
     await this.saveFileTemplateTabs(this.fileTemplateTabs);
     await this.persistTabPreferences();
     if (this.mode === "custom-tag" && this.activeFileTemplateTabId === tabId) {
-      this.mode = "tag";
+      this.mode = "search";
       this.activeFileTemplateTabId = "";
-      void this.ensureTagsLoaded();
-      this.renderTagPicker();
+      void this.renderFileSearch();
       return;
     }
     this.renderCurrentMode();
@@ -2009,18 +1670,6 @@ function projectSendTagTabsFromFileTemplateTabs(tabs: FileTemplateTab[]): string
   return uniqueTags(tabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : [])));
 }
 
-function projectInfoToTaggedFileInfo(project: ProjectInfo): TaggedFileInfo {
-  return {
-    file: project.file,
-    name: project.name,
-    path: project.file.path,
-    tags: [],
-    matchTags: [],
-    status: project.status,
-    updatedAt: project.updatedAt
-  };
-}
-
 function createdFileToTaggedFileInfo(file: TFile, tag = ""): TaggedFileInfo {
   const normalizedTag = normalizeFileTag(tag);
   const tags = normalizedTag ? [normalizedTag] : [];
@@ -2034,7 +1683,7 @@ function createdFileToTaggedFileInfo(file: TFile, tag = ""): TaggedFileInfo {
   };
 }
 
-function isFixedSendMode(id: string): id is FixedSendMode {
+function isFixedSendMode(id: string): id is SendMode {
   return (FIXED_SEND_TABS as readonly string[]).includes(id);
 }
 

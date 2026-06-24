@@ -312,7 +312,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   sendToFileDefaultTag: "",
   sendToFileCommonTags: DEFAULT_SEND_TO_FILE_COMMON_TAGS,
   projectSendTagTabs: [],
-  projectSendTabOrder: ["project", "tag", "recent", "search"],
+  projectSendTabOrder: ["search"],
   projectSendHiddenTabs: [],
   managedTemplates: [],
   fileTemplateLibraryFolder: DEFAULT_FILE_TEMPLATE_LIBRARY_FOLDER,
@@ -3220,7 +3220,7 @@ function normalizeProjectSendTagTabs(value: unknown): string[] {
   });
 }
 
-const PROJECT_SEND_FIXED_TAB_IDS = ["project", "tag", "recent", "search"] as const;
+const PROJECT_SEND_FIXED_TAB_IDS = ["search"] as const;
 const PROJECT_SEND_CUSTOM_TAB_PREFIX = "custom:";
 
 function normalizeProjectSendTabOrder(value: unknown, customTabs: FileTemplateTab[]): string[] {

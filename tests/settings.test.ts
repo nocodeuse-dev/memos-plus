@@ -171,7 +171,7 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.sendToFileDefaultTag).toBe("");
     expect(DEFAULT_SETTINGS.sendToFileCommonTags).toEqual(["病", "插件", "病例", "医学", "康复", "资料"]);
     expect(DEFAULT_SETTINGS.projectSendTagTabs).toEqual([]);
-    expect(DEFAULT_SETTINGS.projectSendTabOrder).toEqual(["project", "tag", "recent", "search"]);
+    expect(DEFAULT_SETTINGS.projectSendTabOrder).toEqual(["search"]);
     expect(DEFAULT_SETTINGS.projectSendHiddenTabs).toEqual([]);
     expect(DEFAULT_SETTINGS.managedTemplates).toEqual([]);
     expect(DEFAULT_SETTINGS.openTargetFileAfterSend).toBe(false);
@@ -581,8 +581,8 @@ describe("normalizeSettings", () => {
       sendToFileDefaultTag: "病",
       sendToFileCommonTags: ["病", "插件", "医学/疾病"],
       projectSendTagTabs: ["病", "插件", "医学/疾病"],
-      projectSendTabOrder: ["search", "project", "tag", "recent", "custom:tag-medical", "custom:group-common"],
-      projectSendHiddenTabs: ["recent"],
+      projectSendTabOrder: ["search", "custom:tag-medical", "custom:group-common"],
+      projectSendHiddenTabs: [],
       managedTemplates: [
         expect.objectContaining({
           id: "tpl",
@@ -639,7 +639,7 @@ describe("normalizeSettings", () => {
       { id: "病", name: "病", type: "tag-filter", tags: ["病"], templatePaths: [] },
       { id: "插件", name: "插件", type: "tag-filter", tags: ["插件"], templatePaths: [] }
     ]);
-    expect(settings.projectSendTabOrder).toEqual(["search", "custom:插件", "project", "tag", "recent", "custom:病"]);
+    expect(settings.projectSendTabOrder).toEqual(["search", "custom:插件", "custom:病"]);
   });
 
   it("ignores removed legacy project template fields without creating a stored format rule", () => {

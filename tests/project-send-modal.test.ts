@@ -11,16 +11,16 @@ const i18nSource = readFileSync("src/i18n.ts", "utf8");
 describe("project send modal source", () => {
   it("uses real Markdown headings for project delivery instead of fixed project sections", () => {
     expect(modalSource).toContain("ProjectSendModal");
-    expect(modalSource).toContain("renderProjectList");
-    expect(modalSource).toContain("renderProjectHeadingPicker");
     expect(modalSource).toContain("renderTaskOptions");
-    expect(modalSource).toContain("renderCreateProject");
-    expect(modalSource).toContain("projectSend.addProject");
+    expect(modalSource).not.toContain("renderProjectList");
+    expect(modalSource).not.toContain("renderProjectHeadingPicker");
+    expect(modalSource).not.toContain("renderCreateProject");
+    expect(modalSource).not.toContain("projectSend.addProject");
     expect(modalSource).not.toContain("renderSectionPicker");
     expect(modalSource).not.toContain("handleProjectSectionChoice");
     expect(modalSource).not.toContain("chooseProject(file");
     expect(modalSource).not.toContain("this.options.sections");
-    expect(modalSource).toContain("projectSend.chooseSection");
+    expect(modalSource).toContain("fileSend.selectPosition");
   });
 
   it("saves directly to the normal memo destination", () => {
@@ -80,7 +80,7 @@ describe("project send modal source", () => {
 
   it("persists template library modal tab order and default tab without mobile drag by default", () => {
     const libraryModalSource = modalSource.slice(modalSource.indexOf("class FileTemplateLibraryModal"), modalSource.indexOf("export class ProjectSendModal"));
-    const deliveryOptionsSource = deliverySource.slice(deliverySource.indexOf("new ProjectSendModal"), deliverySource.indexOf("onLoadProjects"));
+    const deliveryOptionsSource = deliverySource.slice(deliverySource.indexOf("new ProjectSendModal"), deliverySource.indexOf("onLoadFileTemplates"));
 
     expect(modalSource).toContain("fileTemplateLibraryDefaultTabId");
     expect(modalSource).toContain("fileTemplateLibraryTabOrder");
@@ -143,13 +143,20 @@ describe("project send modal source", () => {
     const fileSearchSource = modalSource.slice(modalSource.indexOf("private async renderFileSearch()"), modalSource.indexOf("private async renderFileSearchContent"));
     const modeTabsSource = modalSource.slice(modalSource.indexOf("private renderModeTabs"), modalSource.indexOf("private visibleTabIds"));
 
-    expect(modalSource).toContain('const FIXED_SEND_TABS: FixedSendMode[] = ["project", "tag", "recent", "search"];');
+    expect(modalSource).toContain('const FIXED_SEND_TABS: SendMode[] = ["search"];');
+    expect(modalSource).not.toContain('"project", "tag", "recent", "search"');
+    expect(modalSource).not.toContain("renderProjectList");
+    expect(modalSource).not.toContain("renderTagPicker");
+    expect(modalSource).not.toContain("renderRecentFiles");
+    expect(deliverySource).not.toContain("onLoadProjects");
+    expect(deliverySource).not.toContain("onLoadRecentFiles");
+    expect(deliverySource).not.toContain("onLoadTags");
     expect(modeTabsSource).not.toContain("createFileFromSearch");
     expect(fileSearchSource).toContain('memos-plus-project-search-footer');
     expect(fileSearchSource).toContain("this.renderFileSearchCreateButton(footer)");
     expect(fileSearchSource).toContain("this.updateFileSearchCreateButton(createFile)");
     expect(modalSource).toContain("private renderFileSearchCreateButton");
-    expect(modalSource).toContain('this.openFileTemplateLibraryModal("file")');
+    expect(modalSource).toContain("this.openFileTemplateLibraryModal()");
     expect(stylesSource).toContain(".memos-plus-project-search-footer");
     expect(stylesSource).toContain("position: sticky");
     expect(stylesSource).toContain("padding-bottom: 10px");
@@ -159,14 +166,14 @@ describe("project send modal source", () => {
 
   it("routes files created from the template library through the existing heading picker", () => {
     const templateModalSource = modalSource.slice(
-      modalSource.indexOf('private openFileTemplateLibraryModal(target: "project" | "file"'),
-      modalSource.indexOf('private templateCreateTitle(target: "project" | "file"')
+      modalSource.indexOf("private openFileTemplateLibraryModal("),
+      modalSource.indexOf("private templateCreateTitle(")
     );
-    const fileBranchSource = templateModalSource.slice(templateModalSource.indexOf('if (target === "project")'));
 
     expect(templateModalSource).toContain("onCreateFromFileTemplate");
-    expect(fileBranchSource).toContain("this.renderCreatedFileHeadingPicker(file, tag)");
-    expect(fileBranchSource).not.toContain("this.chooseFile(");
+    expect(templateModalSource).toContain("this.renderCreatedFileHeadingPicker(file, tag)");
+    expect(templateModalSource).not.toContain('if (target === "project")');
+    expect(templateModalSource).not.toContain("this.chooseFile(");
     expect(modalSource).toContain("fileTemplateLibrary.createFailed");
     expect(i18nSource).toContain('"fileTemplateLibrary.createFailed"');
   });
@@ -175,7 +182,7 @@ describe("project send modal source", () => {
     expect(deliverySource).toContain("ProjectSendModal");
     expect(deliverySource).toContain("selectProjectTarget");
     expect(deliverySource).toContain("taskSettings");
-    expect(deliverySource).toContain("createProject");
+    expect(deliverySource).not.toContain("createProject");
     expect(viewSource).toContain("sendContentToProject(");
   });
 
@@ -214,36 +221,22 @@ describe("project send modal source", () => {
     expect(modalSource).not.toContain("fileTargetOptionsFromTemplate");
   });
 
-  it("keeps project mode while writing through file targets", () => {
-    expect(modalSource).toContain("chooseProjectFileTarget");
-    expect(modalSource).toContain('mode: "project"');
+  it("writes send modal selections through file targets without project-only mode", () => {
+    expect(modalSource).not.toContain("chooseProjectFileTarget");
+    expect(modalSource).not.toContain('mode: "project"');
     expect(deliverySource).toContain("if (choice.fileTarget)");
     expect(deliverySource).toContain("sendToFileTarget(choice.file");
-    expect(deliverySource).toContain('choice.mode === "project"');
+    expect(deliverySource).not.toContain('choice.mode === "project"');
     expect(deliverySource).not.toContain("sendToProjectFile(choice.file");
   });
 
-  it("debounces project search without rebuilding the project modal shell", () => {
-    const projectListSource = modalSource.slice(modalSource.indexOf("private renderProjectList()"), modalSource.indexOf("private renderTagPicker()"));
-    const inputHandler = projectListSource.match(/search\.addEventListener\("input", \(\) => \{([\s\S]*?)\n {4}\}\);/)?.[1] ?? "";
-
-    expect(projectListSource).toContain("this.renderProjectListContent(list)");
-    expect(projectListSource).toContain("debounce(() => this.renderProjectListContent(list), 200)");
-    expect(inputHandler).not.toContain("renderProjectList()");
-    expect(modalSource).toContain("private renderProjectListContent(list: HTMLElement): void");
-    expect(modalSource).toContain("return this.projects;");
-  });
-
-  it("debounces tag-file and file-search inputs without rebuilding their modal shells", () => {
-    const tagPickerSource = modalSource.slice(modalSource.indexOf("private renderTagPicker()"), modalSource.indexOf("private async renderTaggedFiles"));
-    const tagInputHandler = tagPickerSource.match(/search\.addEventListener\("input", \(\) => \{([\s\S]*?)\n {4}\}\);/)?.[1] ?? "";
+  it("debounces custom tag tabs and file-search inputs without rebuilding their modal shells", () => {
+    const customTagSource = modalSource.slice(modalSource.indexOf("private async renderCustomTagFiles"), modalSource.indexOf("private async renderTemplateGroupTab"));
     const fileSearchSource = modalSource.slice(modalSource.indexOf("private async renderFileSearch()"), modalSource.indexOf("private renderFileList("));
     const fileInputHandler = fileSearchSource.match(/search\.addEventListener\("input", \(\) => \{([\s\S]*?)\n {4}\}\);/)?.[1] ?? "";
 
-    expect(tagPickerSource).toContain("this.renderTagPickerContent(list)");
-    expect(tagPickerSource).toContain("debounce(() => this.renderTagPickerContent(list), 200)");
-    expect(tagInputHandler).not.toContain("renderTagPicker()");
-    expect(modalSource).toContain("private renderTagPickerContent(list: HTMLElement): void");
+    expect(customTagSource).toContain("this.loadTaggedFileTabResults(tab)");
+    expect(customTagSource).not.toContain("renderTagPicker()");
 
     expect(fileSearchSource).toContain("void this.renderFileSearchContent(list)");
     expect(fileSearchSource).toContain("void this.renderFileSearchContent(list);");
@@ -253,11 +246,11 @@ describe("project send modal source", () => {
 
   it("uses a shared inline list item renderer with metadata for send modal lists", () => {
     expect(modalSource).toContain("private renderSendListOption");
-    expect(modalSource).toContain("private renderProjectOption");
+    expect(modalSource).not.toContain("private renderProjectOption");
     expect(modalSource).toContain("private renderFileInfoOption");
-    expect(modalSource).toContain("projectMetaParts(project)");
+    expect(modalSource).not.toContain("projectMetaParts(project)");
     expect(modalSource).toContain("fileMetaParts(info)");
-    expect(modalSource).toContain("isRecentFile(info)");
+    expect(modalSource).not.toContain("isRecentFile(info)");
     expect(modalSource).toContain("memos-plus-project-option-title-text");
     expect(modalSource).toContain("memos-plus-project-option-meta-inline");
     expect(modalSource).toContain("memos-plus-project-option-meta-text");
