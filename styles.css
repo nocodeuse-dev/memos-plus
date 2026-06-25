@@ -2711,6 +2711,39 @@
   min-width: 32px;
 }
 
+.memos-plus-mobile-template-tabs {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  height: 44px;
+  min-height: 44px;
+  margin: 4px 0 8px;
+  padding: 0 0 2px;
+  white-space: nowrap;
+}
+
+.memos-plus-mobile-template-tabs .memos-plus-file-template-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 12px;
+  transform: none;
+}
+
+.memos-plus-mobile-template-tabs .memos-plus-file-template-tab.is-active {
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+
+.memos-plus-mobile-template-search {
+  flex: 0 0 auto;
+  height: 48px;
+  min-height: 48px;
+  margin: 0 0 8px;
+}
+
 .memos-plus-file-template-list {
   display: grid;
   gap: 8px;

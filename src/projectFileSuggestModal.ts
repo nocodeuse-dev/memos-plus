@@ -648,6 +648,7 @@ export class ProjectSendModal extends Modal {
   private recentFilesCache: TaggedFileInfo[] | null = null;
   private readonly fileSearchCache = new Map<string, TaggedFileInfo[]>();
   private readonly fileHeadingsCache = new Map<string, FileHeadingInfo[]>();
+  private readonly tabSearchQueries = new Map<string, string>();
   private draggedTabId = "";
   private closed = false;
   private renderToken = 0;
@@ -957,7 +958,6 @@ export class ProjectSendModal extends Modal {
     this.mode = "custom-tag";
     this.activeFileTemplateTabId = tab.id;
     this.tagQuery = tab.tags[0] ?? tab.name;
-    const title = `${t(lang, "fileSend.selectFile")} · ${tab.tags.map((tag) => `#${tag}`).join(" / ")}`;
     this.renderShell().createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
     const renderToken = this.nextRenderToken();
     let files: TaggedFileInfo[] = [];
@@ -969,7 +969,19 @@ export class ProjectSendModal extends Modal {
     if (this.mode !== "custom-tag" || this.activeFileTemplateTabId !== tab.id || !this.isRenderTokenCurrent(renderToken, this.contentEl)) {
       return;
     }
-    this.renderFileList(files, title, () => void this.renderFileTemplateTab(tab.id), undefined, tab.tags[0] ?? "");
+    this.renderCustomTagFilesContent(tab, files);
+  }
+
+  private renderCustomTagFilesContent(tab: FileTemplateTab, files: TaggedFileInfo[]): void {
+    const contentEl = this.renderShell();
+    const tabKey = getCustomTabId(tab.id);
+    const list = contentEl.createDiv({ cls: "memos-plus-project-list" });
+    const renderList = (): void => {
+      this.renderScopedTagFileList(list, files, () => void this.renderFileTemplateTab(tab.id), tab.tags[0] ?? "", tabKey);
+    };
+    this.renderScopedTabSearchInput(contentEl, this.tabLabel(tabKey), tabKey, renderList);
+    contentEl.appendChild(list);
+    renderList();
   }
 
   private async renderTemplateGroupTab(tab: FileTemplateTab): Promise<void> {
@@ -988,18 +1000,71 @@ export class ProjectSendModal extends Modal {
     if (this.mode !== "custom-tag" || this.activeFileTemplateTabId !== tab.id || !this.isRenderTokenCurrent(renderToken, contentEl)) {
       return;
     }
-    const list = this.renderShell().createDiv({ cls: "memos-plus-file-template-list memos-plus-template-group-tab-list" });
-    const items = filterFileTemplateLibraryItemsForTab(templates, tab).slice(0, this.modalResultLimit());
+    this.renderTemplateGroupTabContent(tab, templates);
+  }
+
+  private renderTemplateGroupTabContent(tab: FileTemplateTab, templates: FileTemplateLibraryItem[]): void {
+    const contentEl = this.renderShell();
+    const tabKey = getCustomTabId(tab.id);
+    const list = contentEl.createDiv({ cls: "memos-plus-file-template-list memos-plus-template-group-tab-list" });
+    const renderList = (): void => {
+      this.renderScopedTemplateGroupList(list, templates, tab, tabKey);
+    };
+    this.renderScopedTabSearchInput(contentEl, this.tabLabel(tabKey), tabKey, renderList);
+    contentEl.appendChild(list);
+    renderList();
+    const footer = this.contentEl.createDiv({ cls: "memos-plus-project-footer" });
+    if (this.options.onSaveDefault) {
+      this.renderDirectSendButton(footer);
+    }
+  }
+
+  private renderScopedTabSearchInput(container: HTMLElement, tabLabel: string, tabKey: string, onSearch: () => void): HTMLInputElement {
+    const search = container.createEl("input", {
+      cls: "memos-plus-project-search memos-plus-project-tab-search",
+      attr: {
+        type: "search",
+        placeholder: t(this.options.language, "fileSend.searchInTab").replace("{tab}", tabLabel)
+      }
+    });
+    search.value = this.tabSearchQueries.get(tabKey) ?? "";
+    const renderDebounced = debounce(onSearch, this.modalDebounceDelay());
+    search.addEventListener("input", () => {
+      this.tabSearchQueries.set(tabKey, search.value);
+      renderDebounced();
+    });
+    return search;
+  }
+
+  private renderScopedTagFileList(
+    list: HTMLElement,
+    files: TaggedFileInfo[],
+    refresh: () => void,
+    createTag: string,
+    tabKey: string
+  ): void {
+    list.empty();
+    const query = this.tabSearchQueries.get(tabKey) ?? "";
+    const filtered = filterTaggedFilesByQuery(files, query);
+    this.renderFileListItems(list, filtered, refresh, undefined, createTag, !query.trim());
+    if (filtered.length === 0 && query.trim()) {
+      list.empty();
+      list.createDiv({ cls: "memos-plus-project-empty", text: t(this.options.language, "fileSend.noFilesInTab") });
+    }
+  }
+
+  private renderScopedTemplateGroupList(list: HTMLElement, templates: FileTemplateLibraryItem[], tab: FileTemplateTab, tabKey: string): void {
+    const lang = this.options.language;
+    list.empty();
+    const query = this.tabSearchQueries.get(tabKey) ?? "";
+    const items = filterTemplateItemsByQuery(filterFileTemplateLibraryItemsForTab(templates, tab), query).slice(0, this.modalResultLimit());
     if (items.length === 0) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileTemplateLibrary.emptyGroup") });
+      list.createDiv({ cls: "memos-plus-project-empty", text: query.trim() ? t(lang, "fileSend.noFilesInTab") : t(lang, "fileTemplateLibrary.emptyGroup") });
+      return;
     }
     for (const item of items) {
       const row = this.renderTemplateGroupOption(list, item);
       row.addEventListener("click", () => void withMobileClickLock(row, () => this.openFileTemplateLibraryModal("", item.path)));
-    }
-    const footer = this.contentEl.createDiv({ cls: "memos-plus-project-footer" });
-    if (this.options.onSaveDefault) {
-      this.renderDirectSendButton(footer);
     }
   }
 
@@ -1773,6 +1838,22 @@ function compactFilePath(path: string): string {
     return folder;
   }
   return `…/${parts.slice(-2).join("/")}`;
+}
+
+function filterTaggedFilesByQuery(files: TaggedFileInfo[], query: string): TaggedFileInfo[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return files;
+  }
+  return files.filter((file) => file.name.toLowerCase().includes(normalized) || file.path.toLowerCase().includes(normalized));
+}
+
+function filterTemplateItemsByQuery(items: FileTemplateLibraryItem[], query: string): FileTemplateLibraryItem[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return items;
+  }
+  return items.filter((item) => item.name.toLowerCase().includes(normalized) || item.path.toLowerCase().includes(normalized));
 }
 
 function startOfDay(date: Date): Date {

@@ -197,6 +197,50 @@ describe("project send modal source", () => {
     expect(i18nSource).toContain('"fileSend.noRecentFilesSearchHint": "暂无最近文件，请输入关键词搜索"');
   });
 
+  it("filters file targets inside the active tag tab without falling back to global search", () => {
+    const customTagSource = modalSource.slice(modalSource.indexOf("private async renderCustomTagFiles"), modalSource.indexOf("private async renderTemplateGroupTab"));
+    const mobileTagSource = mobilePanelSource.slice(
+      mobilePanelSource.indexOf("private async renderTagTabResults"),
+      mobilePanelSource.indexOf("private renderFileOptions")
+    );
+
+    expect(modalSource).toContain("private readonly tabSearchQueries = new Map<string, string>();");
+    expect(modalSource).toContain("private renderScopedTabSearchInput");
+    expect(modalSource).toContain("filterTaggedFilesByQuery");
+    expect(customTagSource).toContain("this.renderScopedTabSearchInput");
+    expect(customTagSource).toContain("this.renderScopedTagFileList");
+    expect(customTagSource).not.toContain("this.options.onSearchFiles");
+    expect(mobilePanelSource).toContain("private readonly tabSearchQueries = new Map<string, string>();");
+    expect(mobilePanelSource).toContain("private renderTargetSearchInput");
+    expect(mobilePanelSource).toContain("filterTaggedFilesByQuery");
+    expect(mobileTagSource).toContain("this.renderTargetSearchInput");
+    expect(mobileTagSource).not.toContain("options.onSearchFiles");
+    expect(i18nSource).toContain('"fileSend.searchInTab": "在「{tab}」中搜索"');
+    expect(i18nSource).toContain('"fileSend.noFilesInTab": "当前标签页中没有匹配文件"');
+  });
+
+  it("adds mobile template-group tabs to the template creation view", () => {
+    const mobileTemplateSource = mobilePanelSource.slice(
+      mobilePanelSource.indexOf("private async renderTemplatePicker"),
+      mobilePanelSource.indexOf("private async createFileFromTemplate")
+    );
+
+    expect(mobilePanelSource).toContain("mobileTemplateTabId");
+    expect(mobilePanelSource).toContain("mobileTemplateTabsScrollLeft");
+    expect(mobilePanelSource).toContain("mobileTemplateQuery");
+    expect(mobilePanelSource).toContain("private renderMobileTemplateTabs");
+    expect(mobilePanelSource).toContain("getVisibleFileTemplateLibraryTabIds");
+    expect(mobilePanelSource).toContain("getFileTemplateLibraryTemplateGroupTab");
+    expect(mobilePanelSource).toContain("filterFileTemplateLibraryItemsForTab");
+    expect(mobileTemplateSource).toContain("this.renderMobileTemplateTabs");
+    expect(mobileTemplateSource).toContain("this.renderMobileTemplateSearchInput");
+    expect(mobileTemplateSource).toContain("this.renderMobileTemplateList");
+    expect(mobileTemplateSource).not.toContain("FILE_TEMPLATE_LIBRARY_TAB_FAVORITE");
+    expect(mobileTemplateSource).not.toContain("FILE_TEMPLATE_LIBRARY_TAB_RECENT");
+    expect(stylesSource).toContain(".memos-plus-mobile-template-tabs");
+    expect(stylesSource).toContain(".memos-plus-mobile-template-search");
+  });
+
   it("routes files created from the template library through the existing heading picker", () => {
     const templateModalSource = modalSource.slice(
       modalSource.indexOf("private openFileTemplateLibraryModal("),
@@ -334,7 +378,6 @@ describe("project send modal source", () => {
     expect(mobilePanelSource).toContain('this.contentEl.createDiv({ cls: "memos-plus-mobile-target-search" })');
     expect(mobilePanelSource).toContain('this.contentEl.createDiv({ cls: "memos-plus-mobile-target-body" })');
     expect(mobilePanelSource).toContain('searchArea.removeClass("is-hidden")');
-    expect(mobilePanelSource).toContain('searchArea.addClass("is-hidden")');
     expect(mobilePanelSource).toContain('querySelector(".memos-plus-mobile-target-list")');
     expect(mobilePanelSource).not.toContain('const searchArea = body.createDiv({ cls: "memos-plus-mobile-target-search" })');
     expect(mobilePanelSource).not.toContain("extends Modal");

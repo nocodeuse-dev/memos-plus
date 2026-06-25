@@ -1,6 +1,10 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf, setIcon } from "obsidian";
 import {
+  FILE_TEMPLATE_LIBRARY_TAB_ALL,
   type FileTemplateLibraryItem,
+  filterFileTemplateLibraryItemsForTab,
+  getFileTemplateLibraryTemplateGroupTab,
+  getVisibleFileTemplateLibraryTabIds,
   legacyProjectSendTagsToFileTemplateTabs,
   normalizeFileTemplateTabs,
   type FileTemplateTab
@@ -42,8 +46,12 @@ export class MemosPlusMobilePanelView extends ItemView {
   private readonly searchFilesCache = new Map<string, TaggedFileInfo[]>();
   private readonly taggedFilesCache = new Map<string, TaggedFileInfo[]>();
   private readonly headingsCache = new Map<string, FileHeadingInfo[]>();
+  private readonly tabSearchQueries = new Map<string, string>();
   private fileTemplatesCache: FileTemplateLibraryItem[] | null = null;
   private tabsScrollLeft = 0;
+  private mobileTemplateTabId = FILE_TEMPLATE_LIBRARY_TAB_ALL;
+  private mobileTemplateTabsScrollLeft = 0;
+  private mobileTemplateQuery = "";
   private renderToken = 0;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
@@ -101,8 +109,12 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.searchFilesCache.clear();
     this.taggedFilesCache.clear();
     this.headingsCache.clear();
+    this.tabSearchQueries.clear();
     this.fileTemplatesCache = null;
     this.tabsScrollLeft = 0;
+    this.mobileTemplateTabId = FILE_TEMPLATE_LIBRARY_TAB_ALL;
+    this.mobileTemplateTabsScrollLeft = 0;
+    this.mobileTemplateQuery = "";
     this.nextRenderToken();
   }
 
@@ -184,30 +196,18 @@ export class MemosPlusMobilePanelView extends ItemView {
     body.empty();
     if (this.activeTabId === "search") {
       searchArea.removeClass("is-hidden");
-      const search = searchArea.createEl("input", {
-        cls: "memos-plus-project-search",
-        attr: { type: "search", placeholder: t(options.language, "fileSend.searchFiles") }
-      });
-      search.value = this.fileQuery;
       body.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results memos-plus-mobile-target-list" });
       const list = this.getTargetListEl();
       if (!list) {
         return;
       }
-      let debounceTimer: number | null = null;
-      search.addEventListener("input", () => {
-        this.fileQuery = search.value;
-        if (debounceTimer !== null) {
-          window.clearTimeout(debounceTimer);
-        }
-        debounceTimer = window.setTimeout(() => {
-          debounceTimer = null;
-          void this.renderSearchResults(list);
-        }, 180);
+      this.renderTargetSearchInput(searchArea, "search", t(options.language, "fileSend.searchFiles"), this.fileQuery, (value) => {
+        this.fileQuery = value;
+        void this.renderSearchResults(list);
       });
       void this.renderSearchResults(list);
     } else {
-      searchArea.addClass("is-hidden");
+      searchArea.removeClass("is-hidden");
       body.createDiv({ cls: "memos-plus-project-list memos-plus-mobile-target-list" });
       const list = this.getTargetListEl();
       if (!list) {
@@ -220,6 +220,35 @@ export class MemosPlusMobilePanelView extends ItemView {
   private getTargetSearchEl(): HTMLElement {
     const existing = this.contentEl.querySelector<HTMLElement>(".memos-plus-mobile-target-search");
     return existing ?? this.contentEl.createDiv({ cls: "memos-plus-mobile-target-search" });
+  }
+
+  private renderTargetSearchInput(
+    container: HTMLElement,
+    tabKey: string,
+    placeholder: string,
+    value: string,
+    onSearch: (value: string) => void
+  ): HTMLInputElement {
+    const search = container.createEl("input", {
+      cls: "memos-plus-project-search",
+      attr: { type: "search", placeholder }
+    });
+    search.value = value;
+    let debounceTimer: number | null = null;
+    search.addEventListener("input", () => {
+      const nextValue = search.value;
+      if (tabKey !== "search") {
+        this.tabSearchQueries.set(tabKey, nextValue);
+      }
+      if (debounceTimer !== null) {
+        window.clearTimeout(debounceTimer);
+      }
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null;
+        onSearch(nextValue);
+      }, 180);
+    });
+    return search;
   }
 
   private getTargetBodyEl(): HTMLElement {
@@ -339,35 +368,81 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (!options || !tab || this.step !== "chooseTarget") {
       return;
     }
+    const tabKey = customTabId(tab.id);
+    const searchArea = this.getTargetSearchEl();
+    searchArea.empty();
+    this.renderTargetSearchInput(
+      searchArea,
+      tabKey,
+      t(options.language, "fileSend.searchInTab").replace("{tab}", tab.name),
+      this.tabSearchQueries.get(tabKey) ?? "",
+      () => {
+        const cachedFiles = this.getCachedTagTabFiles(tab);
+        if (cachedFiles) {
+          this.renderMobileTagFileList(list, cachedFiles, tabKey);
+        }
+      }
+    );
     const token = this.nextRenderToken();
     list.empty();
     list.createDiv({ cls: "memos-plus-project-empty", text: t(options.language, "common.loading") });
-    const byPath = new Map<string, TaggedFileInfo>();
+    let files: TaggedFileInfo[] = [];
     try {
-      for (const tag of tab.tags) {
-        const key = tag.trim().toLowerCase();
-        const cached = this.taggedFilesCache.get(key);
-        const files = cached ?? (await options.onLoadTaggedFiles(tag));
-        this.taggedFilesCache.set(key, files);
-        for (const file of files) {
-          byPath.set(file.path, file);
-        }
-      }
+      files = await this.loadMobileTagTabFiles(tab);
     } catch (error) {
       console.error("[Memos Plus] Failed to load mobile tag file targets", error);
     }
     if (!this.isRenderCurrent(token, list)) {
       return;
     }
-    const files = [...byPath.values()]
-      .sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name))
-      .slice(0, MOBILE_RESULT_LIMIT);
-    list.empty();
-    if (files.length === 0) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(options.language, "fileSend.noFiles") });
+    this.renderMobileTagFileList(list, files, tabKey);
+  }
+
+  private async loadMobileTagTabFiles(tab: FileTemplateTab): Promise<TaggedFileInfo[]> {
+    const options = this.options;
+    const byPath = new Map<string, TaggedFileInfo>();
+    if (!options) {
+      return [];
+    }
+    for (const tag of tab.tags) {
+      const key = tag.trim().toLowerCase();
+      const cached = this.taggedFilesCache.get(key);
+      const files = cached ?? (await options.onLoadTaggedFiles(tag));
+      this.taggedFilesCache.set(key, files);
+      for (const file of files) {
+        byPath.set(file.path, file);
+      }
+    }
+    return [...byPath.values()].sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
+  }
+
+  private getCachedTagTabFiles(tab: FileTemplateTab): TaggedFileInfo[] | null {
+    const byPath = new Map<string, TaggedFileInfo>();
+    for (const tag of tab.tags) {
+      const cached = this.taggedFilesCache.get(tag.trim().toLowerCase());
+      if (!cached) {
+        return null;
+      }
+      for (const file of cached) {
+        byPath.set(file.path, file);
+      }
+    }
+    return [...byPath.values()].sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
+  }
+
+  private renderMobileTagFileList(list: HTMLElement, files: TaggedFileInfo[], tabKey: string): void {
+    const options = this.options;
+    if (!options) {
       return;
     }
-    this.renderFileOptions(list, files);
+    const query = this.tabSearchQueries.get(tabKey) ?? "";
+    const shown = filterTaggedFilesByQuery(files, query).slice(0, MOBILE_RESULT_LIMIT);
+    list.empty();
+    if (shown.length === 0) {
+      list.createDiv({ cls: "memos-plus-project-empty", text: query.trim() ? t(options.language, "fileSend.noFilesInTab") : t(options.language, "fileSend.noFiles") });
+      return;
+    }
+    this.renderFileOptions(list, shown);
   }
 
   private renderFileOptions(list: HTMLElement, files: TaggedFileInfo[]): void {
@@ -544,6 +619,8 @@ export class MemosPlusMobilePanelView extends ItemView {
     titleInput.value = initialTitle;
     const tagInput = createTextField(content, t(options.language, "settings.sendToFileDefaultTag"), initialTag);
     tagInput.value = initialTag;
+    const tabs = this.renderMobileTemplateTabs(content);
+    const search = this.renderMobileTemplateSearchInput(content);
     const list = content.createDiv({ cls: "memos-plus-file-template-list memos-plus-mobile-template-list" });
     list.createDiv({ cls: "memos-plus-project-empty", text: t(options.language, "common.loading") });
     const token = this.nextRenderToken();
@@ -557,12 +634,98 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (!this.isRenderCurrent(token, list) || this.step !== "chooseTemplate") {
       return;
     }
-    list.empty();
-    if (templates.length === 0) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(options.language, "fileTemplateLibrary.empty") });
+    this.renderMobileTemplateList(list, templates, titleInput, tagInput);
+    search.addEventListener("input", () => {
+      this.mobileTemplateQuery = search.value;
+      this.renderMobileTemplateList(list, templates, titleInput, tagInput);
+    });
+    tabs.querySelectorAll<HTMLButtonElement>(".memos-plus-mobile-template-tab").forEach((button) => {
+      button.addEventListener("click", () => {
+        const tabId = button.dataset.tabId ?? FILE_TEMPLATE_LIBRARY_TAB_ALL;
+        this.mobileTemplateTabsScrollLeft = tabs.scrollLeft;
+        this.mobileTemplateTabId = tabId;
+        tabs.querySelectorAll<HTMLButtonElement>(".memos-plus-mobile-template-tab").forEach((tabButton) => {
+          const isActive = tabButton.dataset.tabId === tabId;
+          tabButton.toggleClass("is-active", isActive);
+          tabButton.setAttr("aria-pressed", String(isActive));
+        });
+        search.setAttr("placeholder", this.mobileTemplateSearchPlaceholder());
+        this.renderMobileTemplateList(list, templates, titleInput, tagInput);
+        tabs.scrollLeft = this.mobileTemplateTabsScrollLeft;
+      });
+    });
+  }
+
+  private renderMobileTemplateTabs(container: HTMLElement): HTMLElement {
+    const options = this.options;
+    const tabs = container.createDiv({ cls: "memos-plus-file-template-tabs memos-plus-mobile-template-tabs" });
+    if (!options) {
+      return tabs;
+    }
+    const tabIds = getVisibleFileTemplateLibraryTabIds(this.fileTemplateTabs, options.fileTemplateLibraryTabOrder);
+    if (!tabIds.includes(this.mobileTemplateTabId)) {
+      this.mobileTemplateTabId = FILE_TEMPLATE_LIBRARY_TAB_ALL;
+    }
+    for (const id of tabIds) {
+      const label =
+        id === FILE_TEMPLATE_LIBRARY_TAB_ALL
+          ? t(options.language, "fileTemplateLibrary.category.all")
+          : getFileTemplateLibraryTemplateGroupTab(id, this.fileTemplateTabs)?.name ?? id;
+      const isActive = id === this.mobileTemplateTabId;
+      tabs.createEl("button", {
+        cls: `memos-plus-file-template-tab memos-plus-mobile-template-tab${isActive ? " is-active" : ""}`,
+        attr: { type: "button", "aria-pressed": String(isActive), "data-tab-id": id },
+        text: label
+      });
+    }
+    tabs.scrollLeft = this.mobileTemplateTabsScrollLeft;
+    tabs.addEventListener("scroll", () => {
+      this.mobileTemplateTabsScrollLeft = tabs.scrollLeft;
+    });
+    return tabs;
+  }
+
+  private renderMobileTemplateSearchInput(container: HTMLElement): HTMLInputElement {
+    const search = container.createEl("input", {
+      cls: "memos-plus-project-search memos-plus-mobile-template-search",
+      attr: { type: "search", placeholder: this.mobileTemplateSearchPlaceholder() }
+    });
+    search.value = this.mobileTemplateQuery;
+    return search;
+  }
+
+  private mobileTemplateSearchPlaceholder(): string {
+    const options = this.options;
+    if (!options || this.mobileTemplateTabId === FILE_TEMPLATE_LIBRARY_TAB_ALL) {
+      return t(options?.language, "fileSend.searchFiles");
+    }
+    const label = getFileTemplateLibraryTemplateGroupTab(this.mobileTemplateTabId, this.fileTemplateTabs)?.name ?? this.mobileTemplateTabId;
+    return t(options.language, "fileSend.searchInTab").replace("{tab}", label);
+  }
+
+  private renderMobileTemplateList(
+    list: HTMLElement,
+    templates: FileTemplateLibraryItem[],
+    titleInput: HTMLInputElement,
+    tagInput: HTMLInputElement
+  ): void {
+    const options = this.options;
+    if (!options) {
       return;
     }
-    for (const item of templates.slice(0, MOBILE_RESULT_LIMIT)) {
+    list.empty();
+    const items = filterTemplateItemsByQuery(this.mobileTemplateItems(templates), this.mobileTemplateQuery).slice(0, MOBILE_RESULT_LIMIT);
+    if (items.length === 0) {
+      list.createDiv({
+        cls: "memos-plus-project-empty",
+        text:
+          this.mobileTemplateQuery.trim() || this.mobileTemplateTabId === FILE_TEMPLATE_LIBRARY_TAB_ALL
+            ? t(options.language, "fileTemplateLibrary.empty")
+            : t(options.language, "fileTemplateLibrary.emptyGroup")
+      });
+      return;
+    }
+    for (const item of items) {
       const row = list.createEl("button", { cls: "memos-plus-file-template-item", attr: { type: "button" } });
       const info = row.createDiv({ cls: "memos-plus-file-template-item-info" });
       const title = info.createDiv({ cls: "memos-plus-file-template-item-title" });
@@ -573,6 +736,14 @@ export class MemosPlusMobilePanelView extends ItemView {
         void withMobileClickLock(row, () => this.createFileFromTemplate(row, item, titleInput.value.trim(), tagInput.value.trim()))
       );
     }
+  }
+
+  private mobileTemplateItems(templates: FileTemplateLibraryItem[]): FileTemplateLibraryItem[] {
+    if (this.mobileTemplateTabId === FILE_TEMPLATE_LIBRARY_TAB_ALL) {
+      return templates;
+    }
+    const tab = getFileTemplateLibraryTemplateGroupTab(this.mobileTemplateTabId, this.fileTemplateTabs);
+    return tab ? filterFileTemplateLibraryItemsForTab(templates, tab) : [];
   }
 
   private async createFileFromTemplate(button: HTMLButtonElement, item: FileTemplateLibraryItem, title: string, tag: string): Promise<void> {
@@ -748,6 +919,22 @@ function compactFilePath(path: string): string {
     return path;
   }
   return `${parts[0]}/…/${parts[parts.length - 1]}`;
+}
+
+function filterTaggedFilesByQuery(files: TaggedFileInfo[], query: string): TaggedFileInfo[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return files;
+  }
+  return files.filter((file) => file.name.toLowerCase().includes(normalized) || file.path.toLowerCase().includes(normalized));
+}
+
+function filterTemplateItemsByQuery(items: FileTemplateLibraryItem[], query: string): FileTemplateLibraryItem[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return items;
+  }
+  return items.filter((item) => item.name.toLowerCase().includes(normalized) || item.path.toLowerCase().includes(normalized));
 }
 
 function formatUpdatedAt(timestamp: number): string {
