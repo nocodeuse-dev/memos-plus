@@ -80,7 +80,6 @@ Memos Plus is distributed through GitHub Releases. Each release attaches:
 - `main.js`
 - `manifest.json`
 - `styles.css`
-- `memos-plus-<version>.zip`
 
 For Steamboy, BRAT should track this repository as a latest-version beta plugin:
 
@@ -99,14 +98,14 @@ npm run install:github
 To install a specific release tag instead:
 
 ```bash
-npm run install:github -- --tag v0.1.123
+npm run install:github -- --tag 0.1.123
 ```
 
 To reinstall from GitHub as a completely fresh plugin and discard old plugin
 settings:
 
 ```bash
-npm run install:github -- --tag v0.1.123 --clean --discard-data
+npm run install:github -- --tag 0.1.123 --clean --discard-data
 ```
 
 ## Publish a Release
@@ -117,14 +116,14 @@ Before publishing, make sure the version in `package.json`, `package-lock.json`,
 ```bash
 npm test
 npm run build
-npm run check:release-version -- v0.1.123
-git tag v0.1.123
-git push origin main v0.1.123
+npm run check:release-version -- 0.1.123
+git tag 0.1.123
+git push origin main 0.1.123
 ```
 
 The GitHub Actions release workflow runs tests, checks the release version,
-builds `main.js`, packages the release zip, and publishes the four release
-assets for BRAT and manual installation.
+builds `main.js`, and publishes the three Obsidian release assets:
+`main.js`, `manifest.json`, and `styles.css`.
 
 For normal plugin changes, prefer:
 
