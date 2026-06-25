@@ -1,4 +1,4 @@
-import { App, type TFile } from "obsidian";
+import { App, Platform, type TFile } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { normalizeFileTag } from "./fileSend";
 import {
@@ -11,7 +11,7 @@ import {
 import type { MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 import { updateRecentFileTargetPaths } from "./fileSend";
-import { ProjectSendModal, type ProjectSendChoice } from "./projectFileSuggestModal";
+import { ProjectSendModal, type ProjectSendChoice, type ProjectSendModalOptions } from "./projectFileSuggestModal";
 import { createDefaultProjectTemplate, resolveTemplateClearAfterSend, type ManagedTemplate } from "./templateManager";
 
 export interface ProjectDeliveryHost {
@@ -19,6 +19,7 @@ export interface ProjectDeliveryHost {
   store: MemosPlusStore;
   settings: MemosPlusSettings;
   persistSettings: () => Promise<void>;
+  selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
 }
 
 export interface ProjectDeliveryResult {
@@ -92,100 +93,104 @@ async function selectProjectTarget(
 ): Promise<ProjectSendChoice | null> {
   const selectedInitialTemplate = initialTemplate ?? chooseInitialFormatRule(host.settings, initialMode);
   const formatRules = templates ?? availableTemplates(host.settings, selectedInitialTemplate);
+  const modalOptions: ProjectSendModalOptions = {
+    language: host.settings.language,
+    content,
+    defaultHeading: host.settings.defaultProjectSection,
+    initialMode,
+    taskSettings: {
+      enabled: host.settings.tasksFormatEnabled,
+      defaultSection: host.settings.taskDefaultSection,
+      addCreatedDate: host.settings.taskAddCreatedDate,
+      defaultPriority: host.settings.taskDefaultPriority,
+      defaultDueDate: host.settings.taskDefaultDueDate,
+      defaultScheduledDate: host.settings.taskDefaultScheduledDate,
+      defaultRecurrence: host.settings.taskDefaultRecurrence,
+      promptOnCreate: host.settings.taskPromptOnCreate
+    },
+    enableFileTargets: host.settings.sendToFileEnabled,
+    customTagTabs: host.settings.projectSendTagTabs,
+    fileTemplateTabs: host.settings.fileTemplateTabs,
+    fileTemplateTabInteraction: host.settings.fileTemplateTabInteraction,
+    performanceSettings: {
+      mobilePerformanceMode: host.settings.mobilePerformanceMode,
+      performanceSafeMode: host.settings.performanceSafeMode
+    },
+    fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId,
+    fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder,
+    tabOrder: host.settings.projectSendTabOrder,
+    hiddenTabs: host.settings.projectSendHiddenTabs,
+    templates: formatRules,
+    initialTemplateId: selectedInitialTemplate.id,
+    defaultFileTag: host.settings.sendToFileDefaultTag,
+    defaultFileInsertPosition: host.settings.sendToFileDefaultInsertPosition,
+    noHeadingBehavior: host.settings.sendToFileNoHeadingBehavior,
+    onLoadFileTemplates: () => host.store.getFileTemplateLibraryItems(),
+    onCreateFromFileTemplate: async (templatePath, title, tag) => host.store.createFileFromLibraryTemplate(templatePath, title, { tag }),
+    onToggleFileTemplateFavorite: async (templatePath) => {
+      host.settings.fileTemplateLibraryFavorites = toggleFavoriteFileTemplatePath(host.settings.fileTemplateLibraryFavorites, templatePath);
+      await host.persistSettings();
+    },
+    onDeleteFileTemplate: async (templatePath) => {
+      await host.store.deleteFileTemplate(templatePath);
+      host.settings.fileTemplateLibraryFavorites = host.settings.fileTemplateLibraryFavorites.filter((item) => item !== templatePath);
+      host.settings.fileTemplateLibraryRecent = host.settings.fileTemplateLibraryRecent.filter((item) => item !== templatePath);
+      for (const [tag, path] of Object.entries(host.settings.fileTemplateLibraryDefaults)) {
+        if (path === templatePath) {
+          delete host.settings.fileTemplateLibraryDefaults[tag];
+        }
+      }
+      await host.persistSettings();
+    },
+    onMarkFileTemplateRecent: async (templatePath) => {
+      host.settings.fileTemplateLibraryRecent = updateRecentFileTemplatePaths(host.settings.fileTemplateLibraryRecent, templatePath);
+      await host.persistSettings();
+    },
+    preferredFileTemplatePath: "",
+    getPreferredFileTemplatePath: (tag) => preferredFileTemplatePathForTag(host.settings, tag),
+    onLoadTaggedFiles: (tagQuery) => host.store.getTaggedFileTargets(tagQuery),
+    onLoadRecentFiles: () => host.store.getRecentFileTargets(),
+    onSearchFiles: (query) => host.store.searchFileTargets(query),
+    onLoadHeadings: (file) => host.store.getFileTargetHeadings(file),
+    onSaveCustomTagTabs: async (tags) => {
+      host.settings.projectSendTagTabs = tags;
+      await host.persistSettings();
+    },
+    onSaveFileTemplateTabs: async (tabs) => {
+      host.settings.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
+      host.settings.projectSendTagTabs = host.settings.fileTemplateTabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : []));
+      host.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(
+        host.settings.fileTemplateTabs,
+        host.settings.fileTemplateLibraryTabOrder
+      );
+      host.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(
+        host.settings.fileTemplateLibraryDefaultTabId,
+        host.settings.fileTemplateTabs
+      );
+      await host.persistSettings();
+    },
+    onSaveFileTemplateLibraryPreferences: async ({ defaultTabId, tabOrder }) => {
+      if (tabOrder) {
+        host.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(host.settings.fileTemplateTabs, tabOrder);
+      }
+      if (defaultTabId) {
+        host.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(defaultTabId, host.settings.fileTemplateTabs);
+      }
+      await host.persistSettings();
+    },
+    onSaveTabPreferences: async ({ tabOrder, hiddenTabs }) => {
+      host.settings.projectSendTabOrder = tabOrder;
+      host.settings.projectSendHiddenTabs = hiddenTabs;
+      await host.persistSettings();
+    },
+    onSaveDefault,
+    onChoose: () => undefined
+  };
+  if (Platform.isMobile && host.settings.mobileInteractionMode === "view" && host.selectProjectTargetOnMobile) {
+    return host.selectProjectTargetOnMobile(modalOptions);
+  }
   return new Promise((resolve) => {
-    new ProjectSendModal(host.app, {
-      language: host.settings.language,
-      content,
-      defaultHeading: host.settings.defaultProjectSection,
-      initialMode,
-      taskSettings: {
-        enabled: host.settings.tasksFormatEnabled,
-        defaultSection: host.settings.taskDefaultSection,
-        addCreatedDate: host.settings.taskAddCreatedDate,
-        defaultPriority: host.settings.taskDefaultPriority,
-        defaultDueDate: host.settings.taskDefaultDueDate,
-        defaultScheduledDate: host.settings.taskDefaultScheduledDate,
-        defaultRecurrence: host.settings.taskDefaultRecurrence,
-        promptOnCreate: host.settings.taskPromptOnCreate
-      },
-      enableFileTargets: host.settings.sendToFileEnabled,
-      customTagTabs: host.settings.projectSendTagTabs,
-      fileTemplateTabs: host.settings.fileTemplateTabs,
-      fileTemplateTabInteraction: host.settings.fileTemplateTabInteraction,
-      performanceSettings: {
-        mobilePerformanceMode: host.settings.mobilePerformanceMode,
-        performanceSafeMode: host.settings.performanceSafeMode
-      },
-      fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId,
-      fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder,
-      tabOrder: host.settings.projectSendTabOrder,
-      hiddenTabs: host.settings.projectSendHiddenTabs,
-      templates: formatRules,
-      initialTemplateId: selectedInitialTemplate.id,
-      defaultFileTag: host.settings.sendToFileDefaultTag,
-      defaultFileInsertPosition: host.settings.sendToFileDefaultInsertPosition,
-      noHeadingBehavior: host.settings.sendToFileNoHeadingBehavior,
-      onLoadFileTemplates: () => host.store.getFileTemplateLibraryItems(),
-      onCreateFromFileTemplate: async (templatePath, title, tag) => host.store.createFileFromLibraryTemplate(templatePath, title, { tag }),
-      onToggleFileTemplateFavorite: async (templatePath) => {
-        host.settings.fileTemplateLibraryFavorites = toggleFavoriteFileTemplatePath(host.settings.fileTemplateLibraryFavorites, templatePath);
-        await host.persistSettings();
-      },
-      onDeleteFileTemplate: async (templatePath) => {
-        await host.store.deleteFileTemplate(templatePath);
-        host.settings.fileTemplateLibraryFavorites = host.settings.fileTemplateLibraryFavorites.filter((item) => item !== templatePath);
-        host.settings.fileTemplateLibraryRecent = host.settings.fileTemplateLibraryRecent.filter((item) => item !== templatePath);
-        for (const [tag, path] of Object.entries(host.settings.fileTemplateLibraryDefaults)) {
-          if (path === templatePath) {
-            delete host.settings.fileTemplateLibraryDefaults[tag];
-          }
-        }
-        await host.persistSettings();
-      },
-      onMarkFileTemplateRecent: async (templatePath) => {
-        host.settings.fileTemplateLibraryRecent = updateRecentFileTemplatePaths(host.settings.fileTemplateLibraryRecent, templatePath);
-        await host.persistSettings();
-      },
-      preferredFileTemplatePath: "",
-      getPreferredFileTemplatePath: (tag) => preferredFileTemplatePathForTag(host.settings, tag),
-      onLoadTaggedFiles: (tagQuery) => host.store.getTaggedFileTargets(tagQuery),
-      onLoadRecentFiles: () => host.store.getRecentFileTargets(),
-      onSearchFiles: (query) => host.store.searchFileTargets(query),
-      onLoadHeadings: (file) => host.store.getFileTargetHeadings(file),
-      onSaveCustomTagTabs: async (tags) => {
-        host.settings.projectSendTagTabs = tags;
-        await host.persistSettings();
-      },
-      onSaveFileTemplateTabs: async (tabs) => {
-        host.settings.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
-        host.settings.projectSendTagTabs = host.settings.fileTemplateTabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : []));
-        host.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(
-          host.settings.fileTemplateTabs,
-          host.settings.fileTemplateLibraryTabOrder
-        );
-        host.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(
-          host.settings.fileTemplateLibraryDefaultTabId,
-          host.settings.fileTemplateTabs
-        );
-        await host.persistSettings();
-      },
-      onSaveFileTemplateLibraryPreferences: async ({ defaultTabId, tabOrder }) => {
-        if (tabOrder) {
-          host.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(host.settings.fileTemplateTabs, tabOrder);
-        }
-        if (defaultTabId) {
-          host.settings.fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(defaultTabId, host.settings.fileTemplateTabs);
-        }
-        await host.persistSettings();
-      },
-      onSaveTabPreferences: async ({ tabOrder, hiddenTabs }) => {
-        host.settings.projectSendTabOrder = tabOrder;
-        host.settings.projectSendHiddenTabs = hiddenTabs;
-        await host.persistSettings();
-      },
-      onSaveDefault,
-      onChoose: resolve
-    }).open();
+    new ProjectSendModal(host.app, { ...modalOptions, onChoose: resolve }).open();
   });
 }
 

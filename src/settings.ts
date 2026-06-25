@@ -190,6 +190,7 @@ export interface MemosPlusSettings {
   pageSize: number;
   performanceDebugMode: boolean;
   mobilePerformanceMode: boolean;
+  mobileInteractionMode: MobileInteractionMode;
   performanceSafeMode: boolean;
   showArchived: boolean;
   mobileFab: boolean;
@@ -255,6 +256,7 @@ export const DEFAULT_COMPOSER_BACKGROUND_COLOR = "";
 const COMPOSER_BACKGROUND_COLOR_PICKER_FALLBACK = "#1f1f1f";
 
 export type DefaultSendAction = "memo" | "project" | "ask";
+export type MobileInteractionMode = "view" | "modal";
 export type QuickCaptureClipboardMode = "ask" | "replace" | "append" | "off";
 export type QuickCaptureExistingContentMode = "ask" | "keep" | "replace" | "append";
 
@@ -308,6 +310,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   pageSize: 50,
   performanceDebugMode: false,
   mobilePerformanceMode: true,
+  mobileInteractionMode: "view",
   performanceSafeMode: false,
   showArchived: false,
   mobileFab: true,
@@ -554,6 +557,7 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     pageSize: typeof raw.pageSize === "number" ? raw.pageSize : DEFAULT_SETTINGS.pageSize,
     performanceDebugMode: typeof raw.performanceDebugMode === "boolean" ? raw.performanceDebugMode : DEFAULT_SETTINGS.performanceDebugMode,
     mobilePerformanceMode: typeof raw.mobilePerformanceMode === "boolean" ? raw.mobilePerformanceMode : DEFAULT_SETTINGS.mobilePerformanceMode,
+    mobileInteractionMode: normalizeMobileInteractionMode(raw.mobileInteractionMode),
     performanceSafeMode: typeof raw.performanceSafeMode === "boolean" ? raw.performanceSafeMode : DEFAULT_SETTINGS.performanceSafeMode,
     showArchived: typeof raw.showArchived === "boolean" ? raw.showArchived : DEFAULT_SETTINGS.showArchived,
     mobileFab: typeof raw.mobileFab === "boolean" ? raw.mobileFab : DEFAULT_SETTINGS.mobileFab,
@@ -2120,6 +2124,19 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         })
       );
     new Setting(container)
+      .setName(t(lang, "settings.mobileInteractionMode"))
+      .setDesc(t(lang, "settings.mobileInteractionModeDesc"))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("view", t(lang, "mobileInteractionMode.view"))
+          .addOption("modal", t(lang, "mobileInteractionMode.modal"))
+          .setValue(this.plugin.settings.mobileInteractionMode)
+          .onChange(async (value) => {
+            this.plugin.settings.mobileInteractionMode = normalizeMobileInteractionMode(value);
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
       .setName(t(lang, "settings.performanceSafeMode"))
       .setDesc(t(lang, "settings.performanceSafeModeDesc"))
       .addToggle((toggle) =>
@@ -3671,6 +3688,10 @@ function normalizeDefaultSendAction(value: unknown): DefaultSendAction {
     return value;
   }
   return "project";
+}
+
+function normalizeMobileInteractionMode(value: unknown): MobileInteractionMode {
+  return value === "modal" ? "modal" : "view";
 }
 
 export function normalizeQuickInputSendAction(value: unknown): DefaultSendAction {

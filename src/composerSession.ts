@@ -1,6 +1,7 @@
 import { Notice, Platform, type App } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { createComposerActions, type ComposerActions, type ComposerActionsOptions, type ComposerProjectMode } from "./composerActions";
+import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
 import { ComposerWidget, type ComposerInputChangeSource, type ComposerSurface } from "./composerWidget";
 import type { DisplayModuleId } from "./displayModules";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
@@ -27,6 +28,7 @@ export interface ComposerSessionHost {
   refreshViews: () => Promise<void>;
   registerCleanup?: (cleanup: () => void) => void;
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
+  selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
 }
 
 export interface ComposerSessionOptions extends ComposerActionsOptions {
@@ -89,7 +91,8 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
       store: host.store,
       settings: host.settings,
       persistSettings: host.persistSettings,
-      refreshViews: host.refreshViews
+      refreshViews: host.refreshViews,
+      selectProjectTargetOnMobile: host.selectProjectTargetOnMobile
     },
     () => widget,
     {

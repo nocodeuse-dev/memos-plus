@@ -596,7 +596,8 @@ export class MemosPlusView extends ItemView {
       persistSettings: () => this.plugin.persistSettings(),
       refreshViews: () => this.reload(),
       registerCleanup: (cleanup) => this.register(cleanup),
-      resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text)
+      resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text),
+      selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
     }, {
       surface,
       displayModules: modules
@@ -1610,7 +1611,8 @@ export class MemosPlusView extends ItemView {
           app: this.app,
           store: this.plugin.store,
           settings: this.plugin.settings,
-          persistSettings: () => this.plugin.persistSettings()
+          persistSettings: () => this.plugin.persistSettings(),
+          selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
         },
         memo.content,
         {
@@ -1732,12 +1734,13 @@ export class MemosPlusView extends ItemView {
     setIcon(button, "plus");
     button.addEventListener("click", () => {
       new QuickCaptureModal(this.app, {
-        settings: this.plugin.settings,
-        store: this.plugin.store,
-        persistSettings: () => this.plugin.persistSettings(),
-        refreshViews: () => this.plugin.refreshViews(),
-        resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text)
-      }).open();
+          settings: this.plugin.settings,
+          store: this.plugin.store,
+          persistSettings: () => this.plugin.persistSettings(),
+          refreshViews: () => this.plugin.refreshViews(),
+          resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text),
+          selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
+        }).open();
     });
   }
 

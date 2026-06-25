@@ -3,6 +3,7 @@ import { prepareCalloutContent } from "./callout";
 import type { ComposerWidget } from "./composerWidget";
 import { t } from "./i18n";
 import { maybeOpenTargetFileAfterSend, sendContentToProject, type ProjectDeliveryResult } from "./projectDelivery";
+import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
 import type { DefaultSendAction, MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 
@@ -14,6 +15,7 @@ export interface ComposerActionsHost {
   settings: MemosPlusSettings;
   persistSettings: () => Promise<void>;
   refreshViews: () => Promise<void>;
+  selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
 }
 
 export interface ComposerActionsOptions {
@@ -81,7 +83,8 @@ export function createComposerActions(
           app: host.app,
           store: host.store,
           settings: host.settings,
-          persistSettings: host.persistSettings
+          persistSettings: host.persistSettings,
+          selectProjectTargetOnMobile: host.selectProjectTargetOnMobile
         },
         content,
         {

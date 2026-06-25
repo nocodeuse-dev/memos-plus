@@ -1573,6 +1573,11 @@
   --memos-plus-mobile-viewport-top: 0px;
 }
 
+.memos-plus-modal-suspended {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .memos-plus-save-button,
 .memos-plus-load-more {
   border: 0;
@@ -2151,6 +2156,66 @@
   min-width: 0;
 }
 
+.memos-plus-mobile-panel-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.memos-plus-mobile-panel-view *,
+.memos-plus-mobile-panel-view *::before,
+.memos-plus-mobile-panel-view *::after {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.memos-plus-mobile-panel-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.memos-plus-mobile-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memos-plus-mobile-panel-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.memos-plus-mobile-panel-view .memos-plus-project-list {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 0;
+  padding-bottom: 96px;
+}
+
+.memos-plus-mobile-panel-footer {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 8px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--background-primary);
+}
+
 .memos-plus-project-send-tabs {
   display: flex;
   align-items: flex-end;
@@ -2231,7 +2296,8 @@
   padding-bottom: 10px;
 }
 
-.memos-plus-project-send-modal button.memos-plus-project-option {
+.memos-plus-project-send-modal button.memos-plus-project-option,
+.memos-plus-mobile-panel-view button.memos-plus-project-option {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -2253,7 +2319,8 @@
   overflow: hidden;
 }
 
-.memos-plus-project-send-modal button.memos-plus-project-option:hover {
+.memos-plus-project-send-modal button.memos-plus-project-option:hover,
+.memos-plus-mobile-panel-view button.memos-plus-project-option:hover {
   background: var(--background-modifier-hover);
 }
 

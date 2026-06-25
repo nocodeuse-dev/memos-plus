@@ -38,14 +38,14 @@ import { createTaskOptionsForm } from "./taskOptionsForm";
 import { resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
 
-type ProjectSendInitialMode = "project" | "tag" | "recent" | "search";
+export type ProjectSendInitialMode = "project" | "tag" | "recent" | "search";
 type SendMode = "search" | "custom-tag";
 
 const FIXED_SEND_TABS: SendMode[] = ["search"];
 const CUSTOM_TAB_PREFIX = "custom:";
 const MOBILE_EMPTY_SEARCH_RECENT_FILE_LIMIT = 10;
 
-interface ModalPerformanceSettings {
+export interface ModalPerformanceSettings {
   mobilePerformanceMode: boolean;
   performanceSafeMode: boolean;
 }
@@ -70,7 +70,7 @@ export interface ProjectSendTaskSettings {
   promptOnCreate: boolean;
 }
 
-interface ProjectSendModalOptions {
+export interface ProjectSendModalOptions {
   language: Language;
   content: string;
   defaultHeading: string;

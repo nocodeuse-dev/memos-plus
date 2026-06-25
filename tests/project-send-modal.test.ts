@@ -80,7 +80,7 @@ describe("project send modal source", () => {
 
   it("keeps the template library modal to all plus template groups and the add entry", () => {
     const libraryModalSource = modalSource.slice(modalSource.indexOf("class FileTemplateLibraryModal"), modalSource.indexOf("export class ProjectSendModal"));
-    const deliveryOptionsSource = deliverySource.slice(deliverySource.indexOf("new ProjectSendModal"), deliverySource.indexOf("onLoadFileTemplates"));
+    const deliveryOptionsSource = deliverySource.slice(deliverySource.indexOf("const modalOptions"), deliverySource.indexOf("onLoadFileTemplates"));
 
     expect(libraryModalSource).toContain("FILE_TEMPLATE_LIBRARY_TAB_ALL");
     expect(libraryModalSource).toContain("fileTemplateLibrary.category.all");

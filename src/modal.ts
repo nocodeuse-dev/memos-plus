@@ -5,6 +5,7 @@ import { t } from "./i18n";
 import { focusOnDesktopOnly } from "./modalFocus";
 import { registerMemosPlusModalClose, registerMemosPlusModalOpen } from "./mobileModalSafety";
 import type { QuickCaptureInitialContentMode } from "./quickCaptureContent";
+import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
 import type { MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 
@@ -17,6 +18,7 @@ export interface QuickCaptureModalOptions {
   initialContentMode?: QuickCaptureInitialContentMode;
   showClipboardEmptyNotice?: boolean;
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
+  selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
 }
 
 export class QuickCaptureModal extends Modal {
@@ -44,7 +46,19 @@ export class QuickCaptureModal extends Modal {
       persistSettings: this.options.persistSettings,
       refreshViews: this.options.refreshViews,
       registerCleanup: (cleanup) => this.cleanups.push(cleanup),
-      resolveMarkdownLink: this.options.resolveMarkdownLink
+      resolveMarkdownLink: this.options.resolveMarkdownLink,
+      selectProjectTargetOnMobile: async (options) => {
+        const selectProjectTargetOnMobile = this.options.selectProjectTargetOnMobile;
+        if (!selectProjectTargetOnMobile) {
+          return null;
+        }
+        this.modalEl.addClass("memos-plus-modal-suspended");
+        try {
+          return await selectProjectTargetOnMobile(options);
+        } finally {
+          this.modalEl.removeClass("memos-plus-modal-suspended");
+        }
+      }
     }, {
       surface: "quickCaptureModal",
       initialContent: this.options.initialContent,

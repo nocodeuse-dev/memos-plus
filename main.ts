@@ -4,6 +4,7 @@ import { MemosPlusStore } from "./src/store";
 import { QuickCaptureModal } from "./src/modal";
 import { MEMOS_PLUS_VIEW_TYPE, MemosPlusView } from "./src/view";
 import { MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE, MemosPlusQuickInputView, shouldUseQuickInputModalFallback } from "./src/quickInputView";
+import { MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE, MemosPlusMobilePanelView } from "./src/mobilePanelView";
 import { t } from "./src/i18n";
 import { MemosPlusLinkSuggest, MemosPlusTagSuggest } from "./src/editorSuggest";
 import { captureClipboardLinkToMemos } from "./src/linkCaptureActions";
@@ -12,6 +13,7 @@ import type { QuickCaptureInitialContentMode } from "./src/quickCaptureContent";
 import { TaskIndex } from "./src/taskIndex";
 import { VaultMetadataIndex } from "./src/vaultIndex";
 import { viewLayoutsNeedData, type ViewLayoutsSettings } from "./src/displayModules";
+import type { ProjectSendChoice, ProjectSendModalOptions } from "./src/projectFileSuggestModal";
 import {
   configureMemosPlusDiagnostics,
   createMemosPlusSessionId,
@@ -74,6 +76,7 @@ export default class MemosPlusPlugin extends Plugin {
 
     this.registerView(MEMOS_PLUS_VIEW_TYPE, (leaf: WorkspaceLeaf) => new MemosPlusView(leaf, this));
     this.registerView(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new MemosPlusQuickInputView(leaf, this));
+    this.registerView(MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new MemosPlusMobilePanelView(leaf, this));
     this.registerEditorSuggest(new MemosPlusTagSuggest(this.app));
     this.registerEditorSuggest(new MemosPlusLinkSuggest(this.app));
 
@@ -187,7 +190,8 @@ export default class MemosPlusPlugin extends Plugin {
         store: this.store,
         persistSettings: () => this.persistSettings(),
         refreshViews: () => this.refreshViews(),
-        resolveMarkdownLink: (text) => this.resolveMarkdownLink(text)
+        resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
+        selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options)
       }).open();
       return null;
     }
@@ -208,6 +212,17 @@ export default class MemosPlusPlugin extends Plugin {
     return leaf;
   }
 
+  async selectProjectTargetOnMobile(options: ProjectSendModalOptions): Promise<ProjectSendChoice | null> {
+    const existing = this.app.workspace.getLeavesOfType(MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE)[0];
+    const leaf = existing ?? this.app.workspace.getLeaf(true);
+    await leaf.setViewState({ type: MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE, active: true });
+    this.app.workspace.revealLeaf(leaf);
+    if (leaf.view instanceof MemosPlusMobilePanelView) {
+      return leaf.view.startProjectSend(options);
+    }
+    return null;
+  }
+
   private openQuickCaptureWithContentSource(initialContentMode: QuickCaptureInitialContentMode, showClipboardEmptyNotice = false): void {
     new QuickCaptureModal(this.app, {
       settings: this.settings,
@@ -216,7 +231,8 @@ export default class MemosPlusPlugin extends Plugin {
       refreshViews: () => this.refreshViews(),
       initialContentMode,
       showClipboardEmptyNotice,
-      resolveMarkdownLink: (text) => this.resolveMarkdownLink(text)
+      resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
+      selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options)
     }).open();
   }
 
@@ -228,7 +244,8 @@ export default class MemosPlusPlugin extends Plugin {
       refreshViews: () => this.refreshViews(),
       initialContent,
       initialContentMode: "none",
-      resolveMarkdownLink: (text) => this.resolveMarkdownLink(text)
+      resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
+      selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options)
     }).open();
   }
 
