@@ -77,9 +77,11 @@ class FakeElement {
 }
 
 function installFakeDocument(): void {
-  vi.stubGlobal("document", {
+  const fakeDocument = {
     createElement: (tagName: string) => new FakeElement(tagName)
-  });
+  };
+  vi.stubGlobal("activeDocument", fakeDocument);
+  vi.stubGlobal("document", fakeDocument);
 }
 
 describe("createNativeMarkdownComposer", () => {
@@ -91,9 +93,11 @@ describe("createNativeMarkdownComposer", () => {
   it("uses an Obsidian markdown embed when available", () => {
     installFakeDocument();
     const animationFrames: FrameRequestCallback[] = [];
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    vi.stubGlobal("window", {
+      requestAnimationFrame: (callback: FrameRequestCallback) => {
       animationFrames.push(callback);
       return animationFrames.length;
+      }
     });
     const editor = {
       getValue: vi.fn(() => "native text"),
@@ -161,9 +165,11 @@ describe("createNativeMarkdownComposer", () => {
   it("uses only one touch focus listener for mobile markdown embeds", () => {
     Platform.isMobile = true;
     installFakeDocument();
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
+    vi.stubGlobal("window", {
+      requestAnimationFrame: (callback: FrameRequestCallback) => {
+        callback(0);
+        return 1;
+      }
     });
     const editor = {
       getValue: vi.fn(() => ""),

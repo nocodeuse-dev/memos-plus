@@ -10,7 +10,7 @@ describe("quick input sidebar view", () => {
   it("registers an independent sidebar view and command", () => {
     expect(mainSource).toContain("MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE");
     expect(mainSource).toContain("MemosPlusQuickInputView");
-    expect(mainSource).toContain("open-memos-plus-quick-input-sidebar");
+    expect(mainSource).toContain("open-quick-input-sidebar");
     expect(mainSource).toContain("activateQuickInputView");
     expect(mainSource).toContain("memos-plus:onunload");
     expect(mainSource).not.toContain("detachLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE)");

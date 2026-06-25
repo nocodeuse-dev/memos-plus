@@ -369,17 +369,17 @@ function normalizeTimeoutMs(value: number | undefined): number {
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: number | null = null;
   try {
     return await Promise.race([
       promise,
       new Promise<T>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("Link analysis timed out")), timeoutMs);
+        timer = window.setTimeout(() => reject(new Error("Link analysis timed out")), timeoutMs);
       })
     ]);
   } finally {
     if (timer) {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     }
   }
 }

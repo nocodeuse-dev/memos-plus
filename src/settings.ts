@@ -982,7 +982,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addSlider((slider) => {
         slider
           .setLimits(20, 200, 10)
-          .setDynamicTooltip()
           .setValue(this.plugin.settings.pageSize)
           .onChange(async (value) => {
             this.plugin.settings.pageSize = value;
@@ -2283,7 +2282,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addSlider((slider) => {
         slider
           .setLimits(1, 30, 1)
-          .setDynamicTooltip()
           .setValue(this.plugin.settings.mobileLightHomeRecentCount)
           .onChange(async (value) => {
             this.plugin.settings.mobileLightHomeRecentCount = normalizeMobileLightHomeRecentCount(value);
@@ -2310,7 +2308,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         .addSlider((slider) => {
           slider
             .setLimits(96, 360, 8)
-            .setDynamicTooltip()
             .setValue(current.height)
             .onChange(async (value) => {
               const latest = this.plugin.settings.mobileLightHomeSections[sectionId];

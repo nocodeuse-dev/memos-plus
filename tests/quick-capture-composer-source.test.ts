@@ -68,7 +68,8 @@ describe("quick capture shared composer", () => {
     const cmCursorRule =
       stylesSource.match(/\.memos-plus-native-editor-host \.cm-cursor,[\s\S]*?\.memos-plus-native-editor-host \.cm-cursor-primary \{([\s\S]*?)\n\}/)
         ?.[1] ?? "";
-    expect(cmCursorRule).toContain("border-left-color: var(--text-normal) !important");
+    expect(cmCursorRule).toContain("border-left-color: var(--text-normal)");
+    expect(cmCursorRule).not.toContain("!important");
 
     const textareaRule =
       Array.from(stylesSource.matchAll(/\.memos-plus-composer-input \{([\s\S]*?)\n\}/g))

@@ -40,8 +40,8 @@ export class MemosPlusQuickInputView extends ItemView {
   private readonly previewCache = new Map<string, QuickInputDirectoryPreview>();
   private readonly vaultSearchIndex: VaultSavedSearchIndex;
   private readonly previewLimits = new Map<string, number>();
-  private readonly previewTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private directoryRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly previewTimers = new Map<string, number>();
+  private directoryRefreshTimer: number | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -372,9 +372,9 @@ export class MemosPlusQuickInputView extends ItemView {
   private scheduleDirectoryPreview(entry: QuickInputDirectoryEntry): void {
     const existing = this.previewTimers.get(entry.id);
     if (existing) {
-      clearTimeout(existing);
+      window.clearTimeout(existing);
     }
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       this.previewTimers.delete(entry.id);
       void this.loadDirectoryPreview(entry);
     }, 200);
@@ -463,7 +463,7 @@ export class MemosPlusQuickInputView extends ItemView {
     this.previewCache.clear();
     this.previewLimits.clear();
     this.clearDirectoryRefreshTimer();
-    this.directoryRefreshTimer = setTimeout(() => {
+    this.directoryRefreshTimer = window.setTimeout(() => {
       this.directoryRefreshTimer = null;
       if (this.directoryContainerEl) {
         void this.renderDirectoryArea();
@@ -473,14 +473,14 @@ export class MemosPlusQuickInputView extends ItemView {
 
   private clearDirectoryRefreshTimer(): void {
     if (this.directoryRefreshTimer) {
-      clearTimeout(this.directoryRefreshTimer);
+      window.clearTimeout(this.directoryRefreshTimer);
       this.directoryRefreshTimer = null;
     }
   }
 
   private clearPreviewTimers(): void {
     for (const timer of this.previewTimers.values()) {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     }
     this.previewTimers.clear();
   }

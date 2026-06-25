@@ -106,7 +106,7 @@ export class MemosPlusView extends ItemView {
   private visibleCount = 50;
   private composerSession: ComposerSession | null = null;
   private timelineEl: HTMLElement | null = null;
-  private timelineRenderTimer: ReturnType<typeof setTimeout> | null = null;
+  private timelineRenderTimer: number | null = null;
   private readonly vaultSearchIndex: VaultSavedSearchIndex;
   private vaultSearchCacheKeys = new Map<string, string>();
   private vaultSearchResults = new Map<string, VaultSearchResult[]>();
@@ -564,7 +564,7 @@ export class MemosPlusView extends ItemView {
 
   private scheduleTimelineRender(): void {
     this.cancelScheduledTimelineRender();
-    this.timelineRenderTimer = setTimeout(() => {
+    this.timelineRenderTimer = window.setTimeout(() => {
       this.timelineRenderTimer = null;
       void this.renderTimelineOnly();
     }, debounceDelay(this.plugin.settings, Platform.isMobile));
@@ -574,7 +574,7 @@ export class MemosPlusView extends ItemView {
     if (!this.timelineRenderTimer) {
       return;
     }
-    clearTimeout(this.timelineRenderTimer);
+    window.clearTimeout(this.timelineRenderTimer);
     this.timelineRenderTimer = null;
   }
 
@@ -1665,7 +1665,7 @@ export class MemosPlusView extends ItemView {
 
   private captureMainScrollPosition(): ScrollPositionSnapshot | null {
     const view = this.containerEl.children[1];
-    if (!(view instanceof HTMLElement)) {
+    if (!view.instanceOf(HTMLElement)) {
       return null;
     }
     const main = view.querySelector<HTMLElement>(".memos-plus-main");
@@ -1682,9 +1682,9 @@ export class MemosPlusView extends ItemView {
     if (!snapshot) {
       return;
     }
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       const view = this.containerEl.children[1];
-      if (!(view instanceof HTMLElement)) {
+      if (!view.instanceOf(HTMLElement)) {
         return;
       }
       const target = snapshot.selector === ".memos-plus-main" ? view.querySelector<HTMLElement>(".memos-plus-main") : view;

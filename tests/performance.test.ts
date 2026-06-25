@@ -77,6 +77,7 @@ describe("performance defaults", () => {
 describe("debounce", () => {
   it("coalesces repeated calls", () => {
     vi.useFakeTimers();
+    vi.stubGlobal("window", { setTimeout, clearTimeout });
     const fn = vi.fn();
     const debounced = debounce(fn, 200);
 
@@ -88,5 +89,6 @@ describe("debounce", () => {
     expect(fn).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 });

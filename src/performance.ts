@@ -47,19 +47,19 @@ export function modalDebounceDelay(settings: Pick<MemosPlusSettings, "mobilePerf
 }
 
 export function debounce<T extends (...args: never[]) => void>(fn: T, delayMs: number): DebouncedFunction<T> {
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: number | null = null;
   const debounced = ((...args: Parameters<T>) => {
     if (timer) {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     }
-    timer = setTimeout(() => {
+    timer = window.setTimeout(() => {
       timer = null;
       fn(...args);
     }, delayMs);
   }) as DebouncedFunction<T>;
   debounced.cancel = () => {
     if (timer) {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
       timer = null;
     }
   };

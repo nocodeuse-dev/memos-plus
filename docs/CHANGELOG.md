@@ -2,6 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
+- 按 Obsidian Community 自动扫描继续收口弹窗/多窗口兼容问题：将输入框、表格选择器、诊断日志、任务索引和快速输入侧栏中的全局 `document`、裸 `setTimeout` / `clearTimeout` / `requestAnimationFrame`、跨窗口 `instanceof HTMLElement` 等用法改为 `activeDocument`、`window.*` 和 Obsidian 兼容的 `.instanceOf()`；移除设置滑块的 `setDynamicTooltip()` 调用，删除少量 CSS `!important`，改用 `FileManager.trashFile()` 尊重用户删除偏好，并调整命令 ID 避免重复包含插件 ID。
 - 调整 GitHub 发布标签格式以兼容新的 Obsidian Community 提交流程：后续自动发布使用与 `manifest.json` 版本完全一致的 `X.Y.Z` tag，不再默认加 `v` 前缀；安装脚本继续兼容读取旧的 `vX.Y.Z` release。
 - 补齐仓库根目录 MIT `LICENSE`，并精简后续 GitHub Release 资产为 Obsidian 官方实际下载的 `main.js`、`manifest.json` 和 `styles.css`，减少 Obsidian Community 自动审核中的提示。
 - 按 Obsidian Community 自动审核建议整理发布合规项：插件卸载时不再主动 detach 视图叶子，设置页少量内部标题改用 `Setting#setHeading()` 结构，弹窗定位和输入框高度改用 Obsidian CSS helper，`manifest.json` 的最低 Obsidian 版本提升到当前 API 依赖版本。

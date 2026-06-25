@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   TaskIndex,
   filterTaskIndexItems,
@@ -7,6 +7,10 @@ import {
 } from "../src/taskIndex";
 
 describe("TaskIndex helpers", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   const source = [
     "# 项目",
     "- [ ] 最高优先级 🔺 📅 2026-06-18",
@@ -105,6 +109,7 @@ describe("TaskIndex helpers", () => {
   });
 
   it("tracks cache state and can clear cached task results without rebuilding", async () => {
+    vi.stubGlobal("window", { setTimeout, clearTimeout });
     const file = {
       path: "我的资源/Memos/memos plus.md",
       name: "memos plus.md",

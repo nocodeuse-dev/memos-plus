@@ -215,7 +215,7 @@ export class MemosPlusStore {
   async deleteFileTemplate(templatePath: string): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(normalizePath(templatePath));
     if (file instanceof TFile) {
-      await this.app.vault.trash(file, true);
+      await this.app.fileManager.trashFile(file);
     }
   }
 

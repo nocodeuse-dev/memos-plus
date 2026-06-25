@@ -52,7 +52,7 @@ function tryCreateNativeComposer(options: NativeMarkdownComposerOptions): Native
     return null;
   }
 
-  const host = document.createElement("div");
+  const host = activeDocument.createElement("div");
   host.classList.add("memos-plus-native-editor-host");
   host.setAttribute("data-placeholder", options.placeholder);
   options.container.appendChild(host);
@@ -70,7 +70,7 @@ function tryCreateNativeComposer(options: NativeMarkdownComposerOptions): Native
     }
     const focusEditor = (): void => {
       editor.focus();
-      requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
         editor.focus();
       });
     };
@@ -238,7 +238,7 @@ function parseCssPixelValue(value: string | undefined): number | null {
 }
 
 function createTextareaComposer(options: NativeMarkdownComposerOptions): NativeMarkdownComposer {
-  const textarea = document.createElement("textarea");
+  const textarea = activeDocument.createElement("textarea");
   textarea.classList.add("memos-plus-composer-input");
   textarea.setAttribute("placeholder", options.placeholder);
   options.container.appendChild(textarea);

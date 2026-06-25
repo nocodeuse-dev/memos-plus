@@ -455,7 +455,7 @@ export class SavedSearchModal extends Modal {
       suggestions.addClass("is-open");
     });
     input.addEventListener("blur", () => {
-      setTimeout(() => suggestions.removeClass("is-open"), 120);
+      window.setTimeout(() => suggestions.removeClass("is-open"), 120);
     });
     input.addEventListener("input", () => {
       this.conditions[index] = { ...condition, value: input.value };

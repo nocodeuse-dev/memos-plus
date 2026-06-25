@@ -1473,7 +1473,7 @@
 
 .memos-plus-native-editor-host .cm-cursor,
 .memos-plus-native-editor-host .cm-cursor-primary {
-  border-left-color: var(--text-normal) !important;
+  border-left-color: var(--text-normal);
 }
 
 .memos-plus-native-editor-host:focus-within {
@@ -2131,7 +2131,7 @@
 .memos-plus-project-send-modal-shell .modal-content {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden !important;
+  overflow-x: hidden;
 }
 
 .memos-plus-project-send-modal {
@@ -2402,7 +2402,7 @@
 .memos-plus-file-template-modal-shell .modal-content {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden !important;
+  overflow-x: hidden;
 }
 
 .memos-plus-file-template-modal {
@@ -2818,7 +2818,7 @@
   .memos-plus-project-send-modal-shell .modal-content,
   .memos-plus-file-template-modal-shell .modal-content {
     max-height: calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 16px);
-    overflow: hidden !important;
+    overflow: hidden;
     overscroll-behavior: contain;
   }
 

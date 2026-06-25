@@ -179,14 +179,14 @@ export function registerMemosPlusDiagnostics(plugin: Plugin, app: App): void {
   window.addEventListener("error", handleWindowError);
   window.addEventListener("unhandledrejection", handleUnhandledRejection);
   window.addEventListener("resize", handleWindowResize);
-  document.addEventListener("focusin", handleFocus, true);
-  document.addEventListener("focusout", handleBlur, true);
+  activeDocument.addEventListener("focusin", handleFocus, true);
+  activeDocument.addEventListener("focusout", handleBlur, true);
   plugin.register(() => {
     window.removeEventListener("error", handleWindowError);
     window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     window.removeEventListener("resize", handleWindowResize);
-    document.removeEventListener("focusin", handleFocus, true);
-    document.removeEventListener("focusout", handleBlur, true);
+    activeDocument.removeEventListener("focusin", handleFocus, true);
+    activeDocument.removeEventListener("focusout", handleBlur, true);
     clearViewportLogTimer();
     clearWindowResizeLogTimer();
   });
@@ -303,7 +303,7 @@ function clearWindowResizeLogTimer(): void {
 }
 
 function logInputFocusEvent(event: "input:focus" | "input:blur", target: EventTarget | null): void {
-  if (!(target instanceof HTMLElement)) {
+  if (!isHtmlElement(target)) {
     return;
   }
   if (!isInputLike(target) && !target.closest(".memos-plus-modal, .memos-plus-view, .memos-plus-quick-input-view")) {
@@ -316,12 +316,12 @@ function logInputFocusEvent(event: "input:focus" | "input:blur", target: EventTa
   });
   logMemosPlusDiagnostic(event, {
     target: describeElement(target),
-    active: document.activeElement instanceof HTMLElement ? describeElement(document.activeElement) : ""
+    active: isHtmlElement(activeDocument.activeElement) ? describeElement(activeDocument.activeElement) : ""
   });
 }
 
 function getInputContentLength(element: HTMLElement): number {
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+  if (element.instanceOf(HTMLInputElement) || element.instanceOf(HTMLTextAreaElement) || element.instanceOf(HTMLSelectElement)) {
     return element.value.length;
   }
   if (element.isContentEditable) {
@@ -336,11 +336,7 @@ function isInputLike(element: HTMLElement): boolean {
 }
 
 function getActivePage(app: App): string {
-  const view = app.workspace.activeLeaf?.view;
-  if (!view) {
-    return "";
-  }
-  return view.getViewType?.() ?? view.getDisplayText?.() ?? "";
+  return app.workspace.getActiveFile()?.path ?? "";
 }
 
 function describeElement(element: HTMLElement): string {
@@ -364,7 +360,7 @@ function sanitizeValue(value: unknown, depth: number): unknown {
   if (value instanceof Error) {
     return summarizeError(value);
   }
-  if (value instanceof HTMLElement) {
+  if (isHtmlElement(value)) {
     return describeElement(value);
   }
   if (Array.isArray(value)) {
@@ -382,6 +378,10 @@ function sanitizeValue(value: unknown, depth: number): unknown {
     return sanitized;
   }
   return String(value);
+}
+
+function isHtmlElement(value: unknown): value is HTMLElement {
+  return Boolean(value && typeof value === "object" && "instanceOf" in value && (value as HTMLElement).instanceOf(HTMLElement));
 }
 
 function summarizeError(error: unknown): string {

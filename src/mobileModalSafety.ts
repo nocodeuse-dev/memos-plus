@@ -55,7 +55,7 @@ export async function withMobileClickLock(target: HTMLElement | null | undefined
   if (shouldLock && target) {
     target.dataset.memosPlusClickLocked = "true";
   }
-  const button = shouldLock && target instanceof HTMLButtonElement ? target : null;
+  const button = shouldLock && target?.instanceOf(HTMLButtonElement) ? target : null;
   const wasDisabled = button?.disabled ?? false;
   if (button) {
     button.disabled = true;

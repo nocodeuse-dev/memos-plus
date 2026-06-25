@@ -50,7 +50,7 @@ export class TaskIndex {
   private needsUpdate = true;
   private updatedAt = "";
   private failedFiles: string[] = [];
-  private buildTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+  private buildTimer: number | null = null;
 
   constructor(private readonly app: App, private readonly options: { isMobile?: () => boolean } = {}) {}
 
@@ -91,7 +91,7 @@ export class TaskIndex {
 
   clearCache(): void {
     if (this.buildTimer !== null) {
-      globalThis.clearTimeout(this.buildTimer);
+      window.clearTimeout(this.buildTimer);
       this.buildTimer = null;
     }
     this.fileCache.clear();
@@ -104,9 +104,9 @@ export class TaskIndex {
 
   scheduleBuild(delayMs = 800): void {
     if (this.buildTimer !== null) {
-      globalThis.clearTimeout(this.buildTimer);
+      window.clearTimeout(this.buildTimer);
     }
-    this.buildTimer = globalThis.setTimeout(() => {
+    this.buildTimer = window.setTimeout(() => {
       this.buildTimer = null;
       void this.rebuild();
     }, delayMs);
@@ -307,7 +307,7 @@ function pad2(value: number): string {
 }
 
 function yieldToUi(): Promise<void> {
-  return new Promise((resolve) => globalThis.setTimeout(resolve, 0));
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
 function normalizeVaultPath(path: string): string {

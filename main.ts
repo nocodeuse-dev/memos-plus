@@ -82,7 +82,7 @@ export default class MemosPlusPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "open-memos-plus",
+      id: "open",
       name: t(this.settings.language, "command.open"),
       callback: () => {
         void this.activateView();
@@ -106,7 +106,7 @@ export default class MemosPlusPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "open-memos-plus-quick-input-sidebar",
+      id: "open-quick-input-sidebar",
       name: t(this.settings.language, "command.openQuickInputSidebar"),
       callback: () => {
         void this.activateQuickInputView();

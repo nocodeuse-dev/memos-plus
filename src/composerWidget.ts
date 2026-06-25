@@ -236,7 +236,7 @@ export class ComposerWidget {
 
     const handleDocumentPointer = (event: MouseEvent | TouchEvent): void => {
       const target = event.target;
-      if (!(target instanceof Node)) {
+      if (!isDomNode(target)) {
         return;
       }
       if (!this.element.contains(target)) {
@@ -247,11 +247,11 @@ export class ComposerWidget {
         this.clearVisualViewportKeyboardInset();
       }
     };
-    document.addEventListener("mousedown", handleDocumentPointer, true);
-    document.addEventListener("touchstart", handleDocumentPointer, true);
+    activeDocument.addEventListener("mousedown", handleDocumentPointer, true);
+    activeDocument.addEventListener("touchstart", handleDocumentPointer, true);
     this.mobileKeyboardCleanups.push(() => {
-      document.removeEventListener("mousedown", handleDocumentPointer, true);
-      document.removeEventListener("touchstart", handleDocumentPointer, true);
+      activeDocument.removeEventListener("mousedown", handleDocumentPointer, true);
+      activeDocument.removeEventListener("touchstart", handleDocumentPointer, true);
     });
 
     const handleViewportChange = (): void => {
@@ -329,8 +329,8 @@ export class ComposerWidget {
   }
 
   private isComposerEditorActive(): boolean {
-    const activeElement = document.activeElement;
-    return activeElement instanceof Node && this.composer.element.contains(activeElement);
+    const activeElement = activeDocument.activeElement;
+    return isDomNode(activeElement) && this.composer.element.contains(activeElement);
   }
 
   private scrollComposerIntoView(): void {
@@ -392,7 +392,7 @@ export class ComposerWidget {
     const isKeyboardOpen = keyboardInset > 80 || (this.isComposerEditorActive() && viewportHeight < this.mobileViewportBaselineHeight - 80);
     const keyboardShift = isKeyboardOpen ? Math.min(180, Math.max(96, Math.round(keyboardInset * 0.45))) : 0;
     const { modalShell } = this.getKeyboardAwareSurfaces();
-    for (const surface of [content, shell].filter((item): item is HTMLElement => item instanceof HTMLElement)) {
+    for (const surface of [content, shell].filter(isHtmlElement)) {
       surface.style.setProperty("--memos-plus-keyboard-inset", `${keyboardInset}px`);
       surface.style.setProperty("--memos-plus-keyboard-shift", `${keyboardShift}px`);
       surface.style.setProperty("--memos-plus-mobile-viewport-height", `${viewportHeight}px`);
@@ -406,7 +406,7 @@ export class ComposerWidget {
 
   private clearVisualViewportKeyboardInset(): void {
     const { content, shell } = this.getKeyboardAwareSurfaces();
-    for (const surface of [content, shell].filter((item): item is HTMLElement => item instanceof HTMLElement)) {
+    for (const surface of [content, shell].filter(isHtmlElement)) {
       surface.style.removeProperty("--memos-plus-keyboard-inset");
       surface.style.removeProperty("--memos-plus-keyboard-shift");
       surface.style.removeProperty("--memos-plus-mobile-viewport-height");
@@ -420,7 +420,7 @@ export class ComposerWidget {
       return;
     }
     const { content, shell } = this.getKeyboardAwareSurfaces();
-    for (const surface of [content, shell].filter((item): item is HTMLElement => item instanceof HTMLElement)) {
+    for (const surface of [content, shell].filter(isHtmlElement)) {
       surface.classList.toggle("is-composer-focused", focused);
     }
   }
@@ -572,7 +572,7 @@ export class ComposerWidget {
   }
 
   private applyTextTool(tool: ComposerTextTool): void {
-    if (this.composer.kind === "textarea" && this.composer.element instanceof HTMLTextAreaElement) {
+    if (this.composer.kind === "textarea" && this.composer.element.instanceOf(HTMLTextAreaElement)) {
       const textarea = this.composer.element;
       const result = applyComposerTool(textarea.value, textarea.selectionStart, textarea.selectionEnd, tool);
       textarea.value = result.value;
@@ -674,7 +674,7 @@ export class ComposerWidget {
   }
 
   private pickImageFromDisk(): void {
-    const input = document.createElement("input");
+    const input = activeDocument.createElement("input");
     input.type = "file";
     input.accept = "image/*";
     input.multiple = true;
@@ -721,7 +721,7 @@ export class ComposerWidget {
   }
 
   private insertImageEmbed(linkName: string): void {
-    if (this.composer.kind === "textarea" && this.composer.element instanceof HTMLTextAreaElement) {
+    if (this.composer.kind === "textarea" && this.composer.element.instanceOf(HTMLTextAreaElement)) {
       const textarea = this.composer.element;
       const result = formatImageEmbedInsertion(textarea.value, textarea.selectionStart, textarea.selectionEnd, linkName);
       textarea.value = result.value;
@@ -807,7 +807,7 @@ export class ComposerWidget {
   }
 
   private showTablePicker(anchor: HTMLElement): void {
-    const existing = document.querySelector(".memos-plus-table-picker");
+    const existing = activeDocument.querySelector(".memos-plus-table-picker");
     if (existing) {
       existing.remove();
       return;
@@ -815,7 +815,7 @@ export class ComposerWidget {
 
     const isMobile = Platform.isMobile;
     const size = isMobile ? 5 : 6;
-    const picker = document.body.createDiv({ cls: `memos-plus-table-picker${isMobile ? " is-mobile" : ""}` });
+    const picker = activeDocument.body.createDiv({ cls: `memos-plus-table-picker${isMobile ? " is-mobile" : ""}` });
     const label = picker.createDiv({ cls: "memos-plus-table-picker-label", text: isMobile ? t(this.options.settings().language, "table.mobileHint") : "0 × 0" });
     const grid = picker.createDiv({ cls: "memos-plus-table-picker-grid" });
     const cells: HTMLElement[][] = [];
@@ -849,7 +849,7 @@ export class ComposerWidget {
       }
     }
 
-    grid.addEventListener("mouseover", (event) => {
+    grid.addEventListener("mouseover", (event: MouseEvent) => {
       if (isMobile) {
         return;
       }
@@ -859,7 +859,7 @@ export class ComposerWidget {
       }
       updateSelection(Number(cell.dataset.row ?? "0"), Number(cell.dataset.column ?? "0"));
     });
-    grid.addEventListener("click", (event) => {
+    grid.addEventListener("click", (event: MouseEvent) => {
       const cell = getTablePickerCell(event.target);
       if (!cell) {
         return;
@@ -875,10 +875,10 @@ export class ComposerWidget {
     } else {
       const rect = anchor.getBoundingClientRect();
       picker.setCssStyles({ left: `${Math.round(rect.left)}px`, top: `${Math.round(rect.bottom + 6)}px` });
-      requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
         const pickerRect = picker.getBoundingClientRect();
-        const width = document.documentElement.clientWidth;
-        const height = document.documentElement.clientHeight;
+        const width = activeDocument.documentElement.clientWidth;
+        const height = activeDocument.documentElement.clientHeight;
         if (pickerRect.right > width - 8) {
           picker.setCssStyles({ left: `${Math.max(8, width - pickerRect.width - 8)}px` });
         }
@@ -890,7 +890,7 @@ export class ComposerWidget {
 
     const handleOutside = (event: MouseEvent | TouchEvent): void => {
       const target = event.target;
-      if (!(target instanceof Node)) {
+      if (!isDomNode(target)) {
         return;
       }
       if (!picker.contains(target) && target !== anchor) {
@@ -899,18 +899,18 @@ export class ComposerWidget {
     };
     const close = (): void => {
       picker.remove();
-      document.removeEventListener("mousedown", handleOutside, true);
-      document.removeEventListener("touchstart", handleOutside, true);
+      activeDocument.removeEventListener("mousedown", handleOutside, true);
+      activeDocument.removeEventListener("touchstart", handleOutside, true);
     };
-    setTimeout(() => {
-      document.addEventListener("mousedown", handleOutside, true);
-      document.addEventListener("touchstart", handleOutside, true);
+    window.setTimeout(() => {
+      activeDocument.addEventListener("mousedown", handleOutside, true);
+      activeDocument.addEventListener("touchstart", handleOutside, true);
     }, 0);
     this.options.registerCleanup?.(close);
   }
 
   private insertTable(rows: number, columns: number): void {
-    if (this.composer.kind === "textarea" && this.composer.element instanceof HTMLTextAreaElement) {
+    if (this.composer.kind === "textarea" && this.composer.element.instanceOf(HTMLTextAreaElement)) {
       const textarea = this.composer.element;
       const result = insertTableAtCursor(textarea.value, textarea.selectionStart, textarea.selectionEnd, rows, columns);
       textarea.value = result.value;
@@ -924,7 +924,7 @@ export class ComposerWidget {
   }
 
   private handleTextareaKeydown(event: KeyboardEvent): void {
-    if (!(this.composer.element instanceof HTMLTextAreaElement)) {
+    if (!this.composer.element.instanceOf(HTMLTextAreaElement)) {
       return;
     }
     const textarea = this.composer.element;
@@ -953,10 +953,18 @@ function hasImageFiles(dataTransfer: DataTransfer | null): boolean {
 }
 
 function getTablePickerCell(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof HTMLElement)) {
+  if (!isHtmlElement(target)) {
     return null;
   }
   return target.closest<HTMLElement>(".memos-plus-table-picker-cell");
+}
+
+function isHtmlElement(value: unknown): value is HTMLElement {
+  return Boolean(value && typeof value === "object" && "instanceOf" in value && (value as HTMLElement).instanceOf(HTMLElement));
+}
+
+function isDomNode(value: unknown): value is Node {
+  return Boolean(value && typeof value === "object" && "instanceOf" in value && (value as Node).instanceOf(Node));
 }
 
 function textForTool(tool: ComposerTextTool): string {
