@@ -188,11 +188,11 @@ describe("mobile interaction stability source", () => {
     expect(sidebarGroupModalSource).toContain("withMobileClickLock");
   });
 
-  it("uses an inline mobile prompt instead of stacking template tab modals over ProjectSendModal", () => {
+  it("uses a lightweight template tab modal instead of browser prompts", () => {
     expect(projectSendModalSource).toContain("promptForProjectTemplateTab");
-    expect(projectSendModalSource).toContain("Platform.isMobile");
-    expect(projectSendModalSource).toContain("window.prompt");
     expect(projectSendModalSource).toContain("new ProjectTemplateTabModal");
+    expect(projectSendModalSource).toContain("new FileTemplateGroupTabModal");
+    expect(projectSendModalSource).not.toContain("window.prompt");
     expect(projectSendModalSource).toContain("return Promise.resolve()");
   });
 

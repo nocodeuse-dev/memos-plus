@@ -2,6 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
+- 按 Obsidian 官方扫描建议移除剩余浏览器 `window.prompt()`：发送/新建文件弹窗中的“新增标签筛选页”和“新增模板分组页”现在在移动端和桌面端都使用 Memos Plus 自己的轻量 Obsidian Modal 输入，创建结果和原有标签页/模板分组逻辑保持不变。
 - 继续降低 Obsidian Community 自动扫描警告：构建脚本改用 Node 内置 `node:module` 的 `builtinModules` 并移除 `builtin-modules` 依赖；任务格式选项改用不覆盖字面量的宽松字符串类型；设置页和任务复选框的 DOM async 回调改为显式 `void` 包装并记录错误；清空输入、删除侧边栏筛选/分组、转出后删除原 memo、删除模板文件等确认动作改用轻量 Obsidian Modal，不再调用浏览器 `window.confirm()`。
 - 按 Obsidian Community 自动扫描继续收口弹窗/多窗口兼容问题：将输入框、表格选择器、诊断日志、任务索引和快速输入侧栏中的全局 `document`、裸 `setTimeout` / `clearTimeout` / `requestAnimationFrame`、跨窗口 `instanceof HTMLElement` 等用法改为 `activeDocument`、`window.*` 和 Obsidian 兼容的 `.instanceOf()`；移除设置滑块的 `setDynamicTooltip()` 调用，删除少量 CSS `!important`，改用 `FileManager.trashFile()` 尊重用户删除偏好，并调整命令 ID 避免重复包含插件 ID。
 - 调整 GitHub 发布标签格式以兼容新的 Obsidian Community 提交流程：后续自动发布使用与 `manifest.json` 版本完全一致的 `X.Y.Z` tag，不再默认加 `v` 前缀；安装脚本继续兼容读取旧的 `vX.Y.Z` release。

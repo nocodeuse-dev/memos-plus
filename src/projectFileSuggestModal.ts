@@ -192,14 +192,6 @@ function promptForProjectTemplateTab(
   titleKey = "projectSend.addTagTab",
   submitKey = "projectSend.addTagTab"
 ): Promise<void> {
-  if (Platform.isMobile) {
-    const value = window.prompt(`${t(language, titleKey)}\n${t(language, "projectSend.addTagTabPrompt")}；${t(language, "settings.fileTemplateTabType.template-group")}可输入“分组:常用模板”`, initialValue)?.trim() ?? "";
-    if (!value) {
-      return Promise.resolve();
-    }
-    const groupMatch = value.match(/^(?:分组|group)\s*[:：]\s*(.+)$/i);
-    return groupMatch?.[1]?.trim() ? onSubmit(groupMatch[1].trim(), "template-group") : onSubmit(value, "tag-filter");
-  }
   new ProjectTemplateTabModal(app, language, onSubmit, initialValue, titleKey, submitKey).open();
   return Promise.resolve();
 }
@@ -278,10 +270,6 @@ function promptForFileTemplateGroupTab(
   onSubmit: (value: string) => Promise<void>,
   initialValue = ""
 ): Promise<void> {
-  if (Platform.isMobile) {
-    const value = window.prompt(`${t(language, "fileTemplateLibrary.addGroupTab")}\n${t(language, "fileTemplateLibrary.addGroupTabPrompt")}`, initialValue)?.trim() ?? "";
-    return value ? onSubmit(value) : Promise.resolve();
-  }
   new FileTemplateGroupTabModal(app, language, onSubmit, initialValue).open();
   return Promise.resolve();
 }
