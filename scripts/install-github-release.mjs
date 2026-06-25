@@ -23,7 +23,11 @@ function normalizeTag(tag) {
   if (!tag) {
     return undefined;
   }
-  return tag.startsWith("v") ? tag : `v${tag}`;
+  return tag;
+}
+
+function releaseVersion(tag) {
+  return tag.startsWith("v") ? tag.slice(1) : tag;
 }
 
 function timestamp() {
@@ -163,7 +167,7 @@ async function main() {
   if (manifest.id !== PLUGIN_ID) {
     throw new Error(`Downloaded manifest id mismatch: expected ${PLUGIN_ID}, got ${manifest.id}`);
   }
-  if (normalizeTag(manifest.version) !== release.tag_name) {
+  if (manifest.version !== releaseVersion(release.tag_name)) {
     throw new Error(`Downloaded manifest version ${manifest.version} does not match release ${release.tag_name}`);
   }
 

@@ -139,7 +139,7 @@ async function main() {
   ensureRemote();
 
   const version = await bumpVersion();
-  const tag = `v${version}`;
+  const tag = version;
   ensureTagAvailable(tag);
 
   run("npm", ["test"]);
