@@ -14,4 +14,14 @@ describe("settings UI source", () => {
     expect(settingsSource).toContain("persistSettings");
     expect(settingsSource).not.toContain("await this.plugin.saveSettings();");
   });
+
+  it("uses Obsidian Setting headings for settings page titles", () => {
+    const pageTitleSource = settingsSource.slice(
+      settingsSource.indexOf("private renderSettingsPageTitle"),
+      settingsSource.indexOf("private renderActiveSettingsTab")
+    );
+
+    expect(pageTitleSource).toContain(".setHeading()");
+    expect(pageTitleSource).not.toContain('createEl("h2"');
+  });
 });

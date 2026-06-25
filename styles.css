@@ -6,8 +6,11 @@
   max-width: 1120px;
 }
 
-.memos-plus-settings-page-title {
+.memos-plus-settings-page-heading {
   margin: 0 0 16px;
+}
+
+.memos-plus-settings-page-title {
   color: var(--memos-plus-settings-accent);
   font-size: var(--font-ui-large);
   font-weight: 750;

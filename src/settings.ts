@@ -676,10 +676,9 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     if (!tab) {
       return;
     }
-    container.createEl("h2", {
-      cls: "memos-plus-settings-page-title",
-      text: t(lang, tab.labelKey)
-    });
+    const heading = new Setting(container).setName(t(lang, tab.labelKey)).setHeading();
+    heading.settingEl.addClass("memos-plus-settings-page-heading");
+    heading.settingEl.querySelector<HTMLElement>(".setting-item-name")?.addClass("memos-plus-settings-page-title");
   }
 
   private renderActiveSettingsTab(container: HTMLElement): void {

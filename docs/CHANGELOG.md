@@ -2,6 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
+- 按 Obsidian Community 自动审核要求修复设置页主标题：`renderSettingsPageTitle` 不再直接创建 HTML `h2`，改用 `new Setting(...).setName(...).setHeading()` 并保留原主题强调色样式，解决 `0.1.200` review 中的阻断 Error。
 - 修改输入框工具栏“新建 Excalidraw”流程：点击后先复用现有发送到文件/标题选择界面选择目标 Markdown 文件和插入位置，再打开目标文件、移动光标并从 Obsidian command registry 查找包含 Excalidraw、新建绘图和嵌入语义的命令执行；未启用 Excalidraw 或找不到嵌入命令时只提示“未找到 Excalidraw 嵌入命令，请先启用 Excalidraw 插件”，不会创建文件或改动输入内容。移动端继续走稳定的 `MemosPlusMobilePanelView` 选择页面，不恢复多层 Modal。
 - 将“剪贴板内容处理方式”拆分为桌面端和移动端两项设置：两端继续共用原有自动填入、自动追加、每次询问和不检测流程，升级时会从旧 `quickCaptureClipboardMode` 同步迁移到两个新字段；运行时通过 Obsidian `Platform.isMobile` 选择对应配置，未识别环境回退桌面端配置，不新增剪贴板处理逻辑或移动端弹窗层级。
 - 修复 Callout 标题模板 `{firstLine}` 遇到 Markdown 代码块时把开头围栏当标题的问题：现在会跳过开头空行和 ```/~~~ 代码围栏，使用代码块内部第一条有效内容作为标题；空代码块回退到原默认标题逻辑，正文代码块、语言标识、结束围栏和 Callout `>` 前缀保持原样。
