@@ -160,7 +160,7 @@ function taskBodyAlreadyHasToken(body: string, token: string): boolean {
   if (token.startsWith("#")) {
     return body.split(/\s+/).includes(token);
   }
-  if (Object.values(priorityMarkers).includes(token as TaskPriority)) {
+  if (isPriorityMarker(token)) {
     return Object.values(priorityMarkers).some((marker) => marker && body.includes(marker));
   }
   if (token.startsWith("🔁")) {
@@ -179,4 +179,8 @@ function formatDate(date: Date): string {
 
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
+}
+
+function isPriorityMarker(value: string): boolean {
+  return Object.values(priorityMarkers).includes(value as (typeof priorityMarkers)[TaskPriority]);
 }

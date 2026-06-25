@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -41,6 +43,14 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           mkdir -p release-assets
           cp main.js manifest.json styles.css release-assets/
+
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release-assets/main.js
+            release-assets/manifest.json
+            release-assets/styles.css
 
       - name: Create GitHub release
         env:

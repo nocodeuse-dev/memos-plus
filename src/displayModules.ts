@@ -38,7 +38,7 @@ export interface DisplayModuleDefinition {
 }
 
 export type DisplayModuleRenderer = (context: unknown) => void;
-export type DisplayModuleDataLoader = (context: unknown) => unknown | Promise<unknown>;
+export type DisplayModuleDataLoader = (context: unknown) => void | Promise<void>;
 
 export interface ViewLayoutSettings {
   mode: DisplayLayoutMode;
@@ -140,7 +140,7 @@ export function normalizeViewLayout(value: unknown, surface: DisplaySurface): Vi
 }
 
 export function normalizeDisplayLayoutMode(value: unknown): DisplayLayoutMode {
-  return typeof value === "string" && (DISPLAY_LAYOUT_MODES as string[]).includes(value) ? (value as DisplayLayoutMode) : "custom";
+  return isDisplayLayoutMode(value) ? value : "custom";
 }
 
 export function resolveViewLayoutModules(layout: ViewLayoutSettings, surface: DisplaySurface): DisplayModuleId[] {
@@ -201,7 +201,7 @@ function resolvePresetModules(mode: DisplayLayoutMode, surface: DisplaySurface):
               : mode === "minimal"
                 ? ["quickInput", "sendButton", "moreMenu"]
                 : [];
-  return modules.filter((id): id is DisplayModuleId => supported.has(id as DisplayModuleId));
+  return modules.filter((id): id is DisplayModuleId => isDisplayModuleId(id) && supported.has(id));
 }
 
 function defaultModeForSurface(surface: DisplaySurface): DisplayLayoutMode {
@@ -224,10 +224,10 @@ function normalizeVisibleModules(value: unknown, surface: DisplaySurface): Displ
   const seen = new Set<DisplayModuleId>();
   const modules: DisplayModuleId[] = [];
   for (const item of raw) {
-    if (typeof item !== "string" || !supported.has(item as DisplayModuleId)) {
+    if (!isDisplayModuleId(item) || !supported.has(item)) {
       continue;
     }
-    const id = item as DisplayModuleId;
+    const id = item;
     if (!seen.has(id)) {
       seen.add(id);
       modules.push(id);
@@ -243,10 +243,10 @@ function normalizeModuleOrder(value: unknown, surface: DisplaySurface, visibleMo
   const seen = new Set<DisplayModuleId>();
   const ordered: DisplayModuleId[] = [];
   for (const item of source) {
-    if (typeof item !== "string" || !supported.has(item as DisplayModuleId) || !visible.has(item as DisplayModuleId)) {
+    if (!isDisplayModuleId(item) || !supported.has(item) || !visible.has(item)) {
       continue;
     }
-    const id = item as DisplayModuleId;
+    const id = item;
     if (!seen.has(id)) {
       seen.add(id);
       ordered.push(id);
@@ -283,4 +283,12 @@ function module(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isDisplayLayoutMode(value: unknown): value is DisplayLayoutMode {
+  return typeof value === "string" && DISPLAY_LAYOUT_MODES.includes(value as DisplayLayoutMode);
+}
+
+function isDisplayModuleId(value: unknown): value is DisplayModuleId {
+  return typeof value === "string" && DISPLAY_MODULE_IDS.includes(value as DisplayModuleId);
 }

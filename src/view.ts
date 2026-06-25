@@ -854,7 +854,7 @@ export class MemosPlusView extends ItemView {
       depth,
       onClick: () => {
         this.plugin.settings.sidebarItems = updateSidebarItem(this.plugin.settings.sidebarItems, { ...group, collapsed: !group.collapsed });
-        void this.plugin.saveSettings().then(() => this.render());
+        void this.saveSettingsAndRender();
       }
     });
     this.renderSidebarMoreAction(row, t(lang, "sidebar.more"), (event) => this.openSidebarGroupMenu(event, group));
@@ -1007,7 +1007,7 @@ export class MemosPlusView extends ItemView {
       selectedIcon: this.plugin.settings.allMemosIcon,
       onChoose: (icon) => {
         this.plugin.settings.allMemosIcon = icon;
-        void this.plugin.saveSettings().then(() => this.render());
+        void this.saveSettingsAndRender();
       }
     }).open();
   }
@@ -1594,6 +1594,11 @@ export class MemosPlusView extends ItemView {
     if (reload) {
       await this.reload({ preserveScroll: true });
     }
+  }
+
+  private async saveSettingsAndRender(): Promise<void> {
+    await this.plugin.saveSettings();
+    await this.render();
   }
 
   private async transferMemoToProject(memo: MemoItem): Promise<void> {

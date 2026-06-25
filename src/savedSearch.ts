@@ -196,10 +196,10 @@ export function isValidCondition(condition: SavedSearchCondition): boolean {
   if (condition.field === "status" && condition.value !== undefined && condition.value !== "" && !STATUS_VALUES.includes(condition.value as SavedSearchStatus)) {
     return false;
   }
-  if (condition.field === "taskStatus" && condition.value !== undefined && condition.value !== "" && !TASK_STATUS_VALUES.includes(condition.value as never)) {
+  if (condition.field === "taskStatus" && condition.value !== undefined && condition.value !== "" && !isTaskStatusValue(condition.value)) {
     return false;
   }
-  if (condition.field === "taskPriority" && condition.value !== undefined && condition.value !== "" && !TASK_PRIORITY_VALUES.includes(condition.value as never)) {
+  if (condition.field === "taskPriority" && condition.value !== undefined && condition.value !== "" && !isTaskPriorityValue(condition.value)) {
     return false;
   }
   if (isBetweenOperator(condition.operator)) {
@@ -423,6 +423,14 @@ function isSavedSearchField(value: string): value is SavedSearchField {
 
 function isSavedSearchOperator(value: string): value is SavedSearchOperator {
   return Object.values(OPERATORS_BY_FIELD).some((operators) => operators.includes(value as SavedSearchOperator));
+}
+
+function isTaskStatusValue(value: string): boolean {
+  return TASK_STATUS_VALUES.includes(value as (typeof TASK_STATUS_VALUES)[number]);
+}
+
+function isTaskPriorityValue(value: string): boolean {
+  return TASK_PRIORITY_VALUES.includes(value as (typeof TASK_PRIORITY_VALUES)[number]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
