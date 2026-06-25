@@ -2,6 +2,7 @@ import { ItemView, MarkdownRenderer, Menu, Notice, Platform, TFile, WorkspaceLea
 import type MemosPlusPlugin from "../main";
 import { createComposerSession, type ComposerSession } from "./composerSession";
 import type { ComposerSurface } from "./composerWidget";
+import { confirmWithModal } from "./confirmModal";
 import { getIconOverride, iconOverrideIdForOrganizerFilter, renderConfigurableIcon, sidebarItemIconOverrideId } from "./configurableIcons";
 import { filterMemos, getAllTags, todayString } from "./filter";
 import type { MemoViewMode } from "./filter";
@@ -1112,7 +1113,14 @@ export class MemosPlusView extends ItemView {
 
   private async deleteSidebarSearch(item: SidebarSearchItem): Promise<void> {
     const lang = this.plugin.settings.language;
-    if (!window.confirm(t(lang, "sidebar.deleteSearchConfirm").replace("{name}", item.title))) {
+    if (
+      !(await confirmWithModal(this.app, {
+        language: lang,
+        title: t(lang, "common.delete"),
+        message: t(lang, "sidebar.deleteSearchConfirm").replace("{name}", item.title),
+        confirmText: t(lang, "common.delete")
+      }))
+    ) {
       return;
     }
     const nextItems = removeSidebarItem(this.plugin.settings.sidebarItems, item.id);
@@ -1129,7 +1137,14 @@ export class MemosPlusView extends ItemView {
 
   private async deleteSidebarGroup(group: SidebarGroupItem): Promise<void> {
     const lang = this.plugin.settings.language;
-    if (!window.confirm(t(lang, "sidebar.deleteGroupConfirm").replace("{name}", group.title))) {
+    if (
+      !(await confirmWithModal(this.app, {
+        language: lang,
+        title: t(lang, "common.delete"),
+        message: t(lang, "sidebar.deleteGroupConfirm").replace("{name}", group.title),
+        confirmText: t(lang, "common.delete")
+      }))
+    ) {
       return;
     }
     const removedSearchIds = collectSidebarSearchIds([group]);
@@ -1620,7 +1635,13 @@ export class MemosPlusView extends ItemView {
         {
           archive: () => this.plugin.store.toggleArchived(memo),
           delete: () => this.plugin.store.deleteMemo(memo),
-          confirmDelete: () => window.confirm(t(lang, "memo.transferDeleteConfirm"))
+          confirmDelete: () =>
+            confirmWithModal(this.app, {
+              language: lang,
+              title: t(lang, "memoProjectTransfer.delete"),
+              message: t(lang, "memo.transferDeleteConfirm"),
+              confirmText: t(lang, "common.delete")
+            })
         }
       );
     } catch (error) {
@@ -1656,9 +1677,11 @@ export class MemosPlusView extends ItemView {
       if (lineIndex === undefined) {
         return;
       }
-      checkbox.addEventListener("change", async () => {
-        await this.plugin.store.toggleTask(memo, lineIndex, checkbox.checked);
-        await this.reload({ preserveScroll: true });
+      checkbox.addEventListener("change", () => {
+        void this.runMemoAction(async () => {
+          await this.plugin.store.toggleTask(memo, lineIndex, checkbox.checked);
+          await this.reload({ preserveScroll: true });
+        }, false);
       });
     });
   }

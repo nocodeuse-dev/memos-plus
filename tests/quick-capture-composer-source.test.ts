@@ -28,7 +28,7 @@ describe("quick capture shared composer", () => {
     expect(widgetSource).toContain('setIcon(clearButton, "eraser")');
     expect(widgetSource).toContain("clearInput");
     expect(widgetSource).toContain("isClearInputRisky");
-    expect(widgetSource).toContain("window.confirm");
+    expect(widgetSource).toContain("confirmWithModal");
     expect(widgetSource).toContain("onClearDraft");
     expect(widgetSource).toContain("shouldMemosHandleImagePaste");
     expect(widgetSource).toContain("memos-plus-callout-status");

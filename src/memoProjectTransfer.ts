@@ -4,7 +4,7 @@ export type MemoProjectTransferOutcome = "kept" | "archived" | "deleted";
 export interface MemoProjectTransferHandlers {
   archive: () => Promise<void>;
   delete: () => Promise<void>;
-  confirmDelete: () => boolean;
+  confirmDelete: () => boolean | Promise<boolean>;
 }
 
 export function normalizeMemoProjectTransferAfterAction(value: unknown): MemoProjectTransferAfterAction {
@@ -23,7 +23,7 @@ export async function applyMemoProjectTransferAfterAction(
     return "archived";
   }
   if (action === "delete") {
-    if (!handlers.confirmDelete()) {
+    if (!(await handlers.confirmDelete())) {
       return "kept";
     }
     await handlers.delete();

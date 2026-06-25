@@ -7,6 +7,7 @@ import {
   type ComposerTextTool,
   type ComposerToolbarToolId
 } from "./composerTools";
+import { confirmWithModal } from "./confirmModal";
 import type { DisplayModuleId } from "./displayModules";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
@@ -621,7 +622,15 @@ export class ComposerWidget {
       this.updateClearButtonState();
       return;
     }
-    if (this.isClearInputRisky(content) && !window.confirm(t(this.options.settings().language, "composer.clearConfirm"))) {
+    if (
+      this.isClearInputRisky(content) &&
+      !(await confirmWithModal(this.options.app, {
+        language: this.options.settings().language,
+        title: t(this.options.settings().language, "toolbar.clearInput"),
+        message: t(this.options.settings().language, "composer.clearConfirm"),
+        confirmText: t(this.options.settings().language, "toolbar.clearInput")
+      }))
+    ) {
       return;
     }
     this.composer.clear();

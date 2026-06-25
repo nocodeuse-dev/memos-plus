@@ -1182,39 +1182,47 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         text: module.name,
         attr: { type: "button" }
       });
-      label.addEventListener("click", async () => {
-        if (!visible) {
-          await this.setDisplayModuleVisible(surface, module.id, true);
-        }
-        this.selectLayoutModule(surface, module.id, preview, inspector);
+      label.addEventListener("click", () => {
+        runSettingsAsync(async () => {
+          if (!visible) {
+            await this.setDisplayModuleVisible(surface, module.id, true);
+          }
+          this.selectLayoutModule(surface, module.id, preview, inspector);
+        });
       });
       const controls = row.createDiv({ cls: "memos-plus-layout-mobile-row-controls" });
       const visibility = controls.createEl("input", { type: "checkbox" });
       visibility.checked = visible;
-      visibility.addEventListener("change", async () => {
-        await this.setDisplayModuleVisible(surface, module.id, visibility.checked);
-        preview.empty();
-        inspector.empty();
-        this.renderLayoutPreview(preview, surface, inspector);
-        this.renderLayoutModuleInspector(inspector, surface, module.id, preview);
+      visibility.addEventListener("change", () => {
+        runSettingsAsync(async () => {
+          await this.setDisplayModuleVisible(surface, module.id, visibility.checked);
+          preview.empty();
+          inspector.empty();
+          this.renderLayoutPreview(preview, surface, inspector);
+          this.renderLayoutModuleInspector(inspector, surface, module.id, preview);
+        });
       });
       const moveUp = controls.createEl("button", {
         text: t(lang, "settings.layoutDesigner.moveUp"),
         attr: { type: "button" }
       });
       moveUp.disabled = !visible || !this.canMoveLayoutModule(surface, module.id, -1);
-      moveUp.addEventListener("click", async () => {
-        await this.moveLayoutModule(surface, module.id, -1);
-        this.selectLayoutModule(surface, module.id, preview, inspector);
+      moveUp.addEventListener("click", () => {
+        runSettingsAsync(async () => {
+          await this.moveLayoutModule(surface, module.id, -1);
+          this.selectLayoutModule(surface, module.id, preview, inspector);
+        });
       });
       const moveDown = controls.createEl("button", {
         text: t(lang, "settings.layoutDesigner.moveDown"),
         attr: { type: "button" }
       });
       moveDown.disabled = !visible || !this.canMoveLayoutModule(surface, module.id, 1);
-      moveDown.addEventListener("click", async () => {
-        await this.moveLayoutModule(surface, module.id, 1);
-        this.selectLayoutModule(surface, module.id, preview, inspector);
+      moveDown.addEventListener("click", () => {
+        runSettingsAsync(async () => {
+          await this.moveLayoutModule(surface, module.id, 1);
+          this.selectLayoutModule(surface, module.id, preview, inspector);
+        });
       });
     }
   }
@@ -1513,11 +1521,13 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       attr: { type: "button" }
     });
     button.createEl("span", { cls: "memos-plus-layout-region-label", text: label });
-    button.addEventListener("click", async () => {
-      if (!visible) {
-        await this.setDisplayModuleVisible(surface, module.id, true);
-      }
-      this.selectLayoutModule(surface, module.id, preview, inspector);
+    button.addEventListener("click", () => {
+      runSettingsAsync(async () => {
+        if (!visible) {
+          await this.setDisplayModuleVisible(surface, module.id, true);
+        }
+        this.selectLayoutModule(surface, module.id, preview, inspector);
+      });
     });
     if (!Platform.isMobile && visible) {
       button.setAttr("draggable", "true");
@@ -1546,8 +1556,10 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       button.addEventListener("dragleave", () => {
         button.removeClass("is-drop-target");
       });
-      button.addEventListener("drop", async (event) => {
-        await this.dropLayoutPreviewModule(event, surface, module.id, preview, inspector);
+      button.addEventListener("drop", (event) => {
+        runSettingsAsync(async () => {
+          await this.dropLayoutPreviewModule(event, surface, module.id, preview, inspector);
+        });
       });
     }
   }
@@ -1801,48 +1813,56 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       attr: { type: "button" }
     });
     moveUp.disabled = !this.canMoveLayoutModule(surface, module.id, -1);
-    moveUp.addEventListener("click", async () => {
-      await this.moveLayoutModule(surface, module.id, -1);
-      preview.empty();
-      container.empty();
-      this.renderLayoutPreview(preview, surface, container);
-      this.renderLayoutModuleInspector(container, surface, module.id, preview);
+    moveUp.addEventListener("click", () => {
+      runSettingsAsync(async () => {
+        await this.moveLayoutModule(surface, module.id, -1);
+        preview.empty();
+        container.empty();
+        this.renderLayoutPreview(preview, surface, container);
+        this.renderLayoutModuleInspector(container, surface, module.id, preview);
+      });
     });
     const moveDown = actions.createEl("button", {
       text: t(lang, "settings.layoutDesigner.moveDown"),
       attr: { type: "button" }
     });
     moveDown.disabled = !this.canMoveLayoutModule(surface, module.id, 1);
-    moveDown.addEventListener("click", async () => {
-      await this.moveLayoutModule(surface, module.id, 1);
-      preview.empty();
-      container.empty();
-      this.renderLayoutPreview(preview, surface, container);
-      this.renderLayoutModuleInspector(container, surface, module.id, preview);
+    moveDown.addEventListener("click", () => {
+      runSettingsAsync(async () => {
+        await this.moveLayoutModule(surface, module.id, 1);
+        preview.empty();
+        container.empty();
+        this.renderLayoutPreview(preview, surface, container);
+        this.renderLayoutModuleInspector(container, surface, module.id, preview);
+      });
     });
     actions
       .createEl("button", {
         text: t(lang, "settings.layoutDesigner.hideRegion"),
         attr: { type: "button" }
       })
-      .addEventListener("click", async () => {
-        await this.setDisplayModuleVisible(surface, module.id, false);
-        preview.empty();
-        container.empty();
-        this.renderLayoutPreview(preview, surface, container);
-        this.renderLayoutModuleInspector(container, surface, module.id, preview);
+      .addEventListener("click", () => {
+        runSettingsAsync(async () => {
+          await this.setDisplayModuleVisible(surface, module.id, false);
+          preview.empty();
+          container.empty();
+          this.renderLayoutPreview(preview, surface, container);
+          this.renderLayoutModuleInspector(container, surface, module.id, preview);
+        });
       });
     actions
       .createEl("button", {
         text: t(lang, "settings.layoutDesigner.restoreDefault"),
         attr: { type: "button" }
       })
-      .addEventListener("click", async () => {
-        await this.setDisplayModuleVisible(surface, module.id, module.defaultVisible);
-        preview.empty();
-        container.empty();
-        this.renderLayoutPreview(preview, surface, container);
-        this.renderLayoutModuleInspector(container, surface, module.id, preview);
+      .addEventListener("click", () => {
+        runSettingsAsync(async () => {
+          await this.setDisplayModuleVisible(surface, module.id, module.defaultVisible);
+          preview.empty();
+          container.empty();
+          this.renderLayoutPreview(preview, surface, container);
+          this.renderLayoutModuleInspector(container, surface, module.id, preview);
+        });
       });
     actions
       .createEl("button", {
@@ -3978,4 +3998,10 @@ function parseFileTemplateDefaultsInput(value: string): Record<string, string> {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function runSettingsAsync(action: () => Promise<void>): void {
+  void action().catch((error) => {
+    console.error("[Memos Plus] Settings action failed", error);
+  });
 }

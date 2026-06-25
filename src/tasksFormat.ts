@@ -1,14 +1,16 @@
 export type TaskPriority = "none" | "highest" | "high" | "medium" | "low" | "lowest";
 export type TaskRecurrence = "none" | "daily" | "weekly" | "monthly" | "yearly" | "custom";
 export type TaskContentMode = "task-with-detail" | "task-only" | "ask";
+type LooseTaskPriority = TaskPriority | (string & {});
+type LooseTaskRecurrence = TaskRecurrence | (string & {});
 
 export interface TasksMarkdownOptions {
-  priority?: TaskPriority | string;
+  priority?: LooseTaskPriority;
   projectTag?: string;
   startDate?: string;
   scheduledDate?: string;
   dueDate?: string;
-  recurrence?: TaskRecurrence | string;
+  recurrence?: LooseTaskRecurrence;
   customRecurrence?: string;
   addCreatedDate?: boolean;
   createdDate?: string;

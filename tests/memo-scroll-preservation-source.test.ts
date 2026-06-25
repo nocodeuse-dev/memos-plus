@@ -12,7 +12,8 @@ describe("memo list scroll preservation", () => {
     const runMemoActionBody = viewSource.match(/private async runMemoAction\([\s\S]*?\n {2}\}/)?.[0] ?? "";
     expect(runMemoActionBody).toContain("await this.reload({ preserveScroll: true })");
 
-    const checkboxHandlerBody = viewSource.match(/checkbox\.addEventListener\("change", async \(\) => \{([\s\S]*?)\n {6}\}\);/)?.[1] ?? "";
+    const checkboxHandlerBody = viewSource.match(/checkbox\.addEventListener\("change", \(\) => \{([\s\S]*?)\n {6}\}\);/)?.[1] ?? "";
+    expect(checkboxHandlerBody).toContain("runMemoAction");
     expect(checkboxHandlerBody).toContain("await this.reload({ preserveScroll: true })");
   });
 });

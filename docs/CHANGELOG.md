@@ -2,6 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
+- 继续降低 Obsidian Community 自动扫描警告：构建脚本改用 Node 内置 `node:module` 的 `builtinModules` 并移除 `builtin-modules` 依赖；任务格式选项改用不覆盖字面量的宽松字符串类型；设置页和任务复选框的 DOM async 回调改为显式 `void` 包装并记录错误；清空输入、删除侧边栏筛选/分组、转出后删除原 memo、删除模板文件等确认动作改用轻量 Obsidian Modal，不再调用浏览器 `window.confirm()`。
 - 按 Obsidian Community 自动扫描继续收口弹窗/多窗口兼容问题：将输入框、表格选择器、诊断日志、任务索引和快速输入侧栏中的全局 `document`、裸 `setTimeout` / `clearTimeout` / `requestAnimationFrame`、跨窗口 `instanceof HTMLElement` 等用法改为 `activeDocument`、`window.*` 和 Obsidian 兼容的 `.instanceOf()`；移除设置滑块的 `setDynamicTooltip()` 调用，删除少量 CSS `!important`，改用 `FileManager.trashFile()` 尊重用户删除偏好，并调整命令 ID 避免重复包含插件 ID。
 - 调整 GitHub 发布标签格式以兼容新的 Obsidian Community 提交流程：后续自动发布使用与 `manifest.json` 版本完全一致的 `X.Y.Z` tag，不再默认加 `v` 前缀；安装脚本继续兼容读取旧的 `vX.Y.Z` release。
 - 补齐仓库根目录 MIT `LICENSE`，并精简后续 GitHub Release 资产为 Obsidian 官方实际下载的 `main.js`、`manifest.json` 和 `styles.css`，减少 Obsidian Community 自动审核中的提示。

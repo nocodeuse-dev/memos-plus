@@ -29,6 +29,7 @@ import {
 } from "./fileTemplateLibrary";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
+import { confirmWithModal } from "./confirmModal";
 import { logMemosPlusDiagnostic } from "./diagnostics";
 import { focusOnDesktopOnly } from "./modalFocus";
 import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
@@ -594,7 +595,14 @@ class FileTemplateLibraryModal extends Modal {
   }
 
   private async deleteTemplate(item: FileTemplateLibraryItem): Promise<void> {
-    if (!window.confirm(t(this.options.language, "fileTemplateLibrary.deleteConfirm"))) {
+    if (
+      !(await confirmWithModal(this.app, {
+        language: this.options.language,
+        title: t(this.options.language, "fileTemplateLibrary.deleteTemplate"),
+        message: t(this.options.language, "fileTemplateLibrary.deleteConfirm"),
+        confirmText: t(this.options.language, "common.delete")
+      }))
+    ) {
       return;
     }
     try {
