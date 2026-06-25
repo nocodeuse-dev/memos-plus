@@ -43,6 +43,7 @@ export class MemosPlusMobilePanelView extends ItemView {
   private readonly taggedFilesCache = new Map<string, TaggedFileInfo[]>();
   private readonly headingsCache = new Map<string, FileHeadingInfo[]>();
   private fileTemplatesCache: FileTemplateLibraryItem[] | null = null;
+  private tabsScrollLeft = 0;
   private renderToken = 0;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
@@ -101,6 +102,7 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.taggedFilesCache.clear();
     this.headingsCache.clear();
     this.fileTemplatesCache = null;
+    this.tabsScrollLeft = 0;
     this.nextRenderToken();
   }
 
@@ -132,7 +134,7 @@ export class MemosPlusMobilePanelView extends ItemView {
 
   private renderTopBar(title: string, backAction?: () => void): HTMLElement {
     const lang = this.plugin.settings.language;
-    const header = this.contentEl.createDiv({ cls: "memos-plus-mobile-panel-header" });
+    const header = this.contentEl.createDiv({ cls: `memos-plus-mobile-panel-header${backAction ? " has-back" : ""}` });
     if (backAction) {
       const back = header.createEl("button", {
         cls: "memos-plus-icon-button",
@@ -160,6 +162,7 @@ export class MemosPlusMobilePanelView extends ItemView {
       this.renderIdle();
       return;
     }
+    this.captureTabsScrollLeft();
     this.step = "chooseTarget";
     this.contentEl.empty();
     this.renderTopBar(t(options.language, "fileSend.selectFile"));
@@ -204,9 +207,21 @@ export class MemosPlusMobilePanelView extends ItemView {
       });
       button.createSpan({ cls: "memos-plus-project-send-tab-label", text: this.tabLabel(id) });
       button.addEventListener("click", () => {
+        this.tabsScrollLeft = tabs.scrollLeft;
         this.activeTabId = id;
         this.renderTargetPicker();
       });
+    }
+    tabs.scrollLeft = this.tabsScrollLeft;
+    tabs.addEventListener("scroll", () => {
+      this.tabsScrollLeft = tabs.scrollLeft;
+    });
+  }
+
+  private captureTabsScrollLeft(): void {
+    const tabs = this.contentEl.querySelector<HTMLElement>(".memos-plus-mobile-panel-tabs");
+    if (tabs) {
+      this.tabsScrollLeft = tabs.scrollLeft;
     }
   }
 

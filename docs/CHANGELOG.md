@@ -2,6 +2,7 @@
 
 ## 0.1.60 - Unreleased
 
+- 优化移动端 `MemosPlusMobilePanelView` 选择文件页面：标签栏改为固定 44px 高度的单行横向滚动，不再使用会造成点击下移的 translate/border active 样式，并在切换标签时保留 `scrollLeft`，避免后方标签点不到；文件和模板列表压缩为更紧凑的行式卡片，文件名最多两行且继续不显示 `#标签`；底部“默认发送 / 新建文件”操作栏增加 iOS safe area 避让和列表底部 padding，避免被 Obsidian 移动端底栏遮挡。
 - 新增移动端稳定交互模式：默认 `mobileInteractionMode = "view"`，移动端发送到项目/文件时不再打开第二层文件选择 Modal，而是进入 `MemosPlusMobilePanelView` ItemView，在同一个页面内完成最近目标、搜索、标签页、使用模板新建文件、标题/插入位置和任务选项选择；桌面端继续使用原 `ProjectSendModal`，设置页“性能与数据”可切回旧弹窗模式作为兼容 fallback。快速记录 Modal 在等待移动端选择时会临时隐藏自身，避免多个关闭按钮和浮层叠加；实际写入仍复用原 `store.sendToFileTarget`。
 - 继续收口 Obsidian Community 剩余 warning：显示模块数据加载器类型改为 `void | Promise<void>`，清理任务/检索式校验中的多余类型断言，侧边栏折叠和“全部笔记”图标选择后的保存渲染改为显式 async helper；GitHub Release workflow 新增 artifact attestation 权限和 `actions/attest-build-provenance`，为 `main.js`、`manifest.json`、`styles.css` 生成构建来源证明。
 - 按 Obsidian 官方扫描建议移除剩余浏览器 `window.prompt()`：发送/新建文件弹窗中的“新增标签筛选页”和“新增模板分组页”现在在移动端和桌面端都使用 Memos Plus 自己的轻量 Obsidian Modal 输入，创建结果和原有标签页/模板分组逻辑保持不变。
