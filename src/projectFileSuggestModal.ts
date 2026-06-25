@@ -1189,8 +1189,7 @@ export class ProjectSendModal extends Modal {
   }
 
   private fileMetaParts(info: TaggedFileInfo): string[] {
-    const tags = (info.matchTags.length > 0 ? info.matchTags : info.tags).slice(0, 4).map((tag) => `#${tag}`).join(" · ");
-    return [info.status ?? "", tags, formatUpdatedAt(info.updatedAt, this.options.language)];
+    return [info.status ?? "", compactFilePath(info.path), formatUpdatedAt(info.updatedAt, this.options.language)];
   }
 
   private async renderHeadingPicker(info: TaggedFileInfo, refresh: () => void, back?: () => void): Promise<void> {
@@ -1765,6 +1764,19 @@ function formatUpdatedAt(value: number, language: Language): string {
   }
   const stamp = [date.getFullYear(), pad2(date.getMonth() + 1), pad2(date.getDate())].join("-");
   return language === "en" ? `updated ${stamp}` : `${stamp} 更新`;
+}
+
+function compactFilePath(path: string): string {
+  const parts = path.split("/").filter(Boolean);
+  parts.pop();
+  if (parts.length === 0) {
+    return "";
+  }
+  const folder = parts.join("/");
+  if (folder.length <= 36) {
+    return folder;
+  }
+  return `…/${parts.slice(-2).join("/")}`;
 }
 
 function startOfDay(date: Date): Date {

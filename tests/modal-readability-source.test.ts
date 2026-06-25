@@ -27,11 +27,14 @@ describe("modal readability styles", () => {
     expect(styles).toContain(".memos-plus-project-send-modal");
     expect(styles).toContain("overflow-x: hidden;");
     expect(projectTitle).toContain("justify-content: flex-start;");
-    expect(projectTitle).toContain("white-space: nowrap;");
-    expect(projectTitle).toContain("text-overflow: ellipsis;");
+    expect(projectTitle).toContain("grid-template-columns: auto minmax(0, 1fr);");
+    expect(projectTitle).toContain("grid-template-rows: auto auto;");
+    expect(projectTitle).toContain("white-space: normal;");
     expect(projectTitle).toContain("min-width: 0;");
     expect(projectTitleText).toContain("min-width: 0;");
+    expect(projectTitleText).toContain("-webkit-line-clamp: 1;");
     expect(projectTitleText).toContain("text-overflow: ellipsis;");
+    expect(styles).toContain("-webkit-line-clamp: 2;");
     expect(projectMeta).toContain("white-space: nowrap;");
     expect(projectMeta).toContain("text-overflow: ellipsis;");
     expect(styles).toContain(".memos-plus-file-template-item-name");

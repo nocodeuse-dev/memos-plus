@@ -277,6 +277,11 @@ describe("project send modal source", () => {
   });
 
   it("uses a shared inline list item renderer with metadata for send modal lists", () => {
+    const fileMetaSource = modalSource.slice(
+      modalSource.indexOf("private fileMetaParts"),
+      modalSource.indexOf("private async renderHeadingPicker")
+    );
+
     expect(modalSource).toContain("private renderSendListOption");
     expect(modalSource).not.toContain("private renderProjectOption");
     expect(modalSource).toContain("private renderFileInfoOption");
@@ -287,6 +292,9 @@ describe("project send modal source", () => {
     expect(modalSource).toContain("memos-plus-project-option-meta-inline");
     expect(modalSource).toContain("memos-plus-project-option-meta-text");
     expect(modalSource).not.toContain('button.createDiv({ cls: "memos-plus-project-option-meta"');
+    expect(fileMetaSource).not.toContain("matchTags");
+    expect(fileMetaSource).not.toContain("info.tags");
+    expect(fileMetaSource).not.toContain("`#${tag}`");
   });
 
   it("keeps send modal list rows left-aligned and clipped without horizontal overflow", () => {
@@ -298,6 +306,10 @@ describe("project send modal source", () => {
     expect(stylesSource).toContain("align-items: center");
     expect(stylesSource).toContain("justify-content: flex-start");
     expect(stylesSource).toContain("text-align: left");
+    expect(stylesSource).toContain("grid-template-rows: auto auto");
+    expect(stylesSource).toContain("grid-template-columns: auto minmax(0, 1fr)");
+    expect(stylesSource).not.toContain("max-width: 48%");
+    expect(stylesSource).toContain("-webkit-line-clamp: 2");
     expect(stylesSource).toContain("text-overflow: ellipsis");
     expect(stylesSource).toContain("overflow-x: hidden");
     expect(stylesSource).toContain("scrollbar-width: none");
