@@ -5,7 +5,6 @@ import {
   getVisibleFileTemplateLibraryTabIds,
   normalizeFileTemplateTabs,
   normalizeVisibleFileTemplateLibraryDefaultTabId,
-  toggleFavoriteFileTemplatePath,
   updateRecentFileTemplatePaths
 } from "./fileTemplateLibrary";
 import type { MemosPlusSettings } from "./settings";
@@ -128,13 +127,8 @@ async function selectProjectTarget(
     noHeadingBehavior: host.settings.sendToFileNoHeadingBehavior,
     onLoadFileTemplates: () => host.store.getFileTemplateLibraryItems(),
     onCreateFromFileTemplate: async (templatePath, title, tag) => host.store.createFileFromLibraryTemplate(templatePath, title, { tag }),
-    onToggleFileTemplateFavorite: async (templatePath) => {
-      host.settings.fileTemplateLibraryFavorites = toggleFavoriteFileTemplatePath(host.settings.fileTemplateLibraryFavorites, templatePath);
-      await host.persistSettings();
-    },
     onDeleteFileTemplate: async (templatePath) => {
       await host.store.deleteFileTemplate(templatePath);
-      host.settings.fileTemplateLibraryFavorites = host.settings.fileTemplateLibraryFavorites.filter((item) => item !== templatePath);
       host.settings.fileTemplateLibraryRecent = host.settings.fileTemplateLibraryRecent.filter((item) => item !== templatePath);
       for (const [tag, path] of Object.entries(host.settings.fileTemplateLibraryDefaults)) {
         if (path === templatePath) {

@@ -90,11 +90,10 @@ describe("VaultMetadataIndex", () => {
     expect(index.scanFileTemplateLibrary({
       fileTemplateLibraryFolder: "我的资源/模板",
       fileTemplateLibraryDefaultFolder: "我的资源/Memos",
-      fileTemplateLibraryFavorites: ["我的资源/模板/疾病/疾病模板.md"],
       fileTemplateLibraryRecent: [],
       fileTemplateLibraryDefaults: {}
-    }).map((item) => [item.name, item.category, item.tags, item.isFavorite])).toEqual([
-      ["疾病模板", "疾病", ["病", "模板", "医学"], true]
+    }).map((item) => [item.name, item.category, item.tags])).toEqual([
+      ["疾病模板", "疾病", ["病", "模板", "医学"]]
     ]);
     expect(app.vault.read).not.toHaveBeenCalled();
   });

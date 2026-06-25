@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_FILE_TEMPLATE_LIBRARY_INTERACTION,
   FILE_TEMPLATE_LIBRARY_TAB_ALL,
-  FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
   FILE_TEMPLATE_LIBRARY_TAB_RECENT,
   DEFAULT_FILE_TEMPLATE_TAB_INTERACTION,
   buildFileTemplateTargetPath,
@@ -36,7 +35,6 @@ const items: FileTemplateLibraryItem[] = [
     category: "疾病",
     tags: ["病", "医学"],
     updatedAt: 100,
-    isFavorite: true,
     isRecent: false
   },
   {
@@ -45,13 +43,12 @@ const items: FileTemplateLibraryItem[] = [
     category: "未分类",
     tags: ["项目"],
     updatedAt: 200,
-    isFavorite: false,
     isRecent: true
   }
 ];
 
 describe("file template library", () => {
-  it("normalizes favorite and recent template paths", () => {
+  it("normalizes template library paths", () => {
     expect(normalizeFileTemplateLibraryPaths([" 我的资源//模板/疾病.md ", "", "我的资源/模板/疾病.md"])).toEqual([
       "我的资源/模板/疾病.md"
     ]);
@@ -94,7 +91,6 @@ describe("file template library", () => {
   it("normalizes template library tab order, default tab, and per-surface tab drag settings", () => {
     const available = [
       FILE_TEMPLATE_LIBRARY_TAB_ALL,
-      FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
       FILE_TEMPLATE_LIBRARY_TAB_RECENT,
       getFileTemplateLibraryCategoryTabId("未分类"),
       getFileTemplateLibraryCategoryTabId("病历"),
@@ -110,7 +106,7 @@ describe("file template library", () => {
         ["category:病历", "recent", "bad", "custom:group-common", "recent"],
         available
       )
-    ).toEqual(["category:病历", "recent", "custom:group-common", "all", "favorite", "category:未分类"]);
+    ).toEqual(["category:病历", "recent", "custom:group-common", "all", "category:未分类"]);
     expect(normalizeFileTemplateLibraryDefaultTabId("category:病历", available)).toBe("category:病历");
     expect(normalizeFileTemplateLibraryDefaultTabId("missing", available)).toBe(FILE_TEMPLATE_LIBRARY_TAB_ALL);
     expect(normalizeFileTemplateLibraryInteraction({ enableDesktopTabDrag: false, enableMobileTabDrag: true })).toEqual({
@@ -157,7 +153,6 @@ describe("file template library", () => {
   it("filters templates by category, name, and tags", () => {
     expect(filterFileTemplateLibraryItems(items, { query: "病", category: "全部" }).map((item) => item.name)).toEqual(["疾病模板"]);
     expect(filterFileTemplateLibraryItems(items, { query: "医学", category: "疾病" }).map((item) => item.name)).toEqual(["疾病模板"]);
-    expect(filterFileTemplateLibraryItems(items, { query: "", category: "收藏" }).map((item) => item.name)).toEqual(["疾病模板"]);
     expect(filterFileTemplateLibraryItems(items, { query: "", category: "最近" }).map((item) => item.name)).toEqual(["项目模板"]);
   });
 

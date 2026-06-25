@@ -6,11 +6,9 @@ export const DEFAULT_FILE_TEMPLATE_LIBRARY_FOLDER = "我的资源/模板";
 export const DEFAULT_FILE_TEMPLATE_LIBRARY_TARGET_FOLDER = "我的资源/Memos";
 export const FILE_TEMPLATE_LIBRARY_RECENT_LIMIT = 20;
 export const FILE_TEMPLATE_LIBRARY_TAB_ALL = "all";
-export const FILE_TEMPLATE_LIBRARY_TAB_FAVORITE = "favorite";
 export const FILE_TEMPLATE_LIBRARY_TAB_RECENT = "recent";
 export const FILE_TEMPLATE_LIBRARY_BUILT_IN_TAB_IDS = [
   FILE_TEMPLATE_LIBRARY_TAB_ALL,
-  FILE_TEMPLATE_LIBRARY_TAB_FAVORITE,
   FILE_TEMPLATE_LIBRARY_TAB_RECENT
 ] as const;
 
@@ -20,7 +18,6 @@ export interface FileTemplateLibraryItem {
   category: string;
   tags: string[];
   updatedAt: number;
-  isFavorite: boolean;
   isRecent: boolean;
   file?: TFile;
 }
@@ -67,7 +64,6 @@ export interface FileTemplateLibraryFilter {
 export interface FileTemplateLibrarySettings {
   fileTemplateLibraryFolder: string;
   fileTemplateLibraryDefaultFolder: string;
-  fileTemplateLibraryFavorites: string[];
   fileTemplateLibraryRecent: string[];
   fileTemplateLibraryDefaults: Record<string, string>;
   fileTemplateLibraryDefaultTabId?: string;
@@ -285,13 +281,10 @@ export function filterFileTemplateLibraryItems(items: FileTemplateLibraryItem[],
   const category = (filter.category ?? "").trim();
   return items
     .filter((item) => {
-      if (category === "收藏" && !item.isFavorite) {
-        return false;
-      }
       if (category === "最近" && !item.isRecent) {
         return false;
       }
-      if (category && category !== "全部" && category !== "收藏" && category !== "最近" && item.category !== category) {
+      if (category && category !== "全部" && category !== "最近" && item.category !== category) {
         return false;
       }
       if (!query) {
@@ -301,9 +294,6 @@ export function filterFileTemplateLibraryItems(items: FileTemplateLibraryItem[],
       return haystack.includes(query);
     })
     .sort((left, right) => {
-      if (left.isFavorite !== right.isFavorite) {
-        return left.isFavorite ? -1 : 1;
-      }
       if (left.isRecent !== right.isRecent) {
         return left.isRecent ? -1 : 1;
       }
@@ -355,7 +345,6 @@ export function addTemplatePathToFileTemplateTab(tabs: FileTemplateTab[], tabId:
 export async function scanFileTemplateLibrary(app: App, settings: FileTemplateLibrarySettings): Promise<FileTemplateLibraryItem[]> {
   const folder = normalizeFileTemplateLibraryFolder(settings.fileTemplateLibraryFolder);
   const prefix = folder ? `${folder}/` : "";
-  const favorites = new Set(normalizeFileTemplateLibraryPaths(settings.fileTemplateLibraryFavorites));
   const recent = new Set(normalizeFileTemplateLibraryPaths(settings.fileTemplateLibraryRecent));
   const files = app.vault
     .getMarkdownFiles()
@@ -373,7 +362,6 @@ export async function scanFileTemplateLibrary(app: App, settings: FileTemplateLi
       category: categoryForTemplatePath(path, folder),
       tags: collectTemplateTags(app, file),
       updatedAt: file.stat?.mtime ?? 0,
-      isFavorite: favorites.has(path),
       isRecent: recent.has(path),
       file
     };
@@ -404,15 +392,6 @@ export function updateRecentFileTemplatePaths(paths: string[], path: string): st
     return normalizeFileTemplateLibraryPaths(paths).slice(0, FILE_TEMPLATE_LIBRARY_RECENT_LIMIT);
   }
   return [normalized, ...normalizeFileTemplateLibraryPaths(paths).filter((item) => item !== normalized)].slice(0, FILE_TEMPLATE_LIBRARY_RECENT_LIMIT);
-}
-
-export function toggleFavoriteFileTemplatePath(paths: string[], path: string): string[] {
-  const normalized = normalizeOptionalVaultPath(path);
-  const current = normalizeFileTemplateLibraryPaths(paths);
-  if (!normalized) {
-    return current;
-  }
-  return current.includes(normalized) ? current.filter((item) => item !== normalized) : [...current, normalized];
 }
 
 function buildDefaultFileTemplateContent(context: TemplateVariableContext): string {

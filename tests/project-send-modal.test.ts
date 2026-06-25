@@ -136,7 +136,13 @@ describe("project send modal source", () => {
     expect(modalSource).toContain("FileTemplateLibraryModal");
     expect(modalSource).toContain("onLoadFileTemplates");
     expect(modalSource).toContain("onCreateFromFileTemplate");
-    expect(modalSource).toContain("onToggleFileTemplateFavorite");
+    expect(modalSource).not.toContain("onToggleFileTemplateFavorite");
+    expect(libraryModalSource).not.toContain("toggleFavorite");
+    expect(libraryModalSource).not.toContain("fileTemplateLibrary.favorite");
+    expect(libraryModalSource).not.toContain("star-off");
+    expect(libraryModalSource).not.toContain("setIcon(favorite");
+    expect(libraryModalSource).toContain("memos-plus-file-template-actions");
+    expect(libraryModalSource).toContain("more-horizontal");
     expect(modalSource).toContain("onDeleteFileTemplate");
     expect(libraryModalSource).not.toContain("addTemplatePathToFileTemplateTab");
     expect(libraryModalSource).toContain("filterFileTemplateLibraryItemsForTab");

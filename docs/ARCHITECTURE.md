@@ -187,7 +187,6 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `managedTemplates`：发送规则配置数组，供发送弹窗内部投递规则使用；旧项目投递设置缺省时会迁移生成“发送到项目”。字段名沿用历史命名，界面中显示为“发送规则”。
 - `fileTemplateLibraryFolder`：新建文件模板库所在文件夹，默认 `我的资源/模板`。
 - `fileTemplateLibraryDefaultFolder`：用模板库创建新文件时的默认保存位置，默认 `我的资源/Memos`。
-- `fileTemplateLibraryFavorites`：收藏的新建文件模板路径数组。
 - `fileTemplateLibraryRecent`：最近使用的新建文件模板路径数组。
 - `fileTemplateLibraryDefaults`：按标签记录的默认新建文件模板路径映射，例如 `病 -> 我的资源/模板/疾病.md`。
 - `sendToFileEnabled`：发送到文件功能开关。

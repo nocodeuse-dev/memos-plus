@@ -94,7 +94,6 @@ export interface ProjectSendModalOptions {
   noHeadingBehavior: NoHeadingBehavior;
   onLoadFileTemplates: () => Promise<FileTemplateLibraryItem[]>;
   onCreateFromFileTemplate: (templatePath: string, title: string, tag?: string) => Promise<TFile | null>;
-  onToggleFileTemplateFavorite: (templatePath: string) => Promise<void>;
   onDeleteFileTemplate: (templatePath: string) => Promise<void>;
   onMarkFileTemplateRecent: (templatePath: string) => Promise<void>;
   getPreferredFileTemplatePath?: (tag: string) => string;
@@ -298,7 +297,6 @@ class FileTemplateLibraryModal extends Modal {
       performanceSettings: ModalPerformanceSettings;
       onLoad: () => Promise<FileTemplateLibraryItem[]>;
       onCreate: (template: FileTemplateLibraryItem, title: string) => Promise<void>;
-      onToggleFavorite: (templatePath: string) => Promise<void>;
       onDelete: (templatePath: string) => Promise<void>;
       onSaveTabs: (tabs: FileTemplateTab[]) => Promise<void>;
       onSaveFileTemplateLibraryPreferences?: (state: { defaultTabId?: string; tabOrder?: string[] }) => Promise<void>;
@@ -360,7 +358,7 @@ class FileTemplateLibraryModal extends Modal {
       return;
     }
     if (!this.items.some((item) => item.path === this.selectedPath)) {
-      this.selectedPath = this.items.find((item) => item.isFavorite)?.path ?? this.items[0]?.path ?? "";
+      this.selectedPath = this.items[0]?.path ?? "";
     }
     this.render();
   }
@@ -467,16 +465,6 @@ class FileTemplateLibraryModal extends Modal {
       meta.setAttr("title", metaText);
 
       const actions = row.createDiv({ cls: "memos-plus-file-template-actions" });
-      const favorite = actions.createEl("button", {
-        cls: "memos-plus-icon-button",
-        attr: { type: "button", title: t(lang, "fileTemplateLibrary.favorite") }
-      });
-      setIcon(favorite, item.isFavorite ? "star" : "star-off");
-      favorite.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void withMobileClickLock(favorite, () => this.toggleFavorite(item.path));
-      });
       const more = actions.createEl("button", {
         cls: "memos-plus-icon-button",
         attr: { type: "button", title: t(lang, "memo.more") }
@@ -547,19 +535,6 @@ class FileTemplateLibraryModal extends Modal {
   private async saveTemplateTabs(tabs: FileTemplateTab[]): Promise<void> {
     this.options.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
     await this.options.onSaveTabs(this.options.fileTemplateTabs);
-  }
-
-  private async toggleFavorite(path: string): Promise<void> {
-    try {
-      await this.options.onToggleFavorite(path);
-      this.items = await this.options.onLoad();
-      if (this.closed) {
-        return;
-      }
-      this.renderList();
-    } catch (error) {
-      console.error("[Memos Plus] Failed to toggle file template favorite", error);
-    }
   }
 
   private openItemMenu(event: MouseEvent, item: FileTemplateLibraryItem): void {
@@ -1570,7 +1545,6 @@ export class ProjectSendModal extends Modal {
       tabOrder: this.options.fileTemplateLibraryTabOrder,
       performanceSettings: this.options.performanceSettings,
       onLoad: this.options.onLoadFileTemplates,
-      onToggleFavorite: this.options.onToggleFileTemplateFavorite,
       onDelete: this.options.onDeleteFileTemplate,
       onSaveTabs: async (tabs) => {
         await this.saveFileTemplateTabs(tabs);

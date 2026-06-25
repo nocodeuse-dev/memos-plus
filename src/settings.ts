@@ -226,7 +226,6 @@ export interface MemosPlusSettings {
   managedTemplates: ManagedTemplate[];
   fileTemplateLibraryFolder: string;
   fileTemplateLibraryDefaultFolder: string;
-  fileTemplateLibraryFavorites: string[];
   fileTemplateLibraryRecent: string[];
   fileTemplateLibraryDefaults: Record<string, string>;
   tabTemplateBindings: Record<string, string>;
@@ -347,7 +346,6 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   managedTemplates: [],
   fileTemplateLibraryFolder: DEFAULT_FILE_TEMPLATE_LIBRARY_FOLDER,
   fileTemplateLibraryDefaultFolder: DEFAULT_FILE_TEMPLATE_LIBRARY_TARGET_FOLDER,
-  fileTemplateLibraryFavorites: [],
   fileTemplateLibraryRecent: [],
   fileTemplateLibraryDefaults: {},
   tabTemplateBindings: {},
@@ -596,7 +594,6 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     managedTemplates,
     fileTemplateLibraryFolder: normalizeFileTemplateLibraryFolder(raw.fileTemplateLibraryFolder),
     fileTemplateLibraryDefaultFolder: normalizeFileTemplateLibraryDefaultFolder(raw.fileTemplateLibraryDefaultFolder),
-    fileTemplateLibraryFavorites: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryFavorites),
     fileTemplateLibraryRecent: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryRecent).slice(0, 20),
     fileTemplateLibraryDefaults: normalizeFileTemplateDefaults(raw.fileTemplateLibraryDefaults),
     tabTemplateBindings: normalizeTabTemplateBindings(raw.tabTemplateBindings, fileTemplateTabs),
@@ -3261,9 +3258,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     new Setting(container)
       .setName(t(lang, "settings.fileTemplateLibraryStatus"))
       .setDesc(
-        t(lang, "settings.fileTemplateLibraryStatusDesc")
-          .replace("{favorites}", String(this.plugin.settings.fileTemplateLibraryFavorites.length))
-          .replace("{recent}", String(this.plugin.settings.fileTemplateLibraryRecent.length))
+        t(lang, "settings.fileTemplateLibraryStatusDesc").replace("{recent}", String(this.plugin.settings.fileTemplateLibraryRecent.length))
       )
       .addButton((button) => {
         button.setButtonText(t(lang, "settings.fileTemplateLibraryClearRecent")).onClick(async () => {

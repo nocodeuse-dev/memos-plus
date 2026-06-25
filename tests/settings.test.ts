@@ -201,7 +201,7 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.openTargetFileAfterSend).toBe(false);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryFolder).toBe("我的资源/模板");
     expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaultFolder).toBe("我的资源/Memos");
-    expect(DEFAULT_SETTINGS.fileTemplateLibraryFavorites).toEqual([]);
+    expect(DEFAULT_SETTINGS).not.toHaveProperty("fileTemplateLibraryFavorites");
     expect(DEFAULT_SETTINGS.fileTemplateLibraryRecent).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaults).toEqual({});
     expect(DEFAULT_SETTINGS.tabTemplateBindings).toEqual({});
@@ -649,7 +649,6 @@ describe("normalizeSettings", () => {
       recentFileTargetPaths: ["医学/肩袖损伤.md", "插件/Memos Plus.md"],
       fileTemplateLibraryFolder: "我的资源/模板",
       fileTemplateLibraryDefaultFolder: "我的资源/疾病",
-      fileTemplateLibraryFavorites: ["我的资源/模板/疾病.md"],
       fileTemplateLibraryRecent: ["我的资源/模板/项目.md", "我的资源/模板/疾病.md"],
       fileTemplateLibraryDefaults: {
         病: "我的资源/模板/疾病.md"

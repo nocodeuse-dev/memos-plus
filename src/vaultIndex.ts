@@ -153,7 +153,6 @@ export class VaultMetadataIndex {
   scanFileTemplateLibrary(settings: FileTemplateLibrarySettings): FileTemplateLibraryItem[] {
     const folder = normalizeOptionalVaultPath(settings.fileTemplateLibraryFolder) || "我的资源/模板";
     const prefix = folder ? `${folder}/` : "";
-    const favorites = new Set(normalizeVaultPaths(settings.fileTemplateLibraryFavorites));
     const recent = new Set(normalizeVaultPaths(settings.fileTemplateLibraryRecent));
     const result: FileTemplateLibraryItem[] = [];
     for (const entry of this.scanEntries()) {
@@ -167,7 +166,6 @@ export class VaultMetadataIndex {
         category: categoryForTemplatePath(entry.path, folder),
         tags: [...entry.tags].sort(compareTagNames),
         updatedAt: entry.mtime,
-        isFavorite: favorites.has(entry.path),
         isRecent: recent.has(entry.path),
         file: entry.file
       });
