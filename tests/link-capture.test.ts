@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   appendTags,
+  extractLinksFromText,
   extractFirstUrl,
   extractTitle,
+  parseLinkMetadata,
   resolveClipboardMarkdownLink
 } from "../src/linkCapture";
 
@@ -11,10 +13,39 @@ describe("link capture parsing", () => {
     expect(extractFirstUrl("稍后阅读：https://example.com/page?x=1，记得看")).toBe("https://example.com/page?x=1");
   });
 
+  it("extracts multiple URLs from Chinese text without swallowing punctuation or query parameters", () => {
+    expect(
+      extractLinksFromText("先看 https://example.com/a?x=1&y=2。再看（https://github.com/org/repo/issues/42），最后 https://doi.org/10.1000/xyz?foo=bar")
+    ).toEqual([
+      "https://example.com/a?x=1&y=2",
+      "https://github.com/org/repo/issues/42",
+      "https://doi.org/10.1000/xyz?foo=bar"
+    ]);
+  });
+
   it("turns a pure URL into a titled Markdown link", async () => {
     await expect(resolveClipboardMarkdownLink("https://example.com/page", async () => "Example Title")).resolves.toBe(
       "[Example Title](https://example.com/page)"
     );
+  });
+
+  it("resolves multiple links into bounded Markdown links", async () => {
+    const fetchTitle = vi.fn(async (url: string) => (url.includes("github.com") ? "Repo · GitHub" : "Example"));
+
+    await expect(
+      resolveClipboardMarkdownLink("https://example.com/a?x=1，https://github.com/org/repo", fetchTitle, { maxLinks: 2 })
+    ).resolves.toBe("[Example](https://example.com/a?x=1)\n[Repo](https://github.com/org/repo)");
+    expect(fetchTitle).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back gracefully when title fetching times out", async () => {
+    const link = await resolveClipboardMarkdownLink(
+      "https://github.com/org/repo/pull/7",
+      () => new Promise((resolve) => setTimeout(() => resolve("Too late"), 20)),
+      { timeoutMs: 1 }
+    );
+
+    expect(link).toBe("[GitHub pull request org/repo #7](https://github.com/org/repo/pull/7)");
   });
 
   it("uses a recognized Douyin share title without fetching the page", async () => {
@@ -60,6 +91,25 @@ describe("link capture parsing", () => {
       "Tiny & Desk"
     );
     expect(extractTitle("https://github.com/org/repo", '<title>Project · GitHub</title>')).toBe("Project");
+  });
+
+  it("parses common scholarly and code hosts with graceful fallback metadata", async () => {
+    await expect(parseLinkMetadata("https://github.com/org/repo/issues/42", async () => "")).resolves.toMatchObject({
+      kind: "github-issue",
+      title: "GitHub issue org/repo #42"
+    });
+    await expect(parseLinkMetadata("https://pubmed.ncbi.nlm.nih.gov/12345678/", async () => "")).resolves.toMatchObject({
+      kind: "pubmed",
+      title: "PubMed 12345678"
+    });
+    await expect(parseLinkMetadata("https://doi.org/10.1000/xyz", async () => "")).resolves.toMatchObject({
+      kind: "doi",
+      title: "DOI 10.1000/xyz"
+    });
+    await expect(parseLinkMetadata("https://arxiv.org/abs/2401.01234", async () => "")).resolves.toMatchObject({
+      kind: "arxiv",
+      title: "arXiv 2401.01234"
+    });
   });
 
   it("falls back to the domain when fetching returns no title", async () => {

@@ -167,6 +167,10 @@ export interface MemosPlusSettings {
   quickCaptureClipboardMode: QuickCaptureClipboardMode;
   quickCaptureExistingContentMode: QuickCaptureExistingContentMode;
   quickCaptureRecognizeClipboardLinks: boolean;
+  linkAnalysisEnabled: boolean;
+  linkAnalysisMobileEnabled: boolean;
+  linkAnalysisMaxLinks: number;
+  linkAnalysisTimeoutMs: number;
   memoProjectTransferAfterAction: MemoProjectTransferAfterAction;
   calloutEnabled: boolean;
   calloutType: CalloutType;
@@ -289,6 +293,10 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   quickCaptureClipboardMode: "ask",
   quickCaptureExistingContentMode: "ask",
   quickCaptureRecognizeClipboardLinks: true,
+  linkAnalysisEnabled: true,
+  linkAnalysisMobileEnabled: true,
+  linkAnalysisMaxLinks: 3,
+  linkAnalysisTimeoutMs: 4500,
   memoProjectTransferAfterAction: "keep",
   ...DEFAULT_CALLOUT_SETTINGS,
   composerToolbar: DEFAULT_COMPOSER_TOOLBAR_SETTINGS,
@@ -520,6 +528,11 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
       typeof raw.quickCaptureRecognizeClipboardLinks === "boolean"
         ? raw.quickCaptureRecognizeClipboardLinks
         : DEFAULT_SETTINGS.quickCaptureRecognizeClipboardLinks,
+    linkAnalysisEnabled: typeof raw.linkAnalysisEnabled === "boolean" ? raw.linkAnalysisEnabled : DEFAULT_SETTINGS.linkAnalysisEnabled,
+    linkAnalysisMobileEnabled:
+      typeof raw.linkAnalysisMobileEnabled === "boolean" ? raw.linkAnalysisMobileEnabled : DEFAULT_SETTINGS.linkAnalysisMobileEnabled,
+    linkAnalysisMaxLinks: normalizeLinkAnalysisMaxLinks(raw.linkAnalysisMaxLinks),
+    linkAnalysisTimeoutMs: normalizeLinkAnalysisTimeoutMs(raw.linkAnalysisTimeoutMs),
     memoProjectTransferAfterAction,
     calloutEnabled: typeof raw.calloutEnabled === "boolean" ? raw.calloutEnabled : DEFAULT_CALLOUT_SETTINGS.calloutEnabled,
     calloutType: normalizeCalloutType(raw.calloutType),
@@ -2652,6 +2665,46 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           await this.plugin.persistSettings();
         });
       });
+    new Setting(container)
+      .setName(t(lang, "settings.linkAnalysisEnabled"))
+      .setDesc(t(lang, "settings.linkAnalysisEnabledDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.linkAnalysisEnabled).onChange(async (value) => {
+          this.plugin.settings.linkAnalysisEnabled = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.linkAnalysisMobileEnabled"))
+      .setDesc(t(lang, "settings.linkAnalysisMobileEnabledDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.linkAnalysisMobileEnabled).onChange(async (value) => {
+          this.plugin.settings.linkAnalysisMobileEnabled = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.linkAnalysisMaxLinks"))
+      .setDesc(t(lang, "settings.linkAnalysisMaxLinksDesc"))
+      .addText((text) => {
+        text
+          .setValue(String(this.plugin.settings.linkAnalysisMaxLinks))
+          .onChange(async (value) => {
+            this.plugin.settings.linkAnalysisMaxLinks = normalizeLinkAnalysisMaxLinks(value);
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.linkAnalysisTimeoutMs"))
+      .setDesc(t(lang, "settings.linkAnalysisTimeoutMsDesc"))
+      .addText((text) => {
+        text
+          .setValue(String(this.plugin.settings.linkAnalysisTimeoutMs))
+          .onChange(async (value) => {
+            this.plugin.settings.linkAnalysisTimeoutMs = normalizeLinkAnalysisTimeoutMs(value);
+            await this.plugin.persistSettings();
+          });
+      });
   }
 
   private renderToolbarSettings(container: HTMLElement): void {
@@ -3628,6 +3681,22 @@ export function normalizeQuickCaptureExistingContentMode(value: unknown): QuickC
     return value;
   }
   return "ask";
+}
+
+export function normalizeLinkAnalysisMaxLinks(value: unknown): number {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number.parseInt(value, 10) : Number.NaN;
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_SETTINGS.linkAnalysisMaxLinks;
+  }
+  return Math.max(1, Math.min(10, Math.floor(parsed)));
+}
+
+export function normalizeLinkAnalysisTimeoutMs(value: unknown): number {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number.parseInt(value, 10) : Number.NaN;
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_SETTINGS.linkAnalysisTimeoutMs;
+  }
+  return Math.max(500, Math.min(10000, Math.floor(parsed)));
 }
 
 function normalizeVaultPath(value: unknown, fallback: string): string {

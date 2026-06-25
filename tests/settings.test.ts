@@ -127,6 +127,13 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.defaultSendAction).toBe("project");
   });
 
+  it("enables bounded link analysis by default", () => {
+    expect(DEFAULT_SETTINGS.linkAnalysisEnabled).toBe(true);
+    expect(DEFAULT_SETTINGS.linkAnalysisMobileEnabled).toBe(true);
+    expect(DEFAULT_SETTINGS.linkAnalysisMaxLinks).toBe(3);
+    expect(DEFAULT_SETTINGS.linkAnalysisTimeoutMs).toBe(4500);
+  });
+
   it("keeps the original memo after transferring to a project by default", () => {
     expect(DEFAULT_SETTINGS.memoProjectTransferAfterAction).toBe("keep");
   });

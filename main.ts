@@ -28,6 +28,7 @@ export default class MemosPlusPlugin extends Plugin {
   taskIndex!: TaskIndex;
   private diagnosticSessionId = "";
   private taskIndexRefreshTimer: number | null = null;
+  private readonly linkAnalysisTitleCache = new Map<string, Promise<string>>();
 
   async onload(): Promise<void> {
     this.diagnosticSessionId = createMemosPlusSessionId();
@@ -357,21 +358,45 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   async resolveMarkdownLink(text: string): Promise<string | null> {
-    return resolveClipboardMarkdownLink(text, (url) =>
-      fetchPageTitle(url, async (requestUrlValue) => {
-        const response = await requestUrl({
-          url: requestUrlValue,
-          method: "GET",
-          headers: {
-            "User-Agent": "Mozilla/5.0 AppleWebKit/605.1.15 Mobile Safari/605.1.15"
-          }
-        });
-        return {
-          text: response.text,
-          headers: response.headers
-        };
-      })
-    );
+    if (!this.settings.linkAnalysisEnabled || (Platform.isMobile && !this.settings.linkAnalysisMobileEnabled)) {
+      return null;
+    }
+    return resolveClipboardMarkdownLink(text, (url) => this.fetchCachedLinkTitle(url), {
+      maxLinks: this.effectiveLinkAnalysisMaxLinks(),
+      timeoutMs: this.settings.linkAnalysisTimeoutMs
+    });
+  }
+
+  private effectiveLinkAnalysisMaxLinks(): number {
+    if (this.settings.performanceSafeMode || (Platform.isMobile && this.settings.mobilePerformanceMode)) {
+      return 1;
+    }
+    return this.settings.linkAnalysisMaxLinks;
+  }
+
+  private fetchCachedLinkTitle(url: string): Promise<string> {
+    const cached = this.linkAnalysisTitleCache.get(url);
+    if (cached) {
+      return cached;
+    }
+    const pending = fetchPageTitle(url, async (requestUrlValue) => {
+      const response = await requestUrl({
+        url: requestUrlValue,
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 AppleWebKit/605.1.15 Mobile Safari/605.1.15"
+        }
+      });
+      return {
+        text: response.text,
+        headers: response.headers
+      };
+    }).catch((error) => {
+      console.warn("[Memos Plus] Link title request failed", error);
+      return "";
+    });
+    this.linkAnalysisTitleCache.set(url, pending);
+    return pending;
   }
 
   private registerVaultIndexInvalidation(): void {

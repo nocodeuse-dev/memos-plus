@@ -11,32 +11,89 @@ export interface RecognizedShare {
   url: string;
 }
 
-const URL_PATTERN = /https?:\/\/[^\s<>"'“”‘’「」『』，。！？；：、（）【】]+/i;
+export type LinkMetadataKind =
+  | "web"
+  | "github-repo"
+  | "github-issue"
+  | "github-pull"
+  | "youtube"
+  | "bilibili"
+  | "zhihu"
+  | "wechat"
+  | "xiaohongshu"
+  | "twitter"
+  | "pubmed"
+  | "doi"
+  | "arxiv"
+  | "notion";
 
-export function extractFirstUrl(text: string): string | null {
-  return text.match(URL_PATTERN)?.[0] ?? null;
+export interface LinkMetadata {
+  url: string;
+  title: string;
+  kind: LinkMetadataKind;
 }
 
-export async function resolveClipboardMarkdownLink(text: string, fetchTitle: FetchTitle): Promise<string | null> {
+export interface LinkAnalysisOptions {
+  maxLinks?: number;
+  timeoutMs?: number;
+}
+
+const URL_PATTERN = /https?:\/\/[^\s<>"'“”‘’「」『』，。！？；：、（）【】]+/gi;
+const DEFAULT_LINK_ANALYSIS_MAX_LINKS = 3;
+const DEFAULT_LINK_ANALYSIS_TIMEOUT_MS = 4500;
+
+export function extractFirstUrl(text: string): string | null {
+  return extractLinksFromText(text)[0] ?? null;
+}
+
+export function extractLinksFromText(text: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const normalized = normalizeExtractedUrl(match[0]);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+export async function resolveClipboardMarkdownLink(
+  text: string,
+  fetchTitle: FetchTitle,
+  options: LinkAnalysisOptions = {}
+): Promise<string | null> {
   const trimmed = text.trim();
-  const url = extractFirstUrl(trimmed);
-  if (!url) {
+  const links = extractLinksFromText(trimmed).slice(0, normalizeMaxLinks(options.maxLinks));
+  if (links.length === 0) {
     return null;
   }
 
   const recognized = extractRecognizedShare(trimmed);
-  if (recognized) {
+  if (recognized && links.length === 1) {
     return formatMarkdownLink(recognized.title, recognized.url);
   }
 
+  const metadata = await Promise.all(links.map((url) => parseLinkMetadata(url, fetchTitle, options)));
+  return metadata.map((item) => formatMarkdownLink(item.title, item.url)).join("\n");
+}
+
+export async function parseLinkMetadata(url: string, fetchTitle: FetchTitle, options: LinkAnalysisOptions = {}): Promise<LinkMetadata> {
+  const kind = detectLinkKind(url);
+  const fallback = fallbackMetadataTitle(url, kind);
   let title = "";
   try {
-    title = await fetchTitle(url);
+    title = await withTimeout(fetchTitle(url), normalizeTimeoutMs(options.timeoutMs));
   } catch {
     title = "";
   }
-
-  return formatMarkdownLink(title || fallbackTitle(url), url);
+  return {
+    url,
+    kind,
+    title: normalizeTitle(title) || fallback
+  };
 }
 
 export async function fetchPageTitle(url: string, request: Requester): Promise<string> {
@@ -91,6 +148,54 @@ export function extractTitle(url: string, html: string): string {
   }
 
   return normalizeTitle(title);
+}
+
+export function detectLinkKind(url: string): LinkMetadataKind {
+  const parsed = parseUrl(url);
+  const host = parsed?.hostname.replace(/^www\./, "").toLowerCase() ?? "";
+  const path = parsed?.pathname ?? "";
+  if (host === "github.com") {
+    if (/\/pull\/\d+(?:\/|$)/.test(path)) {
+      return "github-pull";
+    }
+    if (/\/issues\/\d+(?:\/|$)/.test(path)) {
+      return "github-issue";
+    }
+    if (githubRepoParts(parsed).length >= 2) {
+      return "github-repo";
+    }
+  }
+  if (host === "youtu.be" || host.endsWith("youtube.com")) {
+    return "youtube";
+  }
+  if (host.endsWith("bilibili.com") || host === "b23.tv") {
+    return "bilibili";
+  }
+  if (host.endsWith("zhihu.com")) {
+    return "zhihu";
+  }
+  if (host === "mp.weixin.qq.com") {
+    return "wechat";
+  }
+  if (host.endsWith("xiaohongshu.com") || host === "xhslink.com") {
+    return "xiaohongshu";
+  }
+  if (host === "x.com" || host === "twitter.com" || host.endsWith(".twitter.com")) {
+    return "twitter";
+  }
+  if (host === "pubmed.ncbi.nlm.nih.gov") {
+    return "pubmed";
+  }
+  if (host === "doi.org" || host === "dx.doi.org") {
+    return "doi";
+  }
+  if (host === "arxiv.org") {
+    return "arxiv";
+  }
+  if (host.endsWith("notion.site") || host.endsWith("notion.so")) {
+    return "notion";
+  }
+  return "web";
 }
 
 export function normalizeTitle(title: string): string {
@@ -165,6 +270,118 @@ function cleanKnownShareTitle(text: string, url: string): string {
 
 function fallbackTitle(url: string): string {
   return getHost(url) || "链接";
+}
+
+function fallbackMetadataTitle(url: string, kind: LinkMetadataKind): string {
+  const parsed = parseUrl(url);
+  if (kind === "github-repo" || kind === "github-issue" || kind === "github-pull") {
+    const [owner, repo] = githubRepoParts(parsed);
+    const number = parsed?.pathname.match(/\/(?:issues|pull)\/(\d+)(?:\/|$)/)?.[1];
+    if (owner && repo && number && kind === "github-issue") {
+      return `GitHub issue ${owner}/${repo} #${number}`;
+    }
+    if (owner && repo && number && kind === "github-pull") {
+      return `GitHub pull request ${owner}/${repo} #${number}`;
+    }
+    if (owner && repo) {
+      return `GitHub ${owner}/${repo}`;
+    }
+  }
+  if (kind === "pubmed") {
+    const pmid = parsed?.pathname.match(/\/(\d+)(?:\/|$)/)?.[1];
+    return pmid ? `PubMed ${pmid}` : "PubMed";
+  }
+  if (kind === "doi") {
+    const doi = parsed?.pathname.replace(/^\/+/, "");
+    return doi ? `DOI ${doi}` : "DOI";
+  }
+  if (kind === "arxiv") {
+    const arxivId = parsed?.pathname.match(/\/(?:abs|pdf)\/([^/?#]+)(?:\.pdf)?/)?.[1];
+    return arxivId ? `arXiv ${arxivId}` : "arXiv";
+  }
+  return fallbackTitle(url);
+}
+
+function githubRepoParts(parsed: URL | null): string[] {
+  return parsed?.pathname.split("/").filter(Boolean).slice(0, 2) ?? [];
+}
+
+function parseUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeExtractedUrl(value: string): string {
+  let url = value.trim();
+  while (url && shouldTrimTrailingUrlChar(url)) {
+    url = url.slice(0, -1);
+  }
+  return parseUrl(url) ? url : "";
+}
+
+function shouldTrimTrailingUrlChar(url: string): boolean {
+  const char = url.at(-1) ?? "";
+  if (/[\u3002\uff0c\uff1b\uff1a\uff01\uff1f\u3001,;:!?。；：！，、]/.test(char)) {
+    return true;
+  }
+  if (/[)\]}）】》〉]/.test(char)) {
+    return countOpeningPairs(url, char) < countClosingPairs(url, char);
+  }
+  return false;
+}
+
+function countOpeningPairs(url: string, closingChar: string): number {
+  const opening = matchingOpeningChar(closingChar);
+  return opening ? countChar(url, opening) : 0;
+}
+
+function countClosingPairs(url: string, closingChar: string): number {
+  return countChar(url, closingChar);
+}
+
+function matchingOpeningChar(closingChar: string): string {
+  return (
+    {
+      ")": "(",
+      "]": "[",
+      "}": "{",
+      "）": "（",
+      "】": "【",
+      "》": "《",
+      "〉": "〈"
+    } as Record<string, string>
+  )[closingChar] ?? "";
+}
+
+function countChar(value: string, char: string): number {
+  return Array.from(value).filter((item) => item === char).length;
+}
+
+function normalizeMaxLinks(value: number | undefined): number {
+  return Math.max(1, Math.min(10, Math.floor(value ?? DEFAULT_LINK_ANALYSIS_MAX_LINKS)));
+}
+
+function normalizeTimeoutMs(value: number | undefined): number {
+  return Math.max(1, Math.min(10000, Math.floor(value ?? DEFAULT_LINK_ANALYSIS_TIMEOUT_MS)));
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Link analysis timed out")), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 function escapeMarkdownTitle(title: string): string {
