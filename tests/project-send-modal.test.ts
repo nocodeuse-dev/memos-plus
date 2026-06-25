@@ -175,6 +175,26 @@ describe("project send modal source", () => {
     expect(i18nSource).toContain('"projectSend.createFileFromSearchNamed": "新建“{query}”"');
   });
 
+  it("offers tab-scoped quick new-file creation through the existing template library flow", () => {
+    const customTagSource = modalSource.slice(modalSource.indexOf("private renderCustomTagFilesContent"), modalSource.indexOf("private async renderTemplateGroupTab"));
+    const templateGroupSource = modalSource.slice(modalSource.indexOf("private renderTemplateGroupTabContent"), modalSource.indexOf("private renderScopedTabSearchInput"));
+    const mobileFooterSource = mobilePanelSource.slice(mobilePanelSource.indexOf("private renderTargetFooter"), mobilePanelSource.indexOf("private async saveDefault"));
+
+    expect(modalSource).toContain("tabTemplateBindings?: Record<string, string>;");
+    expect(modalSource).toContain("private renderQuickCreateFooter");
+    expect(modalSource).toContain("openQuickCreateForActiveTab");
+    expect(modalSource).toContain("preferredTemplatePathForActiveTab");
+    expect(modalSource).toContain("this.openFileTemplateLibraryModal(tag, preferredPath)");
+    expect(customTagSource).toContain("this.renderQuickCreateFooter");
+    expect(templateGroupSource).toContain("this.renderQuickCreateFooter");
+    expect(mobilePanelSource).toContain("openQuickCreateForActiveTab");
+    expect(mobilePanelSource).toContain("preferredTemplatePathForActiveTab");
+    expect(mobileFooterSource).toContain("this.openQuickCreateForActiveTab");
+    expect(deliverySource).toContain("tabTemplateBindings: host.settings.tabTemplateBindings");
+    expect(i18nSource).toContain('"projectSend.tabTemplateMissing"');
+    expect(i18nSource).toContain('"settings.tabTemplateBindings"');
+  });
+
   it("shows recent Memos Plus file targets for empty mobile search without scanning all files", () => {
     const fileSearchContentSource = modalSource.slice(
       modalSource.indexOf("private async renderFileSearchContent"),

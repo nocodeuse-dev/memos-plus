@@ -83,6 +83,7 @@ export interface ProjectSendModalOptions {
   performanceSettings: ModalPerformanceSettings;
   fileTemplateLibraryDefaultTabId: string;
   fileTemplateLibraryTabOrder: string[];
+  tabTemplateBindings?: Record<string, string>;
   tabOrder: string[];
   hiddenTabs: string[];
   templates: ManagedTemplate[];
@@ -97,6 +98,7 @@ export interface ProjectSendModalOptions {
   onDeleteFileTemplate: (templatePath: string) => Promise<void>;
   onMarkFileTemplateRecent: (templatePath: string) => Promise<void>;
   getPreferredFileTemplatePath?: (tag: string) => string;
+  onOpenTabTemplateBindings?: (tabId: string) => void;
   onLoadTaggedFiles: (tagQuery: string) => Promise<TaggedFileInfo[]>;
   onLoadRecentFiles: () => Promise<TaggedFileInfo[]>;
   onSearchFiles: (query: string) => Promise<TaggedFileInfo[]>;
@@ -982,6 +984,7 @@ export class ProjectSendModal extends Modal {
     this.renderScopedTabSearchInput(contentEl, this.tabLabel(tabKey), tabKey, renderList);
     contentEl.appendChild(list);
     renderList();
+    this.renderQuickCreateFooter(contentEl);
   }
 
   private async renderTemplateGroupTab(tab: FileTemplateTab): Promise<void> {
@@ -1013,10 +1016,7 @@ export class ProjectSendModal extends Modal {
     this.renderScopedTabSearchInput(contentEl, this.tabLabel(tabKey), tabKey, renderList);
     contentEl.appendChild(list);
     renderList();
-    const footer = this.contentEl.createDiv({ cls: "memos-plus-project-footer" });
-    if (this.options.onSaveDefault) {
-      this.renderDirectSendButton(footer);
-    }
+    this.renderQuickCreateFooter(contentEl);
   }
 
   private renderScopedTabSearchInput(container: HTMLElement, tabLabel: string, tabKey: string, onSearch: () => void): HTMLInputElement {
@@ -1481,6 +1481,59 @@ export class ProjectSendModal extends Modal {
     this.updateFileSearchCreateButton(button);
     button.addEventListener("click", () => void withMobileClickLock(button, () => this.openFileTemplateLibraryModal()));
     return button;
+  }
+
+  private renderQuickCreateFooter(container: HTMLElement): void {
+    if (!this.options.onSaveDefault && !this.options.enableFileTargets) {
+      return;
+    }
+    const footer = container.createDiv({ cls: "memos-plus-project-footer memos-plus-project-search-footer" });
+    if (this.options.onSaveDefault) {
+      this.renderDirectSendButton(footer);
+    }
+    if (this.options.enableFileTargets) {
+      const button = footer.createEl("button", {
+        cls: "memos-plus-project-add memos-plus-project-create-file",
+        attr: { type: "button", title: t(this.options.language, "projectSend.createFileFromSearchHint") }
+      });
+      setIcon(button, "file-plus");
+      button.createSpan({ cls: "memos-plus-project-add-label", text: t(this.options.language, "projectSend.createFileFromSearch") });
+      button.addEventListener("click", () => void withMobileClickLock(button, () => this.openQuickCreateForActiveTab()));
+    }
+  }
+
+  private async openQuickCreateForActiveTab(): Promise<void> {
+    if (this.activeTabId() === "search") {
+      this.openFileTemplateLibraryModal();
+      return;
+    }
+    const preferredPath = this.preferredTemplatePathForActiveTab();
+    if (!preferredPath) {
+      this.noticeMissingTabTemplate();
+      return;
+    }
+    let templates: FileTemplateLibraryItem[] = [];
+    try {
+      templates = await this.options.onLoadFileTemplates();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to validate tab quick-create template", error);
+    }
+    if (!templates.some((item) => item.path === preferredPath)) {
+      this.noticeMissingTabTemplate();
+      return;
+    }
+    const tab = getCustomTabFromTabId(this.activeTabId(), this.fileTemplateTabs);
+    const tag = tab?.type === "tag-filter" ? tab.tags[0] ?? "" : "";
+    this.openFileTemplateLibraryModal(tag, preferredPath);
+  }
+
+  private preferredTemplatePathForActiveTab(): string {
+    return this.options.tabTemplateBindings?.[this.activeTabId()] ?? "";
+  }
+
+  private noticeMissingTabTemplate(): void {
+    new Notice(t(this.options.language, "projectSend.tabTemplateMissing"));
+    this.options.onOpenTabTemplateBindings?.(this.activeTabId());
   }
 
   private updateFileSearchCreateButton(button: HTMLButtonElement): void {

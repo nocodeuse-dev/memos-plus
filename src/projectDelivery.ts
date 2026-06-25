@@ -118,6 +118,7 @@ async function selectProjectTarget(
     },
     fileTemplateLibraryDefaultTabId: host.settings.fileTemplateLibraryDefaultTabId,
     fileTemplateLibraryTabOrder: host.settings.fileTemplateLibraryTabOrder,
+    tabTemplateBindings: host.settings.tabTemplateBindings,
     tabOrder: host.settings.projectSendTabOrder,
     hiddenTabs: host.settings.projectSendHiddenTabs,
     templates: formatRules,
@@ -148,6 +149,11 @@ async function selectProjectTarget(
     },
     preferredFileTemplatePath: "",
     getPreferredFileTemplatePath: (tag) => preferredFileTemplatePathForTag(host.settings, tag),
+    onOpenTabTemplateBindings: () => {
+      const setting = (host.app as unknown as { setting?: { open?: () => void; openTabById?: (id: string) => void } }).setting;
+      setting?.open?.();
+      setting?.openTabById?.("memos-plus");
+    },
     onLoadTaggedFiles: (tagQuery) => host.store.getTaggedFileTargets(tagQuery),
     onLoadRecentFiles: () => host.store.getRecentFileTargets(),
     onSearchFiles: (query) => host.store.searchFileTargets(query),
@@ -159,6 +165,7 @@ async function selectProjectTarget(
     onSaveFileTemplateTabs: async (tabs) => {
       host.settings.fileTemplateTabs = normalizeFileTemplateTabs(tabs);
       host.settings.projectSendTagTabs = host.settings.fileTemplateTabs.flatMap((tab) => (tab.type === "tag-filter" ? tab.tags : []));
+      host.settings.tabTemplateBindings = normalizeRuntimeTabTemplateBindings(host.settings.tabTemplateBindings, host.settings.fileTemplateTabs);
       host.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(
         host.settings.fileTemplateTabs,
         host.settings.fileTemplateLibraryTabOrder
@@ -192,6 +199,11 @@ async function selectProjectTarget(
   return new Promise((resolve) => {
     new ProjectSendModal(host.app, { ...modalOptions, onChoose: resolve }).open();
   });
+}
+
+function normalizeRuntimeTabTemplateBindings(bindings: Record<string, string>, tabs: MemosPlusSettings["fileTemplateTabs"]): Record<string, string> {
+  const validIds = new Set(tabs.map((tab) => `custom:${tab.id}`));
+  return Object.fromEntries(Object.entries(bindings).filter(([tabId, templatePath]) => validIds.has(tabId) && Boolean(templatePath)));
 }
 
 function preferredFileTemplatePathForTag(settings: MemosPlusSettings, tagValue: string): string {

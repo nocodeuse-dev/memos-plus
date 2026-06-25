@@ -2539,7 +2539,8 @@
 }
 
 .memos-plus-file-template-group-paths,
-.memos-plus-file-template-group-search {
+.memos-plus-file-template-group-search,
+.memos-plus-tab-template-binding-search {
   margin: 8px 0;
 }
 
@@ -2897,6 +2898,24 @@
 }
 
 .memos-plus-file-template-tab-setting .setting-item {
+  border-top: 0;
+  padding: 8px 0;
+}
+
+.memos-plus-tab-template-binding-settings {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.memos-plus-tab-template-binding {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background-secondary) 84%, transparent);
+  padding: 8px 10px;
+}
+
+.memos-plus-tab-template-binding .setting-item {
   border-top: 0;
   padding: 8px 0;
 }

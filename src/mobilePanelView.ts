@@ -476,8 +476,51 @@ export class MemosPlusMobilePanelView extends ItemView {
       const createFile = footer.createEl("button", { cls: "memos-plus-project-add", attr: { type: "button" } });
       setIcon(createFile, "file-plus");
       createFile.createSpan({ text: t(options.language, "projectSend.createFileFromSearch") });
-      createFile.addEventListener("click", () => this.renderTemplatePicker(this.fileQuery.trim(), options.defaultFileTag));
+      createFile.addEventListener("click", () => void withMobileClickLock(createFile, () => this.openQuickCreateForActiveTab()));
     }
+  }
+
+  private async openQuickCreateForActiveTab(): Promise<void> {
+    const options = this.options;
+    if (!options) {
+      return;
+    }
+    if (this.activeTabId === "search") {
+      await this.renderTemplatePicker(this.fileQuery.trim(), options.defaultFileTag);
+      return;
+    }
+    const preferredPath = this.preferredTemplatePathForActiveTab();
+    if (!preferredPath) {
+      this.noticeMissingTabTemplate();
+      return;
+    }
+    let templates: FileTemplateLibraryItem[] = [];
+    try {
+      templates = this.fileTemplatesCache ?? (await options.onLoadFileTemplates());
+      this.fileTemplatesCache = templates;
+    } catch (error) {
+      console.error("[Memos Plus] Failed to validate mobile tab quick-create template", error);
+    }
+    if (!templates.some((item) => item.path === preferredPath)) {
+      this.noticeMissingTabTemplate();
+      return;
+    }
+    const tab = this.fileTemplateTabs.find((item) => customTabId(item.id) === this.activeTabId);
+    const tag = tab?.type === "tag-filter" ? tab.tags[0] ?? "" : "";
+    await this.renderTemplatePicker(this.tabSearchQueries.get(this.activeTabId)?.trim() ?? "", tag, preferredPath);
+  }
+
+  private preferredTemplatePathForActiveTab(): string {
+    return this.options?.tabTemplateBindings?.[this.activeTabId] ?? "";
+  }
+
+  private noticeMissingTabTemplate(): void {
+    const options = this.options;
+    if (!options) {
+      return;
+    }
+    new Notice(t(options.language, "projectSend.tabTemplateMissing"));
+    options.onOpenTabTemplateBindings?.(this.activeTabId);
   }
 
   private async saveDefault(button: HTMLButtonElement): Promise<void> {
@@ -606,7 +649,7 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.renderFilePositionButtons(list, info.file, info);
   }
 
-  private async renderTemplatePicker(initialTitle = "", initialTag = ""): Promise<void> {
+  private async renderTemplatePicker(initialTitle = "", initialTag = "", preferredPath = ""): Promise<void> {
     const options = this.options;
     if (!options) {
       return;
@@ -634,10 +677,10 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (!this.isRenderCurrent(token, list) || this.step !== "chooseTemplate") {
       return;
     }
-    this.renderMobileTemplateList(list, templates, titleInput, tagInput);
+    this.renderMobileTemplateList(list, templates, titleInput, tagInput, preferredPath);
     search.addEventListener("input", () => {
       this.mobileTemplateQuery = search.value;
-      this.renderMobileTemplateList(list, templates, titleInput, tagInput);
+      this.renderMobileTemplateList(list, templates, titleInput, tagInput, preferredPath);
     });
     tabs.querySelectorAll<HTMLButtonElement>(".memos-plus-mobile-template-tab").forEach((button) => {
       button.addEventListener("click", () => {
@@ -650,7 +693,7 @@ export class MemosPlusMobilePanelView extends ItemView {
           tabButton.setAttr("aria-pressed", String(isActive));
         });
         search.setAttr("placeholder", this.mobileTemplateSearchPlaceholder());
-        this.renderMobileTemplateList(list, templates, titleInput, tagInput);
+        this.renderMobileTemplateList(list, templates, titleInput, tagInput, preferredPath);
         tabs.scrollLeft = this.mobileTemplateTabsScrollLeft;
       });
     });
@@ -707,14 +750,18 @@ export class MemosPlusMobilePanelView extends ItemView {
     list: HTMLElement,
     templates: FileTemplateLibraryItem[],
     titleInput: HTMLInputElement,
-    tagInput: HTMLInputElement
+    tagInput: HTMLInputElement,
+    preferredPath = ""
   ): void {
     const options = this.options;
     if (!options) {
       return;
     }
     list.empty();
-    const items = filterTemplateItemsByQuery(this.mobileTemplateItems(templates), this.mobileTemplateQuery).slice(0, MOBILE_RESULT_LIMIT);
+    const items = prioritizeTemplatePath(filterTemplateItemsByQuery(this.mobileTemplateItems(templates), this.mobileTemplateQuery), preferredPath).slice(
+      0,
+      MOBILE_RESULT_LIMIT
+    );
     if (items.length === 0) {
       list.createDiv({
         cls: "memos-plus-project-empty",
@@ -726,7 +773,10 @@ export class MemosPlusMobilePanelView extends ItemView {
       return;
     }
     for (const item of items) {
-      const row = list.createEl("button", { cls: "memos-plus-file-template-item", attr: { type: "button" } });
+      const row = list.createEl("button", {
+        cls: `memos-plus-file-template-item${preferredPath && item.path === preferredPath ? " is-selected" : ""}`,
+        attr: { type: "button" }
+      });
       const info = row.createDiv({ cls: "memos-plus-file-template-item-info" });
       const title = info.createDiv({ cls: "memos-plus-file-template-item-title" });
       setIcon(title.createSpan({ cls: "memos-plus-file-template-icon" }), "file-plus");
@@ -935,6 +985,17 @@ function filterTemplateItemsByQuery(items: FileTemplateLibraryItem[], query: str
     return items;
   }
   return items.filter((item) => item.name.toLowerCase().includes(normalized) || item.path.toLowerCase().includes(normalized));
+}
+
+function prioritizeTemplatePath(items: FileTemplateLibraryItem[], preferredPath: string): FileTemplateLibraryItem[] {
+  if (!preferredPath) {
+    return items;
+  }
+  const preferred = items.find((item) => item.path === preferredPath);
+  if (!preferred) {
+    return items;
+  }
+  return [preferred, ...items.filter((item) => item.path !== preferredPath)];
 }
 
 function formatUpdatedAt(timestamp: number): string {

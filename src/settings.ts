@@ -229,6 +229,7 @@ export interface MemosPlusSettings {
   fileTemplateLibraryFavorites: string[];
   fileTemplateLibraryRecent: string[];
   fileTemplateLibraryDefaults: Record<string, string>;
+  tabTemplateBindings: Record<string, string>;
   fileTemplateLibraryDefaultTabId: string;
   fileTemplateLibraryTabOrder: string[];
   fileTemplateLibraryInteraction: FileTemplateLibraryInteractionSettings;
@@ -349,6 +350,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   fileTemplateLibraryFavorites: [],
   fileTemplateLibraryRecent: [],
   fileTemplateLibraryDefaults: {},
+  tabTemplateBindings: {},
   fileTemplateLibraryDefaultTabId: FILE_TEMPLATE_LIBRARY_TAB_ALL,
   fileTemplateLibraryTabOrder: [],
   fileTemplateLibraryInteraction: DEFAULT_FILE_TEMPLATE_LIBRARY_INTERACTION,
@@ -597,6 +599,7 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     fileTemplateLibraryFavorites: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryFavorites),
     fileTemplateLibraryRecent: normalizeFileTemplateLibraryPaths(raw.fileTemplateLibraryRecent).slice(0, 20),
     fileTemplateLibraryDefaults: normalizeFileTemplateDefaults(raw.fileTemplateLibraryDefaults),
+    tabTemplateBindings: normalizeTabTemplateBindings(raw.tabTemplateBindings, fileTemplateTabs),
     fileTemplateLibraryDefaultTabId,
     fileTemplateLibraryTabOrder,
     fileTemplateLibraryInteraction: normalizeFileTemplateLibraryInteraction(raw.fileTemplateLibraryInteraction),
@@ -3290,6 +3293,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       });
 
     this.renderFileTemplateTabManagement(container);
+    this.renderTabTemplateBindingSettings(container);
     this.renderFileTemplateTabInteractionSettings(container);
 
     const advancedLibrary = this.renderSettingsDetails(container, "settings.advancedOptions", "settings.fileTemplateLibraryAdvancedDesc");
@@ -3431,6 +3435,102 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       });
   }
 
+  private renderTabTemplateBindingSettings(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    const section = container.createDiv({ cls: "memos-plus-tab-template-binding-settings" });
+    this.renderSectionHeader(section, "settings.tabTemplateBindings", "settings.tabTemplateBindingsDesc");
+    const tabIds = this.fileFilterTabIdsForTemplateBindings();
+    if (tabIds.length === 0) {
+      section.createEl("p", { cls: "setting-item-description", text: t(lang, "settings.tabTemplateBindingsEmpty") });
+      return;
+    }
+    for (const tabId of tabIds) {
+      const tab = getProjectSendCustomTab(tabId, this.plugin.settings.fileTemplateTabs);
+      if (!tab) {
+        continue;
+      }
+      const bindingBox = section.createDiv({ cls: "memos-plus-tab-template-binding" });
+      const currentPath = this.plugin.settings.tabTemplateBindings[tabId] ?? "";
+      new Setting(bindingBox)
+        .setName(tab.name)
+        .setDesc(currentPath ? t(lang, "settings.tabTemplateBindingCurrent").replace("{path}", currentPath) : t(lang, "settings.tabTemplateBindingEmpty"))
+        .addButton((button) => {
+          button.setButtonText(currentPath ? t(lang, "settings.tabTemplateBindingChange") : t(lang, "settings.tabTemplateBindingChoose")).onClick(() => {
+            this.renderTabTemplateBindingSearch(bindingBox, tabId);
+          });
+        })
+        .addButton((button) => {
+          button.setButtonText(t(lang, "settings.tabTemplateBindingClear")).setDisabled(!currentPath).onClick(async () => {
+            await this.clearTabTemplateBinding(tabId);
+          });
+        });
+    }
+  }
+
+  private fileFilterTabIdsForTemplateBindings(): string[] {
+    const tabs = new Set(this.plugin.settings.fileTemplateTabs.map((tab) => getProjectSendCustomTabId(tab.id)));
+    return normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, this.plugin.settings.fileTemplateTabs).filter(
+      (id) => id !== "search" && tabs.has(id)
+    );
+  }
+
+  private renderTabTemplateBindingSearch(container: HTMLElement, tabId: string): void {
+    const lang = this.plugin.settings.language;
+    container.querySelector<HTMLElement>(".memos-plus-tab-template-binding-search")?.remove();
+    const searchBox = container.createDiv({ cls: "memos-plus-tab-template-binding-search" });
+    new Setting(searchBox)
+      .setName(t(lang, "settings.tabTemplateBindingSearch"))
+      .setDesc(t(lang, "settings.tabTemplateBindingSearchDesc"))
+      .addText((text) => {
+        text.setPlaceholder(t(lang, "settings.fileTemplateTabTemplateSearchPlaceholder"));
+        const results = searchBox.createDiv({ cls: "memos-plus-file-template-group-search-results" });
+        let debounceTimer: number | null = null;
+        const render = (): void => {
+          if (debounceTimer !== null) {
+            window.clearTimeout(debounceTimer);
+          }
+          debounceTimer = window.setTimeout(() => {
+            debounceTimer = null;
+            void this.renderTabTemplateBindingSearchResults(results, tabId, text.inputEl.value);
+          }, 180);
+        };
+        text.inputEl.addEventListener("input", render);
+      });
+  }
+
+  private async renderTabTemplateBindingSearchResults(container: HTMLElement, tabId: string, query: string): Promise<void> {
+    container.empty();
+    const lang = this.plugin.settings.language;
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return;
+    }
+    const folder = normalizeFileTemplateLibraryFolder(this.plugin.settings.fileTemplateLibraryFolder);
+    if (!folder || !(this.app.vault.getAbstractFileByPath(folder) instanceof TFolder)) {
+      container.createDiv({ cls: "setting-item-description", text: t(lang, "settings.fileTemplateLibraryFolderMissing") });
+      return;
+    }
+    const items = await this.getCachedFileTemplateLibraryItems(folder);
+    const matches = items
+      .filter((item) => item.path.toLowerCase().endsWith(".md"))
+      .filter((item) => `${item.name} ${item.path} ${item.category} ${item.tags.join(" ")}`.toLowerCase().includes(normalizedQuery));
+    if (matches.length === 0) {
+      container.createDiv({ cls: "setting-item-description", text: t(lang, "settings.fileTemplateTabTemplateSearchEmpty") });
+      return;
+    }
+    for (const item of matches.slice(0, 10)) {
+      const row = container.createEl("button", { cls: "memos-plus-file-template-group-search-item", attr: { type: "button" } });
+      row.createSpan({ cls: "memos-plus-file-template-group-search-name", text: item.name });
+      row.createSpan({ cls: "memos-plus-file-template-group-search-path", text: item.path });
+      row.addEventListener("click", () => {
+        void this.saveTabTemplateBinding(tabId, item.path);
+      });
+    }
+    if (matches.length > 10) {
+      container.createDiv({ cls: "setting-item-description", text: t(lang, "settings.fileTemplateTabTemplateSearchMore") });
+    }
+  }
+
   private fileTemplateLibraryDefaultTabOptions(): string[] {
     return getVisibleFileTemplateLibraryTabIds(this.plugin.settings.fileTemplateTabs, this.plugin.settings.fileTemplateLibraryTabOrder);
   }
@@ -3558,6 +3658,26 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.display();
   }
 
+  private async saveTabTemplateBinding(tabId: string, templatePath: string): Promise<void> {
+    this.plugin.settings.tabTemplateBindings = normalizeTabTemplateBindings(
+      {
+        ...this.plugin.settings.tabTemplateBindings,
+        [tabId]: normalizePath(templatePath)
+      },
+      this.plugin.settings.fileTemplateTabs
+    );
+    await this.plugin.persistSettings();
+    this.display();
+  }
+
+  private async clearTabTemplateBinding(tabId: string): Promise<void> {
+    const next = { ...this.plugin.settings.tabTemplateBindings };
+    delete next[tabId];
+    this.plugin.settings.tabTemplateBindings = normalizeTabTemplateBindings(next, this.plugin.settings.fileTemplateTabs);
+    await this.plugin.persistSettings();
+    this.display();
+  }
+
   private async addFileTemplateGroupTab(value: string): Promise<void> {
     const tab = createTemplateGroupFileTemplateTab(value);
     if (!tab) {
@@ -3584,6 +3704,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.plugin.settings.projectSendTagTabs = projectSendTagTabsFromFileTemplateTabs(normalized);
     this.plugin.settings.projectSendTabOrder = normalizeProjectSendTabOrder(this.plugin.settings.projectSendTabOrder, normalized);
     this.plugin.settings.projectSendHiddenTabs = normalizeProjectSendHiddenTabs(this.plugin.settings.projectSendHiddenTabs, normalized);
+    this.plugin.settings.tabTemplateBindings = normalizeTabTemplateBindings(this.plugin.settings.tabTemplateBindings, normalized);
     this.plugin.settings.fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(
       normalized,
       this.plugin.settings.fileTemplateLibraryTabOrder
@@ -3984,6 +4105,25 @@ function normalizeProjectSendHiddenTabs(value: unknown, customTabs: FileTemplate
     seen.add(id);
     return [id];
   });
+}
+
+function normalizeTabTemplateBindings(value: unknown, customTabs: FileTemplateTab[]): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const validIds = new Set(customTabs.map((tab) => getProjectSendCustomTabId(tab.id)));
+  const bindings: Record<string, string> = {};
+  for (const [key, rawPath] of Object.entries(value as Record<string, unknown>)) {
+    const tabId = key.trim();
+    if (!validIds.has(tabId) || typeof rawPath !== "string") {
+      continue;
+    }
+    const path = normalizePath(rawPath.trim());
+    if (path) {
+      bindings[tabId] = path;
+    }
+  }
+  return bindings;
 }
 
 function getProjectSendTabIds(customTabs: FileTemplateTab[]): string[] {

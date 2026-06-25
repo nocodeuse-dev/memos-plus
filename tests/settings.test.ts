@@ -204,6 +204,7 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.fileTemplateLibraryFavorites).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryRecent).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaults).toEqual({});
+    expect(DEFAULT_SETTINGS.tabTemplateBindings).toEqual({});
     expect(DEFAULT_SETTINGS.fileTemplateLibraryDefaultTabId).toBe("all");
     expect(DEFAULT_SETTINGS.fileTemplateLibraryTabOrder).toEqual([]);
     expect(DEFAULT_SETTINGS.fileTemplateLibraryInteraction).toEqual({
@@ -690,6 +691,26 @@ describe("normalizeSettings", () => {
     ]);
   });
 
+  it("normalizes tab template bindings by stable tab id and removes deleted tabs", () => {
+    const settings = normalizeSettings({
+      fileTemplateTabs: [
+        { id: "tag-project", name: "项目", type: "tag-filter", tags: ["项目"] },
+        { id: "group-medical", name: "病历", type: "template-group", templatePaths: [] }
+      ],
+      tabTemplateBindings: {
+        "custom:tag-project": " 我的资源//模板/项目模板.md ",
+        "custom:group-medical": "我的资源/模板/病历模板.md",
+        "custom:deleted": "我的资源/模板/删除.md",
+        search: "我的资源/模板/搜索.md"
+      }
+    });
+
+    expect(settings.tabTemplateBindings).toEqual({
+      "custom:tag-project": "我的资源/模板/项目模板.md",
+      "custom:group-medical": "我的资源/模板/病历模板.md"
+    });
+  });
+
   it("renders template library settings as template-group management only", () => {
     const source = settingsSource.slice(
       settingsSource.indexOf("private renderFileTemplateLibrarySettings"),
@@ -698,11 +719,18 @@ describe("normalizeSettings", () => {
 
     expect(source).toContain("settings.fileTemplateLibraryDefaultTab");
     expect(source).toContain("this.fileTemplateLibraryDefaultTabOptions()");
+    expect(source).toContain("this.renderTabTemplateBindingSettings(container)");
+    expect(source).toContain("settings.tabTemplateBindings");
+    expect(source).toContain("renderTabTemplateBindingSearch");
+    expect(source).toContain("saveTabTemplateBinding");
+    expect(source).toContain("clearTabTemplateBinding");
+    expect(source).toContain("normalizeTabTemplateBindings");
     expect(source).toContain("createTemplateGroupFileTemplateTab");
     expect(source).toContain("normalizeVisibleFileTemplateLibraryDefaultTabId");
     expect(source).toContain("settings.fileTemplateTabInteraction");
     expect(source).toContain("this.renderFileTemplateTabInteractionSettings(container)");
     expect(source).toContain("renderFileTemplateGroupSearch");
+    expect(source).not.toContain('renderTabTemplateBindingSearchResults(results, tabId, "")');
     expect(source).toContain("settings.fileTemplateTabTemplateSearch");
     expect(source).toContain("请先设置模板库位置");
     expect(source).toContain("this.plugin.store.getFileTemplateLibraryItems()");
