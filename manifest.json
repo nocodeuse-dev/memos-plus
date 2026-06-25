@@ -1,8 +1,8 @@
 {
   "id": "memos-plus",
   "name": "Memos Plus",
-  "version": "0.1.179",
-  "minAppVersion": "1.4.0",
+  "version": "0.1.180",
+  "minAppVersion": "1.13.1",
   "description": "A local-first memo workbench stored as readable Markdown.",
   "author": "nocodeuse-dev",
   "authorUrl": "https://github.com/nocodeuse-dev",

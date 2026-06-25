@@ -248,7 +248,8 @@ describe("mobile interaction stability source", () => {
     expect(nativeComposerSource).toContain("Math.min");
     expect(nativeComposerSource).toContain("Math.max");
     expect(nativeComposerSource).toContain("element.value.trim() ? element.scrollHeight");
-    expect(nativeComposerSource).toContain("element.style.overflowY");
+    expect(nativeComposerSource).toContain("element.setCssStyles");
+    expect(nativeComposerSource).toContain("overflowY: measuredHeight > maxHeight");
   });
 
   it("hides the mobile floating action button while the home composer is focused", () => {

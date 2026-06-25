@@ -205,19 +205,21 @@ class TextareaMarkdownComposer implements NativeMarkdownComposer {
     if (!element.style) {
       return;
     }
-    element.style.height = "auto";
+    element.setCssStyles({ height: "auto" });
     if (!Platform.isMobile) {
       const scrollHeight = element.scrollHeight ?? 0;
       if (scrollHeight > 0) {
-        element.style.height = `${scrollHeight}px`;
+        element.setCssStyles({ height: `${scrollHeight}px` });
       }
       return;
     }
     const { minHeight, maxHeight } = composerAutoResizeBounds(element);
     const measuredHeight = element.value.trim() ? element.scrollHeight ?? minHeight : minHeight;
     const nextHeight = Math.max(minHeight, Math.min(measuredHeight, maxHeight));
-    element.style.height = `${nextHeight}px`;
-    element.style.overflowY = measuredHeight > maxHeight ? "auto" : "hidden";
+    element.setCssStyles({
+      height: `${nextHeight}px`,
+      overflowY: measuredHeight > maxHeight ? "auto" : "hidden"
+    });
   }
 }
 

@@ -749,12 +749,11 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private renderSectionHeader(container: HTMLElement, titleKey: string, descKey?: string): void {
     const lang = this.plugin.settings.language;
-    container.createEl("h3", { cls: "memos-plus-settings-section-title", text: t(lang, titleKey) });
+    const heading = new Setting(container).setName(t(lang, titleKey)).setHeading();
+    heading.settingEl.addClass("memos-plus-settings-section-title");
     if (descKey) {
-      container.createEl("p", {
-        cls: "setting-item-description memos-plus-settings-section-desc",
-        text: t(lang, descKey)
-      });
+      heading.setDesc(t(lang, descKey));
+      heading.settingEl.addClass("memos-plus-settings-section-desc");
     }
   }
 
@@ -1602,7 +1601,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const module = getDisplayModule(moduleId) ?? this.getSelectedLayoutModule(surface);
     const lang = this.plugin.settings.language;
     container.createEl("div", { cls: "memos-plus-layout-pane-title", text: t(lang, "settings.layoutDesigner.inspector") });
-    container.createEl("h4", { cls: "memos-plus-layout-inspector-title", text: module.name });
+    container.createDiv({ cls: "memos-plus-layout-inspector-title", text: module.name });
     container.createEl("p", { cls: "setting-item-description memos-plus-layout-inspector-desc", text: module.description });
 
     switch (module.id) {
@@ -2481,7 +2480,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const card = container.createDiv({ cls: "memos-plus-quick-input-startup-card" });
     const header = card.createDiv({ cls: "memos-plus-quick-input-startup-header" });
     header.createSpan({ cls: "memos-plus-quick-input-startup-badge", text: t(lang, "settings.quickInputStartupBadge") });
-    header.createEl("h3", { cls: "memos-plus-quick-input-startup-title", text: t(lang, "settings.quickInputStartupTitle") });
+    header.createDiv({ cls: "memos-plus-quick-input-startup-title", text: t(lang, "settings.quickInputStartupTitle") });
     card.createDiv({ cls: "memos-plus-quick-input-startup-desc", text: t(lang, descKey) });
     this.renderQuickInputEnabledToggle(card, "memos-plus-quick-input-startup-setting");
     this.renderQuickInputAutoOpenToggle(card, "memos-plus-quick-input-startup-setting");

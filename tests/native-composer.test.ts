@@ -46,6 +46,10 @@ class FakeElement {
     this.attrs.set(name, value);
   }
 
+  setCssStyles(styles: Record<string, string>): void {
+    Object.assign(this.style, styles);
+  }
+
   addEventListener(type: string, listener: (event: Event) => void, options?: boolean | AddEventListenerOptions): void {
     const capture = typeof options === "boolean" ? options : Boolean(options?.capture);
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), { listener, capture }]);

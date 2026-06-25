@@ -12,7 +12,8 @@ describe("quick input sidebar view", () => {
     expect(mainSource).toContain("MemosPlusQuickInputView");
     expect(mainSource).toContain("open-memos-plus-quick-input-sidebar");
     expect(mainSource).toContain("activateQuickInputView");
-    expect(mainSource).toContain("detachLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE)");
+    expect(mainSource).toContain("memos-plus:onunload");
+    expect(mainSource).not.toContain("detachLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE)");
     expect(i18nSource).toContain('"command.openQuickInputSidebar": "打开 Memos Plus 快速输入侧边栏"');
   });
 

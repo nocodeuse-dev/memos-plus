@@ -871,22 +871,19 @@ export class ComposerWidget {
     });
 
     if (isMobile) {
-      picker.style.left = "50%";
-      picker.style.top = "50%";
-      picker.style.transform = "translate(-50%, -50%)";
+      picker.setCssStyles({ left: "50%", top: "50%", transform: "translate(-50%, -50%)" });
     } else {
       const rect = anchor.getBoundingClientRect();
-      picker.style.left = `${Math.round(rect.left)}px`;
-      picker.style.top = `${Math.round(rect.bottom + 6)}px`;
+      picker.setCssStyles({ left: `${Math.round(rect.left)}px`, top: `${Math.round(rect.bottom + 6)}px` });
       requestAnimationFrame(() => {
         const pickerRect = picker.getBoundingClientRect();
         const width = document.documentElement.clientWidth;
         const height = document.documentElement.clientHeight;
         if (pickerRect.right > width - 8) {
-          picker.style.left = `${Math.max(8, width - pickerRect.width - 8)}px`;
+          picker.setCssStyles({ left: `${Math.max(8, width - pickerRect.width - 8)}px` });
         }
         if (pickerRect.bottom > height - 8) {
-          picker.style.top = `${Math.max(8, rect.top - pickerRect.height - 6)}px`;
+          picker.setCssStyles({ top: `${Math.max(8, rect.top - pickerRect.height - 6)}px` });
         }
       });
     }

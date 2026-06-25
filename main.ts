@@ -153,14 +153,12 @@ export default class MemosPlusPlugin extends Plugin {
     }
   }
 
-  async onunload(): Promise<void> {
+  onunload(): void {
     this.clearTaskIndexRefreshTimer();
     logMemosPlusDiagnostic("memos-plus:onunload", {
       memosLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE).length,
       quickInputLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE).length
     });
-    this.app.workspace.detachLeavesOfType(MEMOS_PLUS_VIEW_TYPE);
-    this.app.workspace.detachLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE);
   }
 
   async activateView(): Promise<WorkspaceLeaf | null> {
