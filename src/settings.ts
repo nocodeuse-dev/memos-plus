@@ -165,6 +165,7 @@ export interface MemosPlusSettings {
   taskIndexDelayOnMobile: boolean;
   quickCaptureAutoSelection: boolean;
   quickCaptureDetectClipboard: boolean;
+  sidebarAutoDetectClipboard: boolean;
   quickCaptureClipboardDesktopMode: QuickCaptureClipboardMode;
   quickCaptureClipboardMobileMode: QuickCaptureClipboardMode;
   quickCaptureExistingContentMode: QuickCaptureExistingContentMode;
@@ -294,6 +295,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   taskIndexDelayOnMobile: true,
   quickCaptureAutoSelection: true,
   quickCaptureDetectClipboard: true,
+  sidebarAutoDetectClipboard: true,
   quickCaptureClipboardDesktopMode: "ask",
   quickCaptureClipboardMobileMode: "ask",
   quickCaptureExistingContentMode: "ask",
@@ -528,6 +530,8 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     taskIndexDelayOnMobile: typeof raw.taskIndexDelayOnMobile === "boolean" ? raw.taskIndexDelayOnMobile : DEFAULT_SETTINGS.taskIndexDelayOnMobile,
     quickCaptureAutoSelection: typeof raw.quickCaptureAutoSelection === "boolean" ? raw.quickCaptureAutoSelection : DEFAULT_SETTINGS.quickCaptureAutoSelection,
     quickCaptureDetectClipboard: typeof raw.quickCaptureDetectClipboard === "boolean" ? raw.quickCaptureDetectClipboard : DEFAULT_SETTINGS.quickCaptureDetectClipboard,
+    sidebarAutoDetectClipboard:
+      typeof raw.sidebarAutoDetectClipboard === "boolean" ? raw.sidebarAutoDetectClipboard : DEFAULT_SETTINGS.sidebarAutoDetectClipboard,
     quickCaptureClipboardDesktopMode: normalizeQuickCaptureClipboardMode(raw.quickCaptureClipboardDesktopMode ?? raw.quickCaptureClipboardMode),
     quickCaptureClipboardMobileMode: normalizeQuickCaptureClipboardMode(raw.quickCaptureClipboardMobileMode ?? raw.quickCaptureClipboardMode),
     quickCaptureExistingContentMode: normalizeQuickCaptureExistingContentMode(raw.quickCaptureExistingContentMode),
@@ -2693,6 +2697,15 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.quickCaptureDetectClipboard).onChange(async (value) => {
           this.plugin.settings.quickCaptureDetectClipboard = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.sidebarAutoDetectClipboard"))
+      .setDesc(t(lang, "settings.sidebarAutoDetectClipboardDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.sidebarAutoDetectClipboard).onChange(async (value) => {
+          this.plugin.settings.sidebarAutoDetectClipboard = value;
           await this.plugin.persistSettings();
         });
       });

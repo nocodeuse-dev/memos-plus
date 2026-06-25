@@ -66,6 +66,7 @@ describe("quick capture content sources", () => {
     for (const field of [
       "quickCaptureAutoSelection",
       "quickCaptureDetectClipboard",
+      "sidebarAutoDetectClipboard",
       "quickCaptureClipboardDesktopMode",
       "quickCaptureClipboardMobileMode",
       "quickCaptureExistingContentMode",
@@ -74,10 +75,19 @@ describe("quick capture content sources", () => {
       expect(settingsSource).toContain(field);
     }
     expect(settingsSource).toContain("renderQuickCaptureContentSourceSettings");
+    expect(settingsSource).toContain("settings.sidebarAutoDetectClipboard");
     expect(settingsSource).toContain("settings.quickCaptureClipboardDesktopMode");
     expect(settingsSource).toContain("settings.quickCaptureClipboardMobileMode");
     expect(quickCaptureContentSource).toContain("quickCaptureClipboardModeForPlatform");
     expect(i18nSource).toContain('"settings.quickCaptureContentSource": "快速记录内容来源"');
+    expect(i18nSource).toContain('"settings.sidebarAutoDetectClipboard": "侧边栏自动检测剪贴板"');
     expect(i18nSource).toContain('"quickCaptureContent.clipboardEmpty": "剪贴板为空"');
+  });
+
+  it("gates only sidebar auto clipboard detection without disabling manual paste", () => {
+    expect(quickInputSource).toContain("sidebarAutoDetectClipboard");
+    expect(quickInputSource).toContain('applyInitialContent("none")');
+    expect(widgetSource).toContain("quick-input-paste");
+    expect(widgetSource).toContain("processInputContentChange");
   });
 });

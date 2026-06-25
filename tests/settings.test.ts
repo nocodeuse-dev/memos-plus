@@ -58,6 +58,7 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.mobileLayout.mode).toBe("navigation");
     expect(DEFAULT_SETTINGS.sendFailureDraftEnabled).toBe(true);
     expect(DEFAULT_SETTINGS.sendFailureDraftContent).toBe("");
+    expect(DEFAULT_SETTINGS.sidebarAutoDetectClipboard).toBe(true);
     expect(DEFAULT_SETTINGS.quickCaptureClipboardDesktopMode).toBe("ask");
     expect(DEFAULT_SETTINGS.quickCaptureClipboardMobileMode).toBe("ask");
     expect(DEFAULT_SETTINGS).not.toHaveProperty("quickCaptureClipboardMode");
@@ -567,6 +568,11 @@ describe("normalizeSettings", () => {
     });
     expect(split.quickCaptureClipboardDesktopMode).toBe("replace");
     expect(split.quickCaptureClipboardMobileMode).toBe("off");
+  });
+
+  it("keeps sidebar auto clipboard detection enabled by default for existing sidebar behavior", () => {
+    expect(normalizeSettings({}).sidebarAutoDetectClipboard).toBe(true);
+    expect(normalizeSettings({ sidebarAutoDetectClipboard: false }).sidebarAutoDetectClipboard).toBe(false);
   });
 
   it("keeps a configurable icon for the fixed all-memos entry", () => {

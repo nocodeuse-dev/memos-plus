@@ -157,7 +157,18 @@ export class MemosPlusQuickInputView extends ItemView {
         onClearDraft: () => this.clearQuickInputDraft()
       }
     );
-    void this.composerSession.applyInitialContent();
+    this.applySidebarInitialContent();
+  }
+
+  private applySidebarInitialContent(): void {
+    if (!this.composerSession) {
+      return;
+    }
+    if (!this.plugin.settings.sidebarAutoDetectClipboard) {
+      void this.composerSession.applyInitialContent("none");
+      return;
+    }
+    void this.composerSession.applyInitialContent("auto");
   }
 
   private renderHeaderActions(header: HTMLElement, modules: Set<DisplayModuleId>): void {
