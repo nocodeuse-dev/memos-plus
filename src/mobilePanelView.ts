@@ -167,6 +167,7 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.contentEl.empty();
     this.renderTopBar(t(options.language, "fileSend.selectFile"));
     this.renderTabs();
+    this.contentEl.createDiv({ cls: "memos-plus-mobile-target-search" });
     this.contentEl.createDiv({ cls: "memos-plus-mobile-target-body" });
     this.renderTargetContent();
     this.renderTargetFooter();
@@ -177,10 +178,12 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (!options) {
       return;
     }
+    const searchArea = this.getTargetSearchEl();
     const body = this.getTargetBodyEl();
+    searchArea.empty();
     body.empty();
     if (this.activeTabId === "search") {
-      const searchArea = body.createDiv({ cls: "memos-plus-mobile-target-search" });
+      searchArea.removeClass("is-hidden");
       const search = searchArea.createEl("input", {
         cls: "memos-plus-project-search",
         attr: { type: "search", placeholder: t(options.language, "fileSend.searchFiles") }
@@ -204,6 +207,7 @@ export class MemosPlusMobilePanelView extends ItemView {
       });
       void this.renderSearchResults(list);
     } else {
+      searchArea.addClass("is-hidden");
       body.createDiv({ cls: "memos-plus-project-list memos-plus-mobile-target-list" });
       const list = this.getTargetListEl();
       if (!list) {
@@ -213,13 +217,18 @@ export class MemosPlusMobilePanelView extends ItemView {
     }
   }
 
+  private getTargetSearchEl(): HTMLElement {
+    const existing = this.contentEl.querySelector<HTMLElement>(".memos-plus-mobile-target-search");
+    return existing ?? this.contentEl.createDiv({ cls: "memos-plus-mobile-target-search" });
+  }
+
   private getTargetBodyEl(): HTMLElement {
     const existing = this.contentEl.querySelector<HTMLElement>(".memos-plus-mobile-target-body");
     return existing ?? this.contentEl.createDiv({ cls: "memos-plus-mobile-target-body" });
   }
 
   private getTargetListEl(): HTMLElement | null {
-    return this.contentEl.querySelector(".memos-plus-mobile-target-list");
+    return this.getTargetBodyEl().querySelector(".memos-plus-mobile-target-list");
   }
 
   private renderTabs(): void {

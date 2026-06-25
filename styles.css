@@ -2224,7 +2224,7 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  min-height: 0;
+  min-height: 96px;
   overflow: hidden;
 }
 
@@ -2296,7 +2296,14 @@
 
 .memos-plus-mobile-target-search {
   flex: 0 0 auto;
+  min-height: 54px;
   padding: 0 0 6px;
+}
+
+.memos-plus-mobile-target-search.is-hidden {
+  display: none;
+  min-height: 0;
+  padding: 0;
 }
 
 .memos-plus-project-send-tabs {
