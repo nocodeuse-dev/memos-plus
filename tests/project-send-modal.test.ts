@@ -160,7 +160,6 @@ describe("project send modal source", () => {
     expect(modalSource).not.toContain("renderTagPicker");
     expect(modalSource).not.toContain("renderRecentFiles");
     expect(deliverySource).not.toContain("onLoadProjects");
-    expect(deliverySource).not.toContain("onLoadRecentFiles");
     expect(deliverySource).not.toContain("onLoadTags");
     expect(modeTabsSource).not.toContain("createFileFromSearch");
     expect(fileSearchSource).toContain('memos-plus-project-search-footer');
@@ -173,6 +172,28 @@ describe("project send modal source", () => {
     expect(stylesSource).toContain("padding-bottom: 10px");
     expect(i18nSource).toContain('"projectSend.createFileFromSearch": "新建文件"');
     expect(i18nSource).toContain('"projectSend.createFileFromSearchNamed": "新建“{query}”"');
+  });
+
+  it("shows recent Memos Plus file targets for empty mobile search without scanning all files", () => {
+    const fileSearchContentSource = modalSource.slice(
+      modalSource.indexOf("private async renderFileSearchContent"),
+      modalSource.indexOf("private renderFileList(")
+    );
+    const mobileRecentIndex = fileSearchContentSource.indexOf("this.shouldShowMobileRecentFileTargets(query)");
+    const searchIndex = fileSearchContentSource.indexOf("await this.searchFilesCached(query)");
+
+    expect(modalSource).toContain("onLoadRecentFiles: () => Promise<TaggedFileInfo[]>");
+    expect(modalSource).toContain("private recentFilesCache: TaggedFileInfo[] | null = null;");
+    expect(modalSource).toContain("private async loadRecentFilesCached(): Promise<TaggedFileInfo[]>");
+    expect(modalSource).toContain("private async renderMobileRecentFileTargets");
+    expect(modalSource).toContain("const MOBILE_EMPTY_SEARCH_RECENT_FILE_LIMIT = 10;");
+    expect(modalSource).toContain("files.slice(0, MOBILE_EMPTY_SEARCH_RECENT_FILE_LIMIT)");
+    expect(modalSource).toContain("fileSend.noRecentFilesSearchHint");
+    expect(modalSource).toContain("return Platform.isMobile && !query.trim();");
+    expect(deliverySource).toContain("onLoadRecentFiles: () => host.store.getRecentFileTargets()");
+    expect(mobileRecentIndex).toBeGreaterThanOrEqual(0);
+    expect(searchIndex).toBeGreaterThan(mobileRecentIndex);
+    expect(i18nSource).toContain('"fileSend.noRecentFilesSearchHint": "暂无最近文件，请输入关键词搜索"');
   });
 
   it("routes files created from the template library through the existing heading picker", () => {

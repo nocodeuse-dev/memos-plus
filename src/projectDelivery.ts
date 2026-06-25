@@ -149,6 +149,7 @@ async function selectProjectTarget(
       preferredFileTemplatePath: "",
       getPreferredFileTemplatePath: (tag) => preferredFileTemplatePathForTag(host.settings, tag),
       onLoadTaggedFiles: (tagQuery) => host.store.getTaggedFileTargets(tagQuery),
+      onLoadRecentFiles: () => host.store.getRecentFileTargets(),
       onSearchFiles: (query) => host.store.searchFileTargets(query),
       onLoadHeadings: (file) => host.store.getFileTargetHeadings(file),
       onSaveCustomTagTabs: async (tags) => {

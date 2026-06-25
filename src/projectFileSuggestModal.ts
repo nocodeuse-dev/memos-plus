@@ -42,6 +42,7 @@ type SendMode = "search" | "custom-tag";
 
 const FIXED_SEND_TABS: SendMode[] = ["search"];
 const CUSTOM_TAB_PREFIX = "custom:";
+const MOBILE_EMPTY_SEARCH_RECENT_FILE_LIMIT = 10;
 
 interface ModalPerformanceSettings {
   mobilePerformanceMode: boolean;
@@ -96,6 +97,7 @@ interface ProjectSendModalOptions {
   onMarkFileTemplateRecent: (templatePath: string) => Promise<void>;
   getPreferredFileTemplatePath?: (tag: string) => string;
   onLoadTaggedFiles: (tagQuery: string) => Promise<TaggedFileInfo[]>;
+  onLoadRecentFiles: () => Promise<TaggedFileInfo[]>;
   onSearchFiles: (query: string) => Promise<TaggedFileInfo[]>;
   onLoadHeadings: (file: TFile) => Promise<FileHeadingInfo[]>;
   onSaveCustomTagTabs?: (tags: string[]) => Promise<void>;
@@ -647,6 +649,7 @@ export class ProjectSendModal extends Modal {
   private activeFileTemplateTabId = "";
   private currentTemplateId = "";
   private readonly taggedFilesCache = new Map<string, TaggedFileInfo[]>();
+  private recentFilesCache: TaggedFileInfo[] | null = null;
   private readonly fileSearchCache = new Map<string, TaggedFileInfo[]>();
   private readonly fileHeadingsCache = new Map<string, FileHeadingInfo[]>();
   private draggedTabId = "";
@@ -680,6 +683,7 @@ export class ProjectSendModal extends Modal {
     this.closed = true;
     this.nextRenderToken();
     this.taggedFilesCache.clear();
+    this.recentFilesCache = null;
     this.fileSearchCache.clear();
     this.fileHeadingsCache.clear();
     this.contentEl.empty();
@@ -714,6 +718,15 @@ export class ProjectSendModal extends Modal {
     }
     const files = await this.options.onLoadTaggedFiles(tag);
     this.taggedFilesCache.set(key, files);
+    return files;
+  }
+
+  private async loadRecentFilesCached(): Promise<TaggedFileInfo[]> {
+    if (this.recentFilesCache) {
+      return this.recentFilesCache;
+    }
+    const files = await this.options.onLoadRecentFiles();
+    this.recentFilesCache = files;
     return files;
   }
 
@@ -1051,8 +1064,8 @@ export class ProjectSendModal extends Modal {
       return;
     }
     list.empty();
-    if (this.shouldSkipEmptyMobileFileSearch(query)) {
-      list.createDiv({ cls: "memos-plus-project-empty", text: t(this.options.language, "fileSend.searchFiles") });
+    if (this.shouldShowMobileRecentFileTargets(query)) {
+      await this.renderMobileRecentFileTargets(list, renderToken, query);
       return;
     }
     const cached = this.fileSearchCache.get(query.trim().toLowerCase());
@@ -1077,7 +1090,38 @@ export class ProjectSendModal extends Modal {
     this.renderFileListItems(list, files, () => void this.renderFileSearch(), undefined, "", false);
   }
 
-  private shouldSkipEmptyMobileFileSearch(query: string): boolean {
+  private async renderMobileRecentFileTargets(list: HTMLElement, renderToken: number, query: string): Promise<void> {
+    const lang = this.options.language;
+    const cached = this.recentFilesCache;
+    if (cached) {
+      const recentFiles = cached.slice(0, MOBILE_EMPTY_SEARCH_RECENT_FILE_LIMIT);
+      if (recentFiles.length === 0) {
+        list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.noRecentFilesSearchHint") });
+        return;
+      }
+      this.renderFileListItems(list, recentFiles, () => void this.renderFileSearch(), undefined, "", false);
+      return;
+    }
+    list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
+    let files: TaggedFileInfo[] = [];
+    try {
+      files = await this.loadRecentFilesCached();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load recent file targets", error);
+    }
+    if (query !== this.fileQuery || !this.isRenderTokenCurrent(renderToken, list)) {
+      return;
+    }
+    list.empty();
+    const recentFiles = files.slice(0, MOBILE_EMPTY_SEARCH_RECENT_FILE_LIMIT);
+    if (recentFiles.length === 0) {
+      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.noRecentFilesSearchHint") });
+      return;
+    }
+    this.renderFileListItems(list, recentFiles, () => void this.renderFileSearch(), undefined, "", false);
+  }
+
+  private shouldShowMobileRecentFileTargets(query: string): boolean {
     return Platform.isMobile && !query.trim();
   }
 

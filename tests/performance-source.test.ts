@@ -44,7 +44,7 @@ describe("performance source safeguards", () => {
     expect(renderTimelineBody).not.toContain("getAllTags(this.memos)");
   });
 
-  it("keeps fixed project, tag, and recent loaders out of the send modal open path", () => {
+  it("keeps fixed project and tag loaders out of the send modal open path", () => {
     const onOpenBody = projectModalSource.match(/onOpen\(\): void \{([\s\S]*?)\n {2}\}/)?.[1] ?? "";
     const projectDeliverySource = readFileSync("src/projectDelivery.ts", "utf8");
     const sendBody = projectDeliverySource.match(/export async function sendContentToProject\([\s\S]*?\n\}: Promise<ProjectDeliveryResult \| null> \{([\s\S]*?)\n\}/)?.[1] ?? "";
@@ -54,8 +54,8 @@ describe("performance source safeguards", () => {
     expect(sendBody).not.toContain("await host.store.getProjects()");
     expect(selectBody).not.toContain("await host.store.getRecentFileTargets()");
     expect(selectBody).not.toContain("onLoadProjects");
-    expect(selectBody).not.toContain("onLoadRecentFiles");
     expect(selectBody).not.toContain("onLoadTags");
+    expect(selectBody).toContain("onLoadRecentFiles: () => host.store.getRecentFileTargets()");
     expect(projectModalSource).not.toContain("ensureProjectsLoaded");
     expect(projectModalSource).not.toContain("ensureRecentFilesLoaded");
     expect(projectModalSource).not.toContain("ensureTagsLoaded");
@@ -68,19 +68,21 @@ describe("performance source safeguards", () => {
       projectModalSource.indexOf("private renderFileList(")
     );
 
-    expect(projectModalSource).toContain("shouldSkipEmptyMobileFileSearch");
-    expect(searchContentSource).toContain("this.shouldSkipEmptyMobileFileSearch(query)");
-    expect(searchContentSource.indexOf("this.shouldSkipEmptyMobileFileSearch(query)")).toBeLessThan(searchContentSource.indexOf("this.searchFilesCached(query)"));
+    expect(projectModalSource).toContain("shouldShowMobileRecentFileTargets");
+    expect(projectModalSource).toContain("renderMobileRecentFileTargets");
+    expect(searchContentSource).toContain("this.shouldShowMobileRecentFileTargets(query)");
+    expect(searchContentSource).toContain("this.renderMobileRecentFileTargets(list, renderToken, query)");
+    expect(searchContentSource.indexOf("this.shouldShowMobileRecentFileTargets(query)")).toBeLessThan(searchContentSource.indexOf("this.searchFilesCached(query)"));
   });
 
   it("applies mobile performance settings to send-modal search, result limits, and stale async renders", () => {
     const searchSource = projectModalSource.slice(
       projectModalSource.indexOf("private async renderFileSearch()"),
-      projectModalSource.indexOf("private shouldSkipEmptyMobileFileSearch")
+      projectModalSource.indexOf("private shouldShowMobileRecentFileTargets")
     );
     const searchContentSource = projectModalSource.slice(
       projectModalSource.indexOf("private async renderFileSearchContent"),
-      projectModalSource.indexOf("private shouldSkipEmptyMobileFileSearch")
+      projectModalSource.indexOf("private shouldShowMobileRecentFileTargets")
     );
     const headingPickerSource = projectModalSource.slice(
       projectModalSource.indexOf("private async renderHeadingPicker"),
