@@ -6,6 +6,7 @@ import { ComposerWidget, type ComposerInputChangeSource, type ComposerSurface } 
 import type { DisplayModuleId } from "./displayModules";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
+import { runExcalidrawCreateAfterTargetSelection } from "./excalidrawEmbed";
 import {
   getQuickCaptureInitialContent,
   openQuickCaptureContentPrompt,
@@ -71,7 +72,7 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     onSend: () => actions?.handleSend(),
     formatTaskContent: (content, context) => openComposerTaskOptions(host, content, context),
     saveImageAttachment: (buffer, extension) => host.store.saveImageAttachment(buffer, extension),
-    createExcalidrawAttachment: () => host.store.createExcalidrawAttachment(),
+    createExcalidrawAttachment: () => runExcalidrawCreateAfterTargetSelection(host),
     registerCleanup: host.registerCleanup,
     sendActionTitle: options.defaultSendAction,
     resolveMarkdownLink: host.resolveMarkdownLink,

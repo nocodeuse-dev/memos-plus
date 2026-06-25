@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const widgetSource = readFileSync("src/composerWidget.ts", "utf8");
+const sessionSource = readFileSync("src/composerSession.ts", "utf8");
 const settingsSource = readFileSync("src/settings.ts", "utf8");
 const i18nSource = readFileSync("src/i18n.ts", "utf8");
 
@@ -12,7 +13,8 @@ describe("composer toolbar visibility UI", () => {
     expect(widgetSource).toContain('setIcon(moreButton, "more-horizontal")');
     expect(widgetSource).toContain('labelKey: "toolbar.insertCodeBlock"');
     expect(widgetSource).toContain('labelKey: "toolbar.insertExcalidraw"');
-    expect(widgetSource).toContain("const linkName = file.basename");
+    expect(sessionSource).toContain("runExcalidrawCreateAfterTargetSelection(host)");
+    expect(widgetSource).not.toContain("const linkName = file.basename");
   });
 
   it("renders toolbar visibility toggles in the Memos settings tab", () => {

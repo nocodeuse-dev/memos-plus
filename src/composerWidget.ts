@@ -1,4 +1,4 @@
-import { Menu, Notice, Platform, setIcon, type App, type TFile } from "obsidian";
+import { Menu, Notice, Platform, setIcon, type App } from "obsidian";
 import { applyComposerIndent, handleComposerEnter } from "./composerInput";
 import {
   applyComposerTool,
@@ -30,7 +30,7 @@ export interface ComposerWidgetOptions {
   onSend: () => void | Promise<void>;
   formatTaskContent?: (content: string, context: { manualCalloutMode: boolean }) => Promise<string | null>;
   saveImageAttachment: (buffer: ArrayBuffer, extension: string) => Promise<string>;
-  createExcalidrawAttachment: () => Promise<TFile>;
+  createExcalidrawAttachment: () => Promise<void>;
   registerCleanup?: (cleanup: () => void) => void;
   sendActionTitle?: () => MemosPlusSettings["defaultSendAction"];
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
@@ -699,10 +699,7 @@ export class ComposerWidget {
   private async createExcalidrawAttachment(): Promise<void> {
     const lang = this.options.settings().language;
     try {
-      const file = await this.options.createExcalidrawAttachment();
-      const linkName = file.basename;
-      this.insertImageEmbed(linkName);
-      new Notice(`${t(lang, "notice.excalidrawCreated")}: ${file.name}`);
+      await this.options.createExcalidrawAttachment();
     } catch (error) {
       console.error("[Memos Plus] Failed to create Excalidraw attachment", error);
       new Notice(t(lang, "notice.excalidrawFailed"));

@@ -82,7 +82,7 @@ export async function sendContentToProject(
   return null;
 }
 
-async function selectProjectTarget(
+export async function selectProjectTarget(
   host: ProjectDeliveryHost,
   content: string,
   initialMode: "project" | "tag" | "recent" | "search" = "project",

@@ -5,6 +5,7 @@ import {
   getFileHeadings,
   getTaggedFileInfos,
   insertContentAtFileTarget,
+  resolveFileInsertCursor,
   searchMarkdownFileInfos,
   updateRecentFileTargetPaths
 } from "../src/fileSend";
@@ -94,6 +95,31 @@ describe("file send helpers", () => {
       ["医学/肩袖损伤.md", ["医学/疾病", "病历"]]
     ]);
     expect(app.vault.read).not.toHaveBeenCalled();
+  });
+
+  it("resolves cursor positions with the same target rules used by file insertion", () => {
+    const source = ["---", "title: 测试", "---", "", "# 项目", "", "已有内容", "## 资料", "旧资料", "# 其他"].join("\n");
+
+    expect(resolveFileInsertCursor(source, { heading: "项目", position: "heading-top" })).toEqual({
+      line: 6,
+      ch: 0,
+      fallbackToFileEnd: false
+    });
+    expect(resolveFileInsertCursor(source, { heading: "项目", position: "heading-bottom" })).toEqual({
+      line: 9,
+      ch: 0,
+      fallbackToFileEnd: false
+    });
+    expect(resolveFileInsertCursor(source, { position: "file-start" })).toEqual({
+      line: 4,
+      ch: 0,
+      fallbackToFileEnd: false
+    });
+    expect(resolveFileInsertCursor(source, { heading: "不存在", position: "heading-top" })).toEqual({
+      line: 9,
+      ch: 4,
+      fallbackToFileEnd: true
+    });
   });
 
   it("searches markdown files by name or path and includes cached tags", async () => {

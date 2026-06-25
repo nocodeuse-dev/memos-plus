@@ -33,6 +33,12 @@ export interface FileSendTarget {
   existingHeadingBehavior?: ExistingHeadingBehavior;
 }
 
+export interface FileInsertCursor {
+  line: number;
+  ch: number;
+  fallbackToFileEnd: boolean;
+}
+
 export const DEFAULT_SEND_TO_FILE_COMMON_TAGS = ["病", "插件", "病例", "医学", "康复", "资料"];
 
 export async function getAllTagOptions(app: App): Promise<string[]> {
@@ -125,6 +131,28 @@ export async function insertContentAtFileTarget(app: App, file: TFile, target: F
   }
 
   await app.vault.process(file, (source) => insertIntoFileSource(source, target, contentLines));
+}
+
+export function resolveFileInsertCursor(source: string, target: FileSendTarget): FileInsertCursor {
+  const normalized = normalizeNewlines(source).replace(/\n*$/, "");
+  const lines = normalized ? normalized.split("\n") : [];
+  if (target.position === "file-start") {
+    return { line: getSafeFileStartInsertIndex(normalized), ch: 0, fallbackToFileEnd: false };
+  }
+  if (target.position === "file-end" || !target.heading?.trim()) {
+    return fileEndCursor(lines, false);
+  }
+
+  const headingIndex = lines.findIndex((line) => normalizeMarkdownHeadingText(line)?.heading === target.heading?.trim());
+  if (headingIndex < 0) {
+    return fileEndCursor(lines, true);
+  }
+  if (target.position === "heading-bottom") {
+    const heading = normalizeMarkdownHeadingText(lines[headingIndex]);
+    return { line: findHeadingEnd(lines, headingIndex, heading?.level ?? 6), ch: 0, fallbackToFileEnd: false };
+  }
+
+  return { line: headingTopInsertIndex(lines, headingIndex), ch: 0, fallbackToFileEnd: false };
 }
 
 export function collectMetadataTags(cache: CachedMetadata | null | undefined): string[] {
@@ -311,6 +339,14 @@ function insertContentAtHeadingTop(lines: string[], headingIndex: number, conten
   lines.splice(insertAt, 0, ...(hasBlankAfterHeading ? [] : [""]), ...contentLines, "");
 }
 
+function headingTopInsertIndex(lines: string[], headingIndex: number): number {
+  let insertAt = headingIndex + 1;
+  while (insertAt < lines.length && lines[insertAt].trim() === "") {
+    insertAt++;
+  }
+  return insertAt;
+}
+
 function insertNewHeadingIntoFileSource(lines: string[], target: FileSendTarget, contentLines: string[]): string {
   const headingName = target.newHeadingName?.trim() || target.heading?.trim() || "";
   if (!headingName) {
@@ -392,6 +428,14 @@ function findHeadingEnd(lines: string[], headingIndex: number, headingLevel: num
     }
   }
   return lines.length;
+}
+
+function fileEndCursor(lines: string[], fallbackToFileEnd: boolean): FileInsertCursor {
+  if (lines.length === 0) {
+    return { line: 0, ch: 0, fallbackToFileEnd };
+  }
+  const line = lines.length - 1;
+  return { line, ch: lines[line].length, fallbackToFileEnd };
 }
 
 function normalizeMarkdownHeadingText(value: string): { heading: string; level: number } | null {
