@@ -1,7 +1,7 @@
-import { MarkdownView, Modal, Setting, type App } from "obsidian";
+import { MarkdownView, Modal, Platform, Setting, type App } from "obsidian";
 import { t, type Language } from "./i18n";
 import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
-import { type MemosPlusSettings } from "./settings";
+import { type MemosPlusSettings, type QuickCaptureClipboardMode } from "./settings";
 
 export type QuickCaptureInitialContentMode = "auto" | "selection" | "clipboard" | "none";
 export type QuickCaptureContentSource = "selection" | "clipboard-text" | "clipboard-link" | "clipboard-image";
@@ -159,7 +159,7 @@ async function resolveEmptyComposerAction(
   if (source === "selection") {
     return "replace";
   }
-  const mode = options.settings.quickCaptureClipboardMode;
+  const mode = quickCaptureClipboardModeForPlatform(options.settings);
   if (mode === "off") {
     return "skip";
   }
@@ -183,7 +183,11 @@ function shouldReadClipboard(settings: MemosPlusSettings, mode: QuickCaptureInit
   if (mode === "clipboard") {
     return true;
   }
-  return settings.quickCaptureDetectClipboard && settings.quickCaptureClipboardMode !== "off";
+  return settings.quickCaptureDetectClipboard && quickCaptureClipboardModeForPlatform(settings) !== "off";
+}
+
+export function quickCaptureClipboardModeForPlatform(settings: MemosPlusSettings, isMobile: boolean | undefined = Platform.isMobile): QuickCaptureClipboardMode {
+  return isMobile === true ? settings.quickCaptureClipboardMobileMode : settings.quickCaptureClipboardDesktopMode;
 }
 
 function isLikelyUrl(value: string): boolean {

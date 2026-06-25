@@ -58,6 +58,9 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.mobileLayout.mode).toBe("navigation");
     expect(DEFAULT_SETTINGS.sendFailureDraftEnabled).toBe(true);
     expect(DEFAULT_SETTINGS.sendFailureDraftContent).toBe("");
+    expect(DEFAULT_SETTINGS.quickCaptureClipboardDesktopMode).toBe("ask");
+    expect(DEFAULT_SETTINGS.quickCaptureClipboardMobileMode).toBe("ask");
+    expect(DEFAULT_SETTINGS).not.toHaveProperty("quickCaptureClipboardMode");
     expect(DEFAULT_SETTINGS.composerToolbar).toEqual({
       tag: true,
       image: true,
@@ -549,6 +552,21 @@ describe("normalizeSettings", () => {
       calloutAutoLength: 300,
       calloutAutoLines: 5
     });
+  });
+
+  it("migrates legacy clipboard handling to separate desktop and mobile modes", () => {
+    const migrated = normalizeSettings({ quickCaptureClipboardMode: "append" });
+    expect(migrated.quickCaptureClipboardDesktopMode).toBe("append");
+    expect(migrated.quickCaptureClipboardMobileMode).toBe("append");
+    expect(migrated).not.toHaveProperty("quickCaptureClipboardMode");
+
+    const split = normalizeSettings({
+      quickCaptureClipboardMode: "append",
+      quickCaptureClipboardDesktopMode: "replace",
+      quickCaptureClipboardMobileMode: "off"
+    });
+    expect(split.quickCaptureClipboardDesktopMode).toBe("replace");
+    expect(split.quickCaptureClipboardMobileMode).toBe("off");
   });
 
   it("keeps a configurable icon for the fixed all-memos entry", () => {

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const mainSource = readFileSync("main.ts", "utf8");
 const modalSource = readFileSync("src/modal.ts", "utf8");
 const quickInputSource = readFileSync("src/quickInputView.ts", "utf8");
+const quickCaptureContentSource = readFileSync("src/quickCaptureContent.ts", "utf8");
 const composerSessionSource = readFileSync("src/composerSession.ts", "utf8");
 const widgetSource = readFileSync("src/composerWidget.ts", "utf8");
 const settingsSource = readFileSync("src/settings.ts", "utf8");
@@ -65,13 +66,17 @@ describe("quick capture content sources", () => {
     for (const field of [
       "quickCaptureAutoSelection",
       "quickCaptureDetectClipboard",
-      "quickCaptureClipboardMode",
+      "quickCaptureClipboardDesktopMode",
+      "quickCaptureClipboardMobileMode",
       "quickCaptureExistingContentMode",
       "quickCaptureRecognizeClipboardLinks"
     ]) {
       expect(settingsSource).toContain(field);
     }
     expect(settingsSource).toContain("renderQuickCaptureContentSourceSettings");
+    expect(settingsSource).toContain("settings.quickCaptureClipboardDesktopMode");
+    expect(settingsSource).toContain("settings.quickCaptureClipboardMobileMode");
+    expect(quickCaptureContentSource).toContain("quickCaptureClipboardModeForPlatform");
     expect(i18nSource).toContain('"settings.quickCaptureContentSource": "快速记录内容来源"');
     expect(i18nSource).toContain('"quickCaptureContent.clipboardEmpty": "剪贴板为空"');
   });

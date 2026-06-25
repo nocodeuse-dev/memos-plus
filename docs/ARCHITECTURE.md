@@ -164,7 +164,8 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `quickInputDraft`：右侧栏快速输入未发送草稿，只保存在插件设置中。
 - `quickCaptureAutoSelection`：打开快速记录时是否优先读取当前编辑器选中文字。
 - `quickCaptureDetectClipboard`：没有选中文字时是否检测系统剪贴板。
-- `quickCaptureClipboardMode`：剪贴板内容处理方式，`ask` / `replace` / `append` / `off`。
+- `quickCaptureClipboardDesktopMode`：桌面端剪贴板内容处理方式，`ask` / `replace` / `append` / `off`。
+- `quickCaptureClipboardMobileMode`：移动端剪贴板内容处理方式，`ask` / `replace` / `append` / `off`。
 - `quickCaptureExistingContentMode`：输入框已有内容时的处理方式，`ask` / `keep` / `replace` / `append`。
 - `quickCaptureRecognizeClipboardLinks`：剪贴板内容是网址时是否按链接来源标记。
 - `composerBorderColor`：共享输入框整体边框、聚焦光晕和拖拽提示颜色。

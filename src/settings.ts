@@ -165,7 +165,8 @@ export interface MemosPlusSettings {
   taskIndexDelayOnMobile: boolean;
   quickCaptureAutoSelection: boolean;
   quickCaptureDetectClipboard: boolean;
-  quickCaptureClipboardMode: QuickCaptureClipboardMode;
+  quickCaptureClipboardDesktopMode: QuickCaptureClipboardMode;
+  quickCaptureClipboardMobileMode: QuickCaptureClipboardMode;
   quickCaptureExistingContentMode: QuickCaptureExistingContentMode;
   quickCaptureRecognizeClipboardLinks: boolean;
   linkAnalysisEnabled: boolean;
@@ -293,7 +294,8 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   taskIndexDelayOnMobile: true,
   quickCaptureAutoSelection: true,
   quickCaptureDetectClipboard: true,
-  quickCaptureClipboardMode: "ask",
+  quickCaptureClipboardDesktopMode: "ask",
+  quickCaptureClipboardMobileMode: "ask",
   quickCaptureExistingContentMode: "ask",
   quickCaptureRecognizeClipboardLinks: true,
   linkAnalysisEnabled: true,
@@ -526,7 +528,8 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     taskIndexDelayOnMobile: typeof raw.taskIndexDelayOnMobile === "boolean" ? raw.taskIndexDelayOnMobile : DEFAULT_SETTINGS.taskIndexDelayOnMobile,
     quickCaptureAutoSelection: typeof raw.quickCaptureAutoSelection === "boolean" ? raw.quickCaptureAutoSelection : DEFAULT_SETTINGS.quickCaptureAutoSelection,
     quickCaptureDetectClipboard: typeof raw.quickCaptureDetectClipboard === "boolean" ? raw.quickCaptureDetectClipboard : DEFAULT_SETTINGS.quickCaptureDetectClipboard,
-    quickCaptureClipboardMode: normalizeQuickCaptureClipboardMode(raw.quickCaptureClipboardMode),
+    quickCaptureClipboardDesktopMode: normalizeQuickCaptureClipboardMode(raw.quickCaptureClipboardDesktopMode ?? raw.quickCaptureClipboardMode),
+    quickCaptureClipboardMobileMode: normalizeQuickCaptureClipboardMode(raw.quickCaptureClipboardMobileMode ?? raw.quickCaptureClipboardMode),
     quickCaptureExistingContentMode: normalizeQuickCaptureExistingContentMode(raw.quickCaptureExistingContentMode),
     quickCaptureRecognizeClipboardLinks:
       typeof raw.quickCaptureRecognizeClipboardLinks === "boolean"
@@ -2694,21 +2697,26 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           await this.plugin.persistSettings();
         });
       });
-    new Setting(container)
-      .setName(t(lang, "settings.quickCaptureClipboardMode"))
-      .setDesc(t(lang, "settings.quickCaptureClipboardModeDesc"))
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption("ask", t(lang, "quickCaptureClipboardMode.ask"))
-          .addOption("replace", t(lang, "quickCaptureClipboardMode.replace"))
-          .addOption("append", t(lang, "quickCaptureClipboardMode.append"))
-          .addOption("off", t(lang, "quickCaptureClipboardMode.off"))
-          .setValue(this.plugin.settings.quickCaptureClipboardMode)
-          .onChange(async (value) => {
-            this.plugin.settings.quickCaptureClipboardMode = normalizeQuickCaptureClipboardMode(value);
-            await this.plugin.persistSettings();
-          });
-      });
+    this.renderQuickCaptureClipboardModeSetting(
+      container,
+      "settings.quickCaptureClipboardDesktopMode",
+      "settings.quickCaptureClipboardDesktopModeDesc",
+      this.plugin.settings.quickCaptureClipboardDesktopMode,
+      async (value) => {
+        this.plugin.settings.quickCaptureClipboardDesktopMode = normalizeQuickCaptureClipboardMode(value);
+        await this.plugin.persistSettings();
+      }
+    );
+    this.renderQuickCaptureClipboardModeSetting(
+      container,
+      "settings.quickCaptureClipboardMobileMode",
+      "settings.quickCaptureClipboardMobileModeDesc",
+      this.plugin.settings.quickCaptureClipboardMobileMode,
+      async (value) => {
+        this.plugin.settings.quickCaptureClipboardMobileMode = normalizeQuickCaptureClipboardMode(value);
+        await this.plugin.persistSettings();
+      }
+    );
     new Setting(container)
       .setName(t(lang, "settings.quickCaptureExistingContentMode"))
       .setDesc(t(lang, "settings.quickCaptureExistingContentModeDesc"))
@@ -2772,6 +2780,28 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             this.plugin.settings.linkAnalysisTimeoutMs = normalizeLinkAnalysisTimeoutMs(value);
             await this.plugin.persistSettings();
           });
+      });
+  }
+
+  private renderQuickCaptureClipboardModeSetting(
+    container: HTMLElement,
+    nameKey: string,
+    descKey: string,
+    value: QuickCaptureClipboardMode,
+    onChange: (value: string) => Promise<void>
+  ): void {
+    const lang = this.plugin.settings.language;
+    new Setting(container)
+      .setName(t(lang, nameKey))
+      .setDesc(t(lang, descKey))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("ask", t(lang, "quickCaptureClipboardMode.ask"))
+          .addOption("replace", t(lang, "quickCaptureClipboardMode.replace"))
+          .addOption("append", t(lang, "quickCaptureClipboardMode.append"))
+          .addOption("off", t(lang, "quickCaptureClipboardMode.off"))
+          .setValue(value)
+          .onChange(onChange);
       });
   }
 

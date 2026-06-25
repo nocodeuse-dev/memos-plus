@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, type MemosPlusSettings } from "../src/settings";
-import { getQuickCaptureInitialContent } from "../src/quickCaptureContent";
+import { DEFAULT_SETTINGS, normalizeSettings, type MemosPlusSettings } from "../src/settings";
+import { getQuickCaptureInitialContent, quickCaptureClipboardModeForPlatform } from "../src/quickCaptureContent";
+
+const obsidianMock = vi.hoisted(() => ({
+  Platform: { isMobile: false }
+}));
 
 vi.mock("obsidian", () => ({
+  Platform: obsidianMock.Platform,
   App: class {},
   MarkdownView: class {},
   Modal: class {},
@@ -32,7 +37,7 @@ describe("quick capture initial content", () => {
 
   it("uses clipboard text when selection is empty and clipboard detection is enabled", async () => {
     const result = await getQuickCaptureInitialContent({
-      settings: settings({ quickCaptureClipboardMode: "replace" }),
+      settings: settings({ quickCaptureClipboardDesktopMode: "replace" }),
       existingContent: "",
       readSelection: () => "",
       readClipboardText: async () => "剪贴板文字"
@@ -43,7 +48,7 @@ describe("quick capture initial content", () => {
 
   it("marks clipboard URLs as link content when link recognition is enabled", async () => {
     const result = await getQuickCaptureInitialContent({
-      settings: settings({ quickCaptureClipboardMode: "replace", quickCaptureRecognizeClipboardLinks: true }),
+      settings: settings({ quickCaptureClipboardDesktopMode: "replace", quickCaptureRecognizeClipboardLinks: true }),
       existingContent: "",
       readSelection: () => "",
       readClipboardText: async () => "https://example.com/page"
@@ -72,5 +77,53 @@ describe("quick capture initial content", () => {
     });
 
     expect(result).toBeNull();
+  });
+
+  it("migrates the legacy clipboard mode to desktop and mobile settings without keeping the old stored field", () => {
+    const migrated = normalizeSettings({ quickCaptureClipboardMode: "append" });
+
+    expect(migrated.quickCaptureClipboardDesktopMode).toBe("append");
+    expect(migrated.quickCaptureClipboardMobileMode).toBe("append");
+    expect(migrated).not.toHaveProperty("quickCaptureClipboardMode");
+  });
+
+  it("normalizes desktop and mobile clipboard modes independently", () => {
+    const normalized = normalizeSettings({
+      quickCaptureClipboardMode: "append",
+      quickCaptureClipboardDesktopMode: "replace",
+      quickCaptureClipboardMobileMode: "off"
+    });
+
+    expect(normalized.quickCaptureClipboardDesktopMode).toBe("replace");
+    expect(normalized.quickCaptureClipboardMobileMode).toBe("off");
+  });
+
+  it("uses desktop clipboard mode on desktop and as the safe fallback", () => {
+    const configured = settings({
+      quickCaptureClipboardDesktopMode: "replace",
+      quickCaptureClipboardMobileMode: "off"
+    });
+
+    expect(quickCaptureClipboardModeForPlatform(configured, false)).toBe("replace");
+    expect(quickCaptureClipboardModeForPlatform(configured, undefined)).toBe("replace");
+  });
+
+  it("uses mobile clipboard mode on phones and tablets", async () => {
+    obsidianMock.Platform.isMobile = true;
+    try {
+      const result = await getQuickCaptureInitialContent({
+        settings: settings({
+          quickCaptureClipboardDesktopMode: "replace",
+          quickCaptureClipboardMobileMode: "off"
+        }),
+        existingContent: "",
+        readSelection: () => "",
+        readClipboardText: async () => "移动端剪贴板"
+      });
+
+      expect(result).toBeNull();
+    } finally {
+      obsidianMock.Platform.isMobile = false;
+    }
   });
 });
