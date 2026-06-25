@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, normalizeSettings, restoreSettingsTabsScroll } from "
 import { buildEmptyExcalidrawFile, buildExcalidrawAttachmentPath, buildImageAttachmentPath, normalizeImageExtension } from "../src/store";
 
 const settingsSource = readFileSync("src/settings.ts", "utf8");
+const stylesSource = readFileSync("styles.css", "utf8");
 
 vi.mock("obsidian", () => ({
   App: class {},
@@ -705,7 +706,12 @@ describe("normalizeSettings", () => {
     expect(source).toContain("settings.fileTemplateTabTemplateSearch");
     expect(source).toContain("请先设置模板库位置");
     expect(source).toContain("this.plugin.store.getFileTemplateLibraryItems()");
-    expect(source).toContain("slice(0, 20)");
+    expect(source).toContain("if (!normalizedQuery) {");
+    expect(source).toContain("return;");
+    expect(source).toContain("slice(0, 10)");
+    expect(source).toContain("settings.fileTemplateTabTemplateSearchMore");
+    expect(source).not.toContain('renderFileTemplateGroupSearchResults(results, tab, "")');
+    expect(source).not.toContain("return true;");
     expect(source).toContain("const nextPaths = [...targetTab.templatePaths, normalizedPath]");
     expect(source).toContain("templatePaths: item.id === tabId ? nextPaths : item.templatePaths");
     expect(source).toContain("removeTemplatePathFromGroup");
@@ -714,6 +720,8 @@ describe("normalizeSettings", () => {
     expect(source).toContain("enableDesktopDrag");
     expect(source).toContain("enableMobileDrag");
     expect(source).not.toContain("settings.fileTemplateLibraryTabMobileDrag");
+    expect(stylesSource).toContain("max-height: 240px");
+    expect(stylesSource).toContain("overflow-y: auto");
   });
 
   it("migrates legacy project send custom tags into tag-filter template tabs", () => {

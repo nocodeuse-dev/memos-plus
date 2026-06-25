@@ -3429,7 +3429,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           }, 180);
         };
         text.inputEl.addEventListener("input", render);
-        void this.renderFileTemplateGroupSearchResults(results, tab, "");
       });
   }
 
@@ -3455,38 +3454,38 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   private async renderFileTemplateGroupSearchResults(container: HTMLElement, tab: FileTemplateTab, query: string): Promise<void> {
     container.empty();
     const lang = this.plugin.settings.language;
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return;
+    }
     const folder = normalizeFileTemplateLibraryFolder(this.plugin.settings.fileTemplateLibraryFolder);
     if (!folder || !(this.app.vault.getAbstractFileByPath(folder) instanceof TFolder)) {
       container.createDiv({ cls: "setting-item-description", text: "请先设置模板库位置" });
       return;
     }
     const items = await this.getCachedFileTemplateLibraryItems(folder);
-    const normalizedQuery = query.trim().toLowerCase();
     const existingPaths = new Set(normalizeFileTemplateLibraryPaths(tab.templatePaths));
     const matches = items
       .filter((item) => item.path.toLowerCase().endsWith(".md"))
       .filter((item) => !existingPaths.has(normalizePath(item.path)))
-      .filter((item) => {
-        if (!normalizedQuery) {
-          return true;
-        }
-        return `${item.name} ${item.path} ${item.category} ${item.tags.join(" ")}`.toLowerCase().includes(normalizedQuery);
-      })
-      .slice(0, 20);
+      .filter((item) => `${item.name} ${item.path} ${item.category} ${item.tags.join(" ")}`.toLowerCase().includes(normalizedQuery));
     if (matches.length === 0) {
       container.createDiv({
         cls: "setting-item-description",
-        text: normalizedQuery ? t(lang, "settings.fileTemplateTabTemplateSearchEmpty") : t(lang, "settings.fileTemplateTabTemplateSearchNoMore")
+        text: t(lang, "settings.fileTemplateTabTemplateSearchEmpty")
       });
       return;
     }
-    for (const item of matches) {
+    for (const item of matches.slice(0, 10)) {
       const row = container.createEl("button", { cls: "memos-plus-file-template-group-search-item", attr: { type: "button" } });
       row.createSpan({ cls: "memos-plus-file-template-group-search-name", text: item.name });
       row.createSpan({ cls: "memos-plus-file-template-group-search-path", text: item.path });
       row.addEventListener("click", () => {
         void this.addTemplatePathToGroup(tab.id, item.path);
       });
+    }
+    if (matches.length > 10) {
+      container.createDiv({ cls: "setting-item-description", text: t(lang, "settings.fileTemplateTabTemplateSearchMore") });
     }
   }
 

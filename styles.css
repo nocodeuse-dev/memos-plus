@@ -2527,6 +2527,8 @@
   display: grid;
   gap: 6px;
   margin-top: 8px;
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .memos-plus-file-template-group-search-name,
