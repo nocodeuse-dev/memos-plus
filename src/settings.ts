@@ -662,7 +662,21 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     }
     logMemosPlusDiagnostic("settings:panel-render", { tab: this.currentSettingTab });
     this.settingsPanelEl.empty();
+    this.renderSettingsPageTitle(this.settingsPanelEl);
     this.renderActiveSettingsTab(this.settingsPanelEl);
+    this.applySettingsTypographyClasses(this.settingsPanelEl);
+  }
+
+  private renderSettingsPageTitle(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    const tab = SETTINGS_TABS.find((item) => item.id === this.currentSettingTab);
+    if (!tab) {
+      return;
+    }
+    container.createEl("h2", {
+      cls: "memos-plus-settings-page-title",
+      text: t(lang, tab.labelKey)
+    });
   }
 
   private renderActiveSettingsTab(container: HTMLElement): void {
@@ -757,23 +771,42 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     const lang = this.plugin.settings.language;
     const heading = new Setting(container).setName(t(lang, titleKey)).setHeading();
     heading.settingEl.addClass("memos-plus-settings-section-title");
+    heading.settingEl.addClass("memos-plus-settings-group-heading");
+    heading.settingEl.querySelector<HTMLElement>(".setting-item-name")?.addClass("memos-plus-settings-group-title");
     if (descKey) {
       heading.setDesc(t(lang, descKey));
       heading.settingEl.addClass("memos-plus-settings-section-desc");
+      heading.settingEl.querySelector<HTMLElement>(".setting-item-description")?.addClasses([
+        "memos-plus-settings-group-desc",
+        "memos-plus-settings-item-desc"
+      ]);
     }
   }
 
   private renderSettingsDetails(container: HTMLElement, titleKey: string, descKey?: string): HTMLDetailsElement {
     const lang = this.plugin.settings.language;
     const details = container.createEl("details", { cls: "memos-plus-settings-advanced-details" });
-    details.createEl("summary", { text: t(lang, titleKey) });
+    details.createEl("summary", { cls: "memos-plus-settings-group-title", text: t(lang, titleKey) });
     if (descKey) {
       details.createEl("p", {
-        cls: "setting-item-description memos-plus-settings-section-desc",
+        cls: "setting-item-description memos-plus-settings-section-desc memos-plus-settings-group-desc memos-plus-settings-item-desc",
         text: t(lang, descKey)
       });
     }
     return details;
+  }
+
+  private applySettingsTypographyClasses(container: HTMLElement): void {
+    for (const nameEl of Array.from(container.querySelectorAll<HTMLElement>(".setting-item-name"))) {
+      if (!nameEl.hasClass("memos-plus-settings-group-title")) {
+        nameEl.addClass("memos-plus-settings-item-title");
+      }
+    }
+    for (const descEl of Array.from(container.querySelectorAll<HTMLElement>(".setting-item-description"))) {
+      if (!descEl.hasClass("memos-plus-settings-group-desc")) {
+        descEl.addClass("memos-plus-settings-item-desc");
+      }
+    }
   }
 
   private renderSendRulesSettings(container: HTMLElement): void {

@@ -6,6 +6,14 @@
   max-width: 1120px;
 }
 
+.memos-plus-settings-page-title {
+  margin: 0 0 16px;
+  color: var(--memos-plus-settings-accent);
+  font-size: var(--font-ui-large);
+  font-weight: 750;
+  line-height: 1.35;
+}
+
 .memos-plus-settings-tabs {
   display: flex;
   flex-wrap: nowrap;
@@ -46,6 +54,7 @@
 .memos-plus-settings-advanced-details {
   margin: 12px 0;
   border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--memos-plus-settings-accent);
   border-radius: 8px;
   padding: 10px 12px;
   background: var(--background-secondary);
@@ -53,16 +62,35 @@
 
 .memos-plus-settings-advanced-details > summary {
   cursor: pointer;
-  color: var(--text-muted);
-  font-weight: 700;
+  color: var(--memos-plus-settings-accent);
+  font-weight: 750;
 }
 
 .memos-plus-settings-section-title {
-  margin: 0 0 6px;
+  margin: 22px 0 6px;
 }
 
 .memos-plus-settings-section-desc {
   margin: 0 0 12px;
+}
+
+.memos-plus-settings-group-heading {
+  border-left: 3px solid var(--memos-plus-settings-accent);
+  padding-left: 10px;
+}
+
+.memos-plus-settings-group-title {
+  color: var(--memos-plus-settings-accent);
+  font-weight: 750;
+}
+
+.memos-plus-settings-group-desc,
+.memos-plus-settings-item-desc {
+  color: var(--text-muted);
+}
+
+.memos-plus-settings-item-title {
+  color: var(--text-normal);
 }
 
 .memos-plus-quick-input-startup-card {

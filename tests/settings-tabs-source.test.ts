@@ -148,4 +148,25 @@ describe("settings top tabs source", () => {
     expect(styles).toContain(".memos-plus-settings-tab.is-active");
     expect(styles).not.toContain(".memos-plus-settings-center-card");
   });
+
+  it("keeps settings title hierarchy styled through reusable theme-aware classes", () => {
+    expect(settingsSource).toContain("renderSettingsPageTitle");
+    expect(settingsSource).toContain("applySettingsTypographyClasses");
+    expect(settingsSource).toContain("memos-plus-settings-page-title");
+    expect(settingsSource).toContain("memos-plus-settings-group-heading");
+    expect(settingsSource).toContain("memos-plus-settings-group-title");
+    expect(settingsSource).toContain("memos-plus-settings-item-title");
+    expect(settingsSource).toContain("memos-plus-settings-item-desc");
+
+    expect(styles).toContain("--memos-plus-settings-accent: var(--interactive-accent)");
+    expect(styles).toContain(".memos-plus-settings-page-title");
+    expect(styles).toContain(".memos-plus-settings-group-heading");
+    expect(styles).toContain("border-left: 3px solid var(--memos-plus-settings-accent)");
+    expect(styles).toContain(".memos-plus-settings-group-title");
+    expect(styles).toContain("color: var(--memos-plus-settings-accent)");
+    expect(styles).toContain(".memos-plus-settings-item-title");
+    expect(styles).toContain("color: var(--text-normal)");
+    expect(styles).toContain(".memos-plus-settings-item-desc");
+    expect(styles).toContain("color: var(--text-muted)");
+  });
 });
