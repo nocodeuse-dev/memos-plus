@@ -268,6 +268,8 @@ describe("mobile interaction stability source", () => {
     expect(clearBlock).toContain("this.calloutMode = false");
     expect(clearBlock).toContain("this.handleInputContentUpdated(false)");
     expect(clearBlock).toContain("await this.options.onClearDraft?.()");
+    expect(clearBlock).not.toContain("confirmWithModal");
+    expect(clearBlock).not.toContain("isClearInputRisky");
     expect(clearBlock).not.toContain(".focus(");
     expect(clearBlock).not.toContain("scrollIntoView");
     expect(clearBlock).not.toContain("render(");

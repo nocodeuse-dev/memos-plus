@@ -7,7 +7,6 @@ import {
   type ComposerTextTool,
   type ComposerToolbarToolId
 } from "./composerTools";
-import { confirmWithModal } from "./confirmModal";
 import type { DisplayModuleId } from "./displayModules";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
@@ -622,17 +621,6 @@ export class ComposerWidget {
       this.updateClearButtonState();
       return;
     }
-    if (
-      this.isClearInputRisky(content) &&
-      !(await confirmWithModal(this.options.app, {
-        language: this.options.settings().language,
-        title: t(this.options.settings().language, "toolbar.clearInput"),
-        message: t(this.options.settings().language, "composer.clearConfirm"),
-        confirmText: t(this.options.settings().language, "toolbar.clearInput")
-      }))
-    ) {
-      return;
-    }
     this.composer.clear();
     this.calloutMode = false;
     this.handleInputContentUpdated(false);
@@ -641,14 +629,6 @@ export class ComposerWidget {
     } catch (error) {
       console.warn("[Memos Plus] Failed to clear composer draft cache", error);
     }
-  }
-
-  private isClearInputRisky(content: string): boolean {
-    return (
-      content.trim().length > 100 ||
-      /https?:\/\/|www\.|!\[\[|\]\(|\.(?:png|jpe?g|gif|webp|m4a|mp3|wav|pdf)\b/i.test(content) ||
-      /^\s*[-*]\s+\[[ xX]\]/m.test(content)
-    );
   }
 
   private updateClearButtonState(): void {
