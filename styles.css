@@ -2217,7 +2217,7 @@
   max-height: none;
   min-height: 0;
   gap: 6px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 112px);
+  padding-bottom: 12px;
 }
 
 .memos-plus-mobile-panel-footer {
@@ -2225,11 +2225,11 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   flex: 0 0 auto;
-  position: sticky;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  position: relative;
+  bottom: auto;
   z-index: 2;
   margin-top: 6px;
-  padding: 8px 0 0;
+  padding: 8px 0 calc(env(safe-area-inset-bottom, 0px) + 8px);
   background: var(--background-primary);
 }
 
@@ -2274,8 +2274,13 @@
 .memos-plus-mobile-panel-view .memos-plus-project-search,
 .memos-plus-mobile-panel-view .memos-plus-project-name-input {
   height: 46px;
-  margin: 6px 0 8px;
+  margin: 0;
   border-radius: 8px;
+}
+
+.memos-plus-mobile-target-search {
+  flex: 0 0 auto;
+  padding: 0 0 8px;
 }
 
 .memos-plus-project-send-tabs {
@@ -2540,9 +2545,10 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  position: relative;
+  bottom: auto;
   margin-top: 6px;
-  padding: 8px 0 0;
+  padding: 8px 0 calc(env(safe-area-inset-bottom, 0px) + 8px);
   border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 48%, transparent);
   background: var(--background-primary);
 }

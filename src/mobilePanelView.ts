@@ -167,14 +167,24 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.contentEl.empty();
     this.renderTopBar(t(options.language, "fileSend.selectFile"));
     this.renderTabs();
-    const content = this.contentEl.createDiv({ cls: "memos-plus-mobile-panel-content" });
+    this.renderTargetContent();
+  }
+
+  private renderTargetContent(): void {
+    const options = this.options;
+    if (!options) {
+      return;
+    }
+    this.removeTargetContent();
+    let list: HTMLElement;
     if (this.activeTabId === "search") {
-      const search = content.createEl("input", {
+      const searchArea = this.contentEl.createDiv({ cls: "memos-plus-mobile-target-search" });
+      const search = searchArea.createEl("input", {
         cls: "memos-plus-project-search",
         attr: { type: "search", placeholder: t(options.language, "fileSend.searchFiles") }
       });
       search.value = this.fileQuery;
-      const list = content.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results" });
+      list = this.contentEl.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results" });
       let debounceTimer: number | null = null;
       search.addEventListener("input", () => {
         this.fileQuery = search.value;
@@ -188,10 +198,16 @@ export class MemosPlusMobilePanelView extends ItemView {
       });
       void this.renderSearchResults(list);
     } else {
-      const list = content.createDiv({ cls: "memos-plus-project-list" });
+      list = this.contentEl.createDiv({ cls: "memos-plus-project-list" });
       void this.renderTagTabResults(list, this.activeTabId);
     }
     this.renderTargetFooter();
+  }
+
+  private removeTargetContent(): void {
+    this.contentEl.querySelectorAll(".memos-plus-mobile-target-search, .memos-plus-project-list, .memos-plus-mobile-panel-footer").forEach((node) => {
+      node.remove();
+    });
   }
 
   private renderTabs(): void {
@@ -205,11 +221,10 @@ export class MemosPlusMobilePanelView extends ItemView {
         cls: `memos-plus-project-send-tab${id === this.activeTabId ? " is-active" : ""}`,
         attr: { type: "button", "aria-pressed": String(id === this.activeTabId) }
       });
+      button.dataset.tabId = id;
       button.createSpan({ cls: "memos-plus-project-send-tab-label", text: this.tabLabel(id) });
       button.addEventListener("click", () => {
-        this.tabsScrollLeft = tabs.scrollLeft;
-        this.activeTabId = id;
-        this.renderTargetPicker();
+        this.switchTargetTab(id, tabs);
       });
     }
     tabs.scrollLeft = this.tabsScrollLeft;
@@ -223,6 +238,21 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (tabs) {
       this.tabsScrollLeft = tabs.scrollLeft;
     }
+  }
+
+  private switchTargetTab(id: string, tabs: HTMLElement): void {
+    if (id === this.activeTabId) {
+      return;
+    }
+    this.tabsScrollLeft = tabs.scrollLeft;
+    this.activeTabId = id;
+    tabs.querySelectorAll<HTMLButtonElement>(".memos-plus-project-send-tab").forEach((button) => {
+      const isActive = button.dataset.tabId === id;
+      button.toggleClass("is-active", isActive);
+      button.setAttr("aria-pressed", String(isActive));
+    });
+    this.renderTargetContent();
+    tabs.scrollLeft = this.tabsScrollLeft;
   }
 
   private visibleTabIds(): string[] {

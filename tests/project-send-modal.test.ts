@@ -322,12 +322,18 @@ describe("project send modal source", () => {
     expect(mobilePanelSource).toContain("tabsScrollLeft");
     expect(mobilePanelSource).toContain("this.captureTabsScrollLeft()");
     expect(mobilePanelSource).toContain("tabs.scrollLeft = this.tabsScrollLeft");
+    expect(mobilePanelSource).toContain("private switchTargetTab");
+    expect(mobilePanelSource).toContain("this.renderTargetContent()");
+    expect(mobilePanelSource).toContain("memos-plus-mobile-target-search");
+    expect(mobilePanelSource).toContain("memos-plus-mobile-panel-footer");
     expect(mobilePanelSource).not.toContain("extends Modal");
     expect(stylesSource).toContain(".memos-plus-mobile-panel-tabs");
+    expect(stylesSource).toContain(".memos-plus-mobile-target-search");
     expect(stylesSource).toContain("flex-wrap: nowrap");
     expect(stylesSource).toContain("white-space: nowrap");
     expect(stylesSource).toContain("height: 44px");
     expect(stylesSource).toContain("transform: none");
+    expect(stylesSource).toContain("position: relative");
     expect(stylesSource).toContain("inset 0 -2px 0 var(--interactive-accent)");
     expect(stylesSource).toContain("env(safe-area-inset-bottom");
   });
