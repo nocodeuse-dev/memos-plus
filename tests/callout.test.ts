@@ -28,6 +28,25 @@ describe("callout markdown", () => {
     expect(resolveCalloutTitle(content, DEFAULT_CALLOUT_SETTINGS, {})).toBe("abcdefghijklmnopqrstuvwxyz1234...");
   });
 
+  it("uses the first non-empty content line for ordinary text", () => {
+    expect(resolveCalloutTitle("\n\n普通标题\n正文", DEFAULT_CALLOUT_SETTINGS, {})).toBe("普通标题");
+  });
+
+  it("uses the first non-empty code content line instead of the opening fence", () => {
+    expect(resolveCalloutTitle("```text\nObsidian 透视叠图插件可行吗？回答模型：GPT-5.5 Thinking\n```", DEFAULT_CALLOUT_SETTINGS, {})).toBe(
+      "Obsidian 透视叠图插件可行吗？回答模型：GPT-5...."
+    );
+    expect(resolveCalloutTitle("```\n无语言代码标题\n```", DEFAULT_CALLOUT_SETTINGS, {})).toBe("无语言代码标题");
+    expect(resolveCalloutTitle("~~~python\nprint('hello')\n~~~", DEFAULT_CALLOUT_SETTINGS, {})).toBe("print('hello')");
+  });
+
+  it("skips blank code lines and does not use closing fences as titles", () => {
+    expect(resolveCalloutTitle("```js\n\nconst title = '有效内容';\n```", DEFAULT_CALLOUT_SETTINGS, {})).toBe("const title = '有效内容';");
+    expect(
+      resolveCalloutTitle("```text\n\n```", { ...DEFAULT_CALLOUT_SETTINGS, calloutTitleMode: "firstLine" }, { now: new Date(2026, 5, 14, 20, 40) })
+    ).toBe("2026-06-14 20:40");
+  });
+
   it("resolves custom title templates with project context variables", () => {
     expect(
       resolveCalloutTitle(
@@ -62,5 +81,25 @@ describe("callout markdown", () => {
       content: "短内容",
       preformatted: false
     });
+  });
+
+  it("keeps fenced code block body intact while using code content as title", () => {
+    const content = "```text\nObsidian 透视叠图插件可行吗？回答模型：GPT-5.5 Thinking\n```";
+    expect(prepareCalloutContent(content, DEFAULT_CALLOUT_SETTINGS, true, {})).toEqual({
+      content: [
+        "> [!note]- Obsidian 透视叠图插件可行吗？回答模型：GPT-5....",
+        "> ```text",
+        "> Obsidian 透视叠图插件可行吗？回答模型：GPT-5.5 Thinking",
+        "> ```"
+      ].join("\n"),
+      preformatted: true
+    });
+  });
+
+  it("preserves empty quote lines inside fenced code callouts", () => {
+    const content = "~~~\n\ninside\n~~~";
+    expect(buildCalloutMarkdown(content, { type: "note", foldMode: "folded", title: "inside" })).toBe(
+      ["> [!note]- inside", "> ~~~", ">", "> inside", "> ~~~"].join("\n")
+    );
   });
 });

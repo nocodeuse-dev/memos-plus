@@ -85,7 +85,7 @@ export function resolveCalloutTitle(content: string, settings: Pick<CalloutSetti
     date: formatDate(now),
     time: formatTime(now),
     datetime: `${formatDate(now)} ${formatTime(now)}`,
-    firstLine: firstContentLine(content)
+    firstLine: extractCalloutFirstLine(content)
   };
   const mode = normalizeCalloutTitleMode(settings.calloutTitleMode);
   switch (mode) {
@@ -142,11 +142,44 @@ function calloutFoldMarker(mode: CalloutFoldMode): string {
   return "";
 }
 
-function firstContentLine(content: string): string {
-  return normalizeNewlines(content)
-    .split("\n")
-    .map((line) => line.trim())
-    .find(Boolean) ?? "";
+export function extractCalloutFirstLine(content: string): string {
+  const lines = normalizeNewlines(content).split("\n");
+  const firstContentIndex = lines.findIndex((line) => line.trim());
+  if (firstContentIndex < 0) {
+    return "";
+  }
+  const openingFence = parseOpeningFence(lines[firstContentIndex]);
+  if (!openingFence) {
+    return lines[firstContentIndex].trim();
+  }
+  for (let index = firstContentIndex + 1; index < lines.length; index += 1) {
+    const trimmed = lines[index].trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (isClosingFence(trimmed, openingFence.marker, openingFence.length)) {
+      return "";
+    }
+    return trimmed;
+  }
+  return "";
+}
+
+function parseOpeningFence(line: string): { marker: "`" | "~"; length: number } | null {
+  const match = line.trim().match(/^(`{3,}|~{3,})/);
+  if (!match) {
+    return null;
+  }
+  const fence = match[1];
+  return { marker: fence[0] as "`" | "~", length: fence.length };
+}
+
+function isClosingFence(line: string, marker: "`" | "~", minLength: number): boolean {
+  const pattern = marker === "`" ? /^`{3,}\s*$/ : /^~{3,}\s*$/;
+  if (!pattern.test(line)) {
+    return false;
+  }
+  return line.length >= minLength;
 }
 
 function renderTitleTemplate(template: string, values: Record<string, string>): string {
