@@ -167,7 +167,9 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.contentEl.empty();
     this.renderTopBar(t(options.language, "fileSend.selectFile"));
     this.renderTabs();
+    this.contentEl.createDiv({ cls: "memos-plus-mobile-target-body" });
     this.renderTargetContent();
+    this.renderTargetFooter();
   }
 
   private renderTargetContent(): void {
@@ -175,16 +177,20 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (!options) {
       return;
     }
-    this.removeTargetContent();
-    let list: HTMLElement;
+    const body = this.getTargetBodyEl();
+    body.empty();
     if (this.activeTabId === "search") {
-      const searchArea = this.contentEl.createDiv({ cls: "memos-plus-mobile-target-search" });
+      const searchArea = body.createDiv({ cls: "memos-plus-mobile-target-search" });
       const search = searchArea.createEl("input", {
         cls: "memos-plus-project-search",
         attr: { type: "search", placeholder: t(options.language, "fileSend.searchFiles") }
       });
       search.value = this.fileQuery;
-      list = this.contentEl.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results" });
+      body.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results memos-plus-mobile-target-list" });
+      const list = this.getTargetListEl();
+      if (!list) {
+        return;
+      }
       let debounceTimer: number | null = null;
       search.addEventListener("input", () => {
         this.fileQuery = search.value;
@@ -198,16 +204,22 @@ export class MemosPlusMobilePanelView extends ItemView {
       });
       void this.renderSearchResults(list);
     } else {
-      list = this.contentEl.createDiv({ cls: "memos-plus-project-list" });
+      body.createDiv({ cls: "memos-plus-project-list memos-plus-mobile-target-list" });
+      const list = this.getTargetListEl();
+      if (!list) {
+        return;
+      }
       void this.renderTagTabResults(list, this.activeTabId);
     }
-    this.renderTargetFooter();
   }
 
-  private removeTargetContent(): void {
-    this.contentEl.querySelectorAll(".memos-plus-mobile-target-search, .memos-plus-project-list, .memos-plus-mobile-panel-footer").forEach((node) => {
-      node.remove();
-    });
+  private getTargetBodyEl(): HTMLElement {
+    const existing = this.contentEl.querySelector<HTMLElement>(".memos-plus-mobile-target-body");
+    return existing ?? this.contentEl.createDiv({ cls: "memos-plus-mobile-target-body" });
+  }
+
+  private getTargetListEl(): HTMLElement | null {
+    return this.contentEl.querySelector(".memos-plus-mobile-target-list");
   }
 
   private renderTabs(): void {

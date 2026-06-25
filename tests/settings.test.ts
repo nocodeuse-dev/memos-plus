@@ -701,6 +701,14 @@ describe("normalizeSettings", () => {
     expect(source).toContain("normalizeVisibleFileTemplateLibraryDefaultTabId");
     expect(source).toContain("settings.fileTemplateTabInteraction");
     expect(source).toContain("this.renderFileTemplateTabInteractionSettings(container)");
+    expect(source).toContain("renderFileTemplateGroupSearch");
+    expect(source).toContain("settings.fileTemplateTabTemplateSearch");
+    expect(source).toContain("请先设置模板库位置");
+    expect(source).toContain("this.plugin.store.getFileTemplateLibraryItems()");
+    expect(source).toContain("slice(0, 20)");
+    expect(source).toContain("const nextPaths = [...targetTab.templatePaths, normalizedPath]");
+    expect(source).toContain("templatePaths: item.id === tabId ? nextPaths : item.templatePaths");
+    expect(source).toContain("removeTemplatePathFromGroup");
     expect(source).not.toContain("settings.fileTemplateTabType.tag-filter");
     expect(source).not.toContain("convertFileTemplateTabType");
     expect(source).toContain("enableDesktopDrag");

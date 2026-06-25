@@ -1,4 +1,4 @@
-import { App, Platform, PluginSettingTab, Setting, normalizePath } from "obsidian";
+import { App, Platform, PluginSettingTab, Setting, TFolder, normalizePath } from "obsidian";
 import type MemosPlusPlugin from "../main";
 import {
   CALLOUT_TYPES,
@@ -79,6 +79,7 @@ import {
   normalizeFileTemplateLibraryFolder,
   normalizeFileTemplateLibraryPaths,
   normalizeFileTemplateTabs,
+  type FileTemplateLibraryItem,
   type FileTemplateLibraryInteractionSettings,
   type FileTemplateTabInteractionSettings,
   type FileTemplateTab
@@ -624,6 +625,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   private draggedLayoutModuleId: DisplayModuleId | "" = "";
   private settingsTabsEl: HTMLElement | null = null;
   private settingsPanelEl: HTMLElement | null = null;
+  private fileTemplateLibraryItemCache: { folder: string; items: FileTemplateLibraryItem[] } | null = null;
 
   constructor(app: App, private readonly plugin: MemosPlusPlugin) {
     super(app, plugin);
@@ -3362,6 +3364,9 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         });
       });
 
+      this.renderFileTemplateGroupPathList(tabBox, tab);
+      this.renderFileTemplateGroupSearch(tabBox, tab);
+
       new Setting(tabBox)
         .setName(t(lang, "settings.fileTemplateTabTemplatePaths"))
         .setDesc(t(lang, "settings.fileTemplateTabTemplatePathsDesc"))
@@ -3402,6 +3407,123 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       return t(this.plugin.settings.language, "fileTemplateLibrary.category.all");
     }
     return getFileTemplateLibraryTemplateGroupTab(id, this.plugin.settings.fileTemplateTabs)?.name ?? id;
+  }
+
+  private renderFileTemplateGroupSearch(container: HTMLElement, tab: FileTemplateTab): void {
+    const lang = this.plugin.settings.language;
+    const searchBox = container.createDiv({ cls: "memos-plus-file-template-group-search" });
+    new Setting(searchBox)
+      .setName(t(lang, "settings.fileTemplateTabTemplateSearch"))
+      .setDesc(t(lang, "settings.fileTemplateTabTemplateSearchDesc"))
+      .addText((text) => {
+        text.setPlaceholder(t(lang, "settings.fileTemplateTabTemplateSearchPlaceholder"));
+        const results = searchBox.createDiv({ cls: "memos-plus-file-template-group-search-results" });
+        let debounceTimer: number | null = null;
+        const render = (): void => {
+          if (debounceTimer !== null) {
+            window.clearTimeout(debounceTimer);
+          }
+          debounceTimer = window.setTimeout(() => {
+            debounceTimer = null;
+            void this.renderFileTemplateGroupSearchResults(results, tab, text.inputEl.value);
+          }, 180);
+        };
+        text.inputEl.addEventListener("input", render);
+        void this.renderFileTemplateGroupSearchResults(results, tab, "");
+      });
+  }
+
+  private renderFileTemplateGroupPathList(container: HTMLElement, tab: FileTemplateTab): void {
+    const lang = this.plugin.settings.language;
+    const paths = normalizeFileTemplateLibraryPaths(tab.templatePaths);
+    const list = container.createDiv({ cls: "memos-plus-file-template-group-paths" });
+    list.createDiv({ cls: "setting-item-description", text: t(lang, "settings.fileTemplateTabTemplatePathsCurrent") });
+    if (paths.length === 0) {
+      list.createDiv({ cls: "setting-item-description", text: t(lang, "settings.fileTemplateTabTemplatePathsEmpty") });
+      return;
+    }
+    for (const path of paths) {
+      const row = list.createDiv({ cls: "memos-plus-file-template-group-path" });
+      row.createSpan({ text: path });
+      const remove = row.createEl("button", { attr: { type: "button" }, text: t(lang, "common.delete") });
+      remove.addEventListener("click", () => {
+        void this.removeTemplatePathFromGroup(tab.id, path);
+      });
+    }
+  }
+
+  private async renderFileTemplateGroupSearchResults(container: HTMLElement, tab: FileTemplateTab, query: string): Promise<void> {
+    container.empty();
+    const lang = this.plugin.settings.language;
+    const folder = normalizeFileTemplateLibraryFolder(this.plugin.settings.fileTemplateLibraryFolder);
+    if (!folder || !(this.app.vault.getAbstractFileByPath(folder) instanceof TFolder)) {
+      container.createDiv({ cls: "setting-item-description", text: "请先设置模板库位置" });
+      return;
+    }
+    const items = await this.getCachedFileTemplateLibraryItems(folder);
+    const normalizedQuery = query.trim().toLowerCase();
+    const existingPaths = new Set(normalizeFileTemplateLibraryPaths(tab.templatePaths));
+    const matches = items
+      .filter((item) => item.path.toLowerCase().endsWith(".md"))
+      .filter((item) => !existingPaths.has(normalizePath(item.path)))
+      .filter((item) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+        return `${item.name} ${item.path} ${item.category} ${item.tags.join(" ")}`.toLowerCase().includes(normalizedQuery);
+      })
+      .slice(0, 20);
+    if (matches.length === 0) {
+      container.createDiv({
+        cls: "setting-item-description",
+        text: normalizedQuery ? t(lang, "settings.fileTemplateTabTemplateSearchEmpty") : t(lang, "settings.fileTemplateTabTemplateSearchNoMore")
+      });
+      return;
+    }
+    for (const item of matches) {
+      const row = container.createEl("button", { cls: "memos-plus-file-template-group-search-item", attr: { type: "button" } });
+      row.createSpan({ cls: "memos-plus-file-template-group-search-name", text: item.name });
+      row.createSpan({ cls: "memos-plus-file-template-group-search-path", text: item.path });
+      row.addEventListener("click", () => {
+        void this.addTemplatePathToGroup(tab.id, item.path);
+      });
+    }
+  }
+
+  private async getCachedFileTemplateLibraryItems(folder: string): Promise<FileTemplateLibraryItem[]> {
+    if (this.fileTemplateLibraryItemCache?.folder === folder) {
+      return this.fileTemplateLibraryItemCache.items;
+    }
+    const items = await this.plugin.store.getFileTemplateLibraryItems();
+    this.fileTemplateLibraryItemCache = { folder, items };
+    return items;
+  }
+
+  private async addTemplatePathToGroup(tabId: string, path: string): Promise<void> {
+    const normalizedPath = normalizePath(path);
+    const targetTab = this.plugin.settings.fileTemplateTabs.find((item) => item.id === tabId && item.type === "template-group");
+    if (!targetTab || targetTab.templatePaths.includes(normalizedPath)) {
+      return;
+    }
+    const nextPaths = [...targetTab.templatePaths, normalizedPath];
+    await this.saveFileTemplateTabs(
+      this.plugin.settings.fileTemplateTabs.map((item) => ({
+        ...item,
+        templatePaths: item.id === tabId ? nextPaths : item.templatePaths
+      }))
+    );
+    this.display();
+  }
+
+  private async removeTemplatePathFromGroup(tabId: string, path: string): Promise<void> {
+    const normalizedPath = normalizePath(path);
+    await this.saveFileTemplateTabs(
+      this.plugin.settings.fileTemplateTabs.map((item) => ({
+        ...item,
+        templatePaths: item.id === tabId ? normalizeFileTemplateLibraryPaths(item.templatePaths).filter((templatePath) => templatePath !== normalizedPath) : item.templatePaths
+      }))
+    );
+    this.display();
   }
 
   private async addFileTemplateGroupTab(value: string): Promise<void> {
