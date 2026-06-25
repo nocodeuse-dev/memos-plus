@@ -114,7 +114,7 @@ function findReleaseRun(tag) {
   throw new Error(`Could not find GitHub Actions release run for ${tag}`);
 }
 
-function verifyReleaseAssets(tag, version) {
+function verifyReleaseAssets(tag) {
   const result = run("gh", [
     "release",
     "view",
@@ -127,7 +127,7 @@ function verifyReleaseAssets(tag, version) {
     ".assets[].name"
   ], { capture: true });
   const assets = new Set(result.stdout.trim().split(/\s+/).filter(Boolean));
-  for (const asset of ["main.js", "manifest.json", "styles.css", `memos-plus-${version}.zip`]) {
+  for (const asset of ["main.js", "manifest.json", "styles.css"]) {
     if (!assets.has(asset)) {
       throw new Error(`Release ${tag} is missing asset ${asset}`);
     }
@@ -162,7 +162,7 @@ async function main() {
 
   const runId = findReleaseRun(tag);
   run("gh", ["run", "watch", runId, "--repo", REPOSITORY, "--exit-status"]);
-  verifyReleaseAssets(tag, version);
+  verifyReleaseAssets(tag);
   run("npm", ["run", "install:github", "--", "--tag", tag]);
 
   console.log(`Published ${tag}, installed it from GitHub, and reloaded memos-plus.`);

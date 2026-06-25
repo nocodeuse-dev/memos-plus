@@ -41,8 +41,6 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           mkdir -p release-assets
           cp main.js manifest.json styles.css release-assets/
-          cd release-assets
-          zip -r "../memos-plus-${version}.zip" main.js manifest.json styles.css
 
       - name: Create GitHub release
         env:
@@ -61,13 +59,11 @@ jobs:
           - main.js
           - manifest.json
           - styles.css
-          - memos-plus-${version}.zip
           EOF
           gh release create "$GITHUB_REF_NAME" \
             release-assets/main.js \
             release-assets/manifest.json \
             release-assets/styles.css \
-            "memos-plus-${version}.zip" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Memos Plus ${version}" \
             --notes-file "$notes_file" \
