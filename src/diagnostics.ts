@@ -61,6 +61,8 @@ export const DIAGNOSTIC_EVENT_NAMES = [
   "settings:diagnostic-export",
   "data:load",
   "data:save",
+  "modal:open-blocked",
+  "modal:stack-evicted",
   "view:render",
   "view:render-start",
   "view:render-end",

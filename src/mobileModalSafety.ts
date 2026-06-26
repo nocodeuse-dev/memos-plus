@@ -3,6 +3,11 @@ import { logMemosPlusDiagnostic, setMemosPlusDiagnosticState } from "./diagnosti
 
 const activeMobileModals = new Set<Modal>();
 const activeMobileModalNames = new Map<Modal, string>();
+const activeMobileModalStack: Modal[] = [];
+const lastMobileModalOpen = new Map<string, number>();
+
+const MOBILE_MODAL_OPEN_GUARD_MS = 350;
+const MOBILE_MODAL_MAX_STACK = 2;
 
 export function isMobileModalSafeMode(): boolean {
   return Platform.isMobile;
@@ -13,8 +18,40 @@ export function mobileModalResultLimit(isMobile = Platform.isMobile): number {
 }
 
 export function registerMemosPlusModalOpen(modal: Modal, name: string): void {
-  activeMobileModals.add(modal);
-  activeMobileModalNames.set(modal, name);
+  if (Platform.isMobile) {
+    const now = Date.now();
+    const lastOpen = lastMobileModalOpen.get(name) ?? 0;
+    if (now - lastOpen < MOBILE_MODAL_OPEN_GUARD_MS) {
+      logMemosPlusDiagnostic("modal:open-blocked", {
+        name,
+        activeModalCount: activeMobileModals.size,
+        skipMs: now - lastOpen
+      });
+      modal.close();
+      return;
+    }
+    lastMobileModalOpen.set(name, now);
+
+    if (activeMobileModals.size >= MOBILE_MODAL_MAX_STACK) {
+      const oldest = activeMobileModalStack[0];
+      if (oldest) {
+        const oldestName = activeMobileModalNames.get(oldest) ?? "";
+        logMemosPlusDiagnostic("modal:stack-evicted", {
+          name,
+          activeModalCount: activeMobileModals.size,
+          evictName: oldestName
+        });
+        oldest.close();
+      }
+    }
+    activeMobileModals.add(modal);
+    activeMobileModalNames.set(modal, name);
+    activeMobileModalStack.push(modal);
+  } else {
+    activeMobileModals.add(modal);
+    activeMobileModalNames.set(modal, name);
+  }
+
   setMemosPlusDiagnosticState({ currentModal: name });
   logMemosPlusDiagnostic("modal:onOpen", {
     name,
@@ -31,6 +68,10 @@ export function registerMemosPlusModalOpen(modal: Modal, name: string): void {
 export function registerMemosPlusModalClose(modal: Modal, name: string): void {
   activeMobileModals.delete(modal);
   activeMobileModalNames.delete(modal);
+  const index = activeMobileModalStack.indexOf(modal);
+  if (index >= 0) {
+    activeMobileModalStack.splice(index, 1);
+  }
   const remainingNames = Array.from(activeMobileModalNames.values());
   setMemosPlusDiagnosticState({ currentModal: remainingNames[remainingNames.length - 1] ?? "" });
   logMemosPlusDiagnostic("modal:onClose", {
