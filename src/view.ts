@@ -600,8 +600,11 @@ export class MemosPlusView extends ItemView {
       selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
     }, {
       surface,
+      clipboardAutoFillContext: surface === "mobileHome" ? "mobile" : "main",
+      clipboardAutoFillState: this.plugin.settings.clipboardAutoFillState,
       displayModules: modules
     });
+    void this.composerSession.applyInitialContent("auto");
   }
 
   private async renderTimeline(main: Element): Promise<void> {

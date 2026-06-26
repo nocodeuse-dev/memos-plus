@@ -35,11 +35,13 @@ export interface ComposerWidgetOptions {
   sendActionTitle?: () => MemosPlusSettings["defaultSendAction"];
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
   onClearDraft?: () => void | Promise<void>;
+  onComposerInputCleared?: (content: string, source: ComposerInputClearSource) => void | Promise<void>;
   surface?: ComposerSurface;
   displayModules?: ReadonlySet<DisplayModuleId>;
 }
 
 export type ComposerInputChangeSource = "quick-input-paste" | "clipboard-fill" | "clipboard-append" | "selection-fill" | "selection-append";
+export type ComposerInputClearSource = "manual" | "programmatic";
 export type ComposerSurface = "home" | "mobileHome" | "sidebar" | "quickCaptureModal";
 type ComposerInputChangeAction = Extract<QuickCaptureContentAction, "replace" | "append"> | "insert";
 
@@ -100,9 +102,7 @@ export class ComposerWidget {
   }
 
   clear(): void {
-    this.composer.clear();
-    this.calloutMode = false;
-    this.handleInputContentUpdated(false);
+    void this.clearComposerInput("programmatic");
   }
 
   focus(): void {
@@ -616,6 +616,10 @@ export class ComposerWidget {
   }
 
   private async clearInput(): Promise<void> {
+    await this.clearComposerInput("manual");
+  }
+
+  private async clearComposerInput(source: ComposerInputClearSource): Promise<void> {
     const content = this.composer.getValue();
     if (!content) {
       this.updateClearButtonState();
@@ -624,6 +628,11 @@ export class ComposerWidget {
     this.composer.clear();
     this.calloutMode = false;
     this.handleInputContentUpdated(false);
+    try {
+      await this.options.onComposerInputCleared?.(content, source);
+    } catch (error) {
+      console.warn("[Memos Plus] Failed to clear composer input state", error);
+    }
     try {
       await this.options.onClearDraft?.();
     } catch (error) {

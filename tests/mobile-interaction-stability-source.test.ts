@@ -264,10 +264,10 @@ describe("mobile interaction stability source", () => {
 
   it("clears composer content locally on mobile without focusing, scrolling, or rerendering the view", () => {
     const clearBlock = composerWidgetSource.match(/private async clearInput\([\s\S]*?\n {2}\}/)?.[0] ?? "";
-    expect(clearBlock).toContain("this.composer.clear()");
-    expect(clearBlock).toContain("this.calloutMode = false");
-    expect(clearBlock).toContain("this.handleInputContentUpdated(false)");
-    expect(clearBlock).toContain("await this.options.onClearDraft?.()");
+    expect(clearBlock).toContain('await this.clearComposerInput("manual")');
+    expect(clearBlock).not.toContain("this.calloutMode = false");
+    expect(clearBlock).not.toContain("this.handleInputContentUpdated(false)");
+    expect(clearBlock).not.toContain("await this.options.onClearDraft?.()");
     expect(clearBlock).not.toContain("confirmWithModal");
     expect(clearBlock).not.toContain("isClearInputRisky");
     expect(clearBlock).not.toContain(".focus(");

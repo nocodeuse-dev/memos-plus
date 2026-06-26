@@ -2,6 +2,11 @@ import { MarkdownView, Modal, Platform, Setting, type App } from "obsidian";
 import { t, type Language } from "./i18n";
 import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import { type MemosPlusSettings, type QuickCaptureClipboardMode } from "./settings";
+import {
+  type ClipboardAutoFillContext,
+  type ClipboardAutoFillState,
+  shouldAutoApplyClipboard
+} from "./clipboardAutoFill";
 
 export type QuickCaptureInitialContentMode = "auto" | "selection" | "clipboard" | "none";
 export type QuickCaptureContentSource = "selection" | "clipboard-text" | "clipboard-link" | "clipboard-image";
@@ -24,6 +29,9 @@ export interface QuickCaptureInitialContentOptions {
   settings: MemosPlusSettings;
   existingContent?: string;
   mode?: QuickCaptureInitialContentMode;
+  clipboardAutoFillState?: ClipboardAutoFillState;
+  clipboardAutoFillContext?: ClipboardAutoFillContext;
+  clipboardThrottleMs?: number;
   readSelection?: () => string;
   readClipboardText?: () => Promise<string>;
   readClipboardImage?: () => Promise<File | null>;
@@ -50,6 +58,14 @@ export async function getQuickCaptureInitialContent(options: QuickCaptureInitial
   }
   const clipboardText = await readClipboardText(options);
   if (clipboardText) {
+    const allowed = shouldAutoApplyClipboard(clipboardText, {
+      context: options.clipboardAutoFillContext ?? "quickCapture",
+      state: options.clipboardAutoFillState,
+      throttleMs: options.clipboardThrottleMs
+    });
+    if (!allowed) {
+      return null;
+    }
     const source = options.settings.quickCaptureRecognizeClipboardLinks && isLikelyUrl(clipboardText) ? "clipboard-link" : "clipboard-text";
     return resolveIncomingContent(options, clipboardText, source);
   }

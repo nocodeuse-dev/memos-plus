@@ -2,12 +2,18 @@ import { Notice, Platform, type App } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { createComposerActions, type ComposerActions, type ComposerActionsOptions, type ComposerProjectMode } from "./composerActions";
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
-import { ComposerWidget, type ComposerInputChangeSource, type ComposerSurface } from "./composerWidget";
+import {
+  ComposerWidget,
+  type ComposerInputClearSource,
+  type ComposerInputChangeSource,
+  type ComposerSurface
+} from "./composerWidget";
 import type { DisplayModuleId } from "./displayModules";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
 import { runExcalidrawCreateAfterTargetSelection } from "./excalidrawEmbed";
 import {
+  type QuickCaptureContentSource,
   getQuickCaptureInitialContent,
   openQuickCaptureContentPrompt,
   readClipboardImageSafely,
@@ -16,6 +22,14 @@ import {
   type QuickCaptureInitialContentMode,
   type QuickCaptureInitialContentResult
 } from "./quickCaptureContent";
+import {
+  AUTO_CLIPBOARD_SOURCE,
+  type ClipboardAutoFillContext,
+  type ClipboardAutoFillState,
+  markClipboardAutoApplied,
+  markClipboardDismissed,
+  wasClipboardContentAutoApplied
+} from "./clipboardAutoFill";
 import type { DefaultSendAction, MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 import { openTaskOptionsModal, renderTaskContentWithOptions } from "./taskOptionsModal";
@@ -37,6 +51,9 @@ export interface ComposerSessionOptions extends ComposerActionsOptions {
   defaultSendAction?: () => DefaultSendAction;
   initialContent?: string;
   initialContentMode?: QuickCaptureInitialContentMode;
+  clipboardAutoFillContext?: ClipboardAutoFillContext;
+  clipboardAutoFillState?: ClipboardAutoFillState;
+  clipboardThrottleMs?: number;
   showClipboardEmptyNotice?: boolean;
   onIncomingContentApplied?: () => void | Promise<void>;
   onClearDraft?: () => void | Promise<void>;
@@ -77,6 +94,7 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     sendActionTitle: options.defaultSendAction,
     resolveMarkdownLink: host.resolveMarkdownLink,
     onClearDraft: () => clearComposerDraftCaches(host, options),
+    onComposerInputCleared: (content, source) => clearClipboardAutoFillFromUser(content, source, options, host),
     surface: options.surface ?? "home",
     displayModules: options.displayModules
   });
@@ -121,7 +139,30 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
       focus: !Platform.isMobile,
       analyzeLinks: result.source !== "selection"
     });
+    markAutoFillIfNeeded(result.source, result.content);
     await options.onIncomingContentApplied?.();
+  };
+
+  const markAutoFillIfNeeded = (source: QuickCaptureContentSource, content: string): void => {
+    if (!shouldMarkAutoFillContent(source, content, options)) {
+      return;
+    }
+    const state = options.clipboardAutoFillState;
+    if (!state) {
+      return;
+    }
+    const marked = markClipboardAutoApplied(content, {
+      context: options.clipboardAutoFillContext ?? "main",
+      source: AUTO_CLIPBOARD_SOURCE,
+      state,
+      now: Date.now()
+    });
+    if (!marked) {
+      return;
+    }
+    void host.persistSettings().catch((error) => {
+      console.warn("[Memos Plus] Failed to persist clipboard auto-fill state", error);
+    });
   };
 
   const applyInitialContent = async (
@@ -140,7 +181,10 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
       readClipboardImage: shouldMemosHandleImagePaste(host.settings.imageHandlingMode, host.app)
         ? () => readClipboardImageSafely(() => notice("quickCaptureContent.clipboardUnsupported"))
         : undefined,
-      chooseAction: (request) => openQuickCaptureContentPrompt(host.app, host.settings.language, request)
+      chooseAction: (request) => openQuickCaptureContentPrompt(host.app, host.settings.language, request),
+      clipboardAutoFillState: options.clipboardAutoFillState,
+      clipboardAutoFillContext: options.clipboardAutoFillContext,
+      clipboardThrottleMs: options.clipboardThrottleMs
     });
     if (!result) {
       if (showClipboardEmptyNotice && mode === "clipboard") {
@@ -158,6 +202,48 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     focus: () => widget.focus(),
     destroy: () => widget.destroy()
   };
+}
+
+function shouldMarkAutoFillContent(
+  source: QuickCaptureContentSource,
+  content: string,
+  options: ComposerSessionOptions
+): boolean {
+  if (source !== "clipboard-text" && source !== "clipboard-link") {
+    return false;
+  }
+  if (!content.trim()) {
+    return false;
+  }
+  return Boolean(options.clipboardAutoFillContext && options.clipboardAutoFillState);
+}
+
+async function clearClipboardAutoFillFromUser(
+  content: string,
+  source: ComposerInputClearSource,
+  options: ComposerSessionOptions,
+  host: ComposerSessionHost
+): Promise<void> {
+  if (source !== "manual") {
+    return;
+  }
+  if (!options.clipboardAutoFillContext || !options.clipboardAutoFillState || !wasClipboardContentAutoApplied(content, options.clipboardAutoFillState)) {
+    return;
+  }
+  const shouldDismiss = markClipboardDismissed(content, {
+    context: options.clipboardAutoFillContext,
+    source: AUTO_CLIPBOARD_SOURCE,
+    state: options.clipboardAutoFillState,
+    now: Date.now()
+  });
+  if (!shouldDismiss) {
+    return;
+  }
+  try {
+    await host.persistSettings();
+  } catch (error) {
+    console.warn("[Memos Plus] Failed to persist clipboard auto-fill dismissal state", error);
+  }
 }
 
 export type { ComposerProjectMode };

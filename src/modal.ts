@@ -61,6 +61,8 @@ export class QuickCaptureModal extends Modal {
       }
     }, {
       surface: "quickCaptureModal",
+      clipboardAutoFillContext: "quickCapture",
+      clipboardAutoFillState: this.options.settings.clipboardAutoFillState,
       initialContent: this.options.initialContent,
       initialContentMode: this.options.initialContentMode ?? "auto",
       showClipboardEmptyNotice: this.options.showClipboardEmptyNotice,

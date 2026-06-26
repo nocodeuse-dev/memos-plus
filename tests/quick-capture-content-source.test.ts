@@ -84,6 +84,12 @@ describe("quick capture content sources", () => {
     expect(i18nSource).toContain('"quickCaptureContent.clipboardEmpty": "剪贴板为空"');
   });
 
+  it("does not couple manual paste to clipboard auto-detect settings", () => {
+    expect(widgetSource).toContain('await this.processInputContentChange("quick-input-paste", text, {');
+    expect(quickInputSource).toContain('this.composerSession.applyInitialContent("auto")');
+    expect(quickInputSource).not.toContain('clipboardAutoFillState: undefined');
+  });
+
   it("gates only sidebar auto clipboard detection without disabling manual paste", () => {
     expect(quickInputSource).toContain("sidebarAutoDetectClipboard");
     expect(quickInputSource).toContain('applyInitialContent("none")');

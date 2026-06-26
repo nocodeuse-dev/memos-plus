@@ -148,6 +148,8 @@ export class MemosPlusQuickInputView extends ItemView {
       {
         surface: "sidebar",
         displayModules: modules,
+        clipboardAutoFillContext: "sidebar",
+        clipboardAutoFillState: this.plugin.settings.clipboardAutoFillState,
         defaultSendAction: () => sendActionForQuickInput(this.plugin.settings),
         initialContent: initialContent ?? (this.plugin.settings.quickInputPreserveDraft ? this.plugin.settings.quickInputDraft : undefined),
         initialContentMode: "auto",

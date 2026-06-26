@@ -88,6 +88,11 @@ import { normalizeImageHandlingMode, type ImageHandlingMode } from "./imageHandl
 import { DEFAULT_LANGUAGE, Language, t } from "./i18n";
 import { normalizeTagList } from "./linkCapture";
 import {
+  DEFAULT_CLIPBOARD_AUTO_FILL_STATE,
+  normalizeClipboardAutoFillState,
+  type ClipboardAutoFillState
+} from "./clipboardAutoFill";
+import {
   normalizeMemoProjectTransferAfterAction,
   type MemoProjectTransferAfterAction
 } from "./memoProjectTransfer";
@@ -170,6 +175,7 @@ export interface MemosPlusSettings {
   quickCaptureClipboardMobileMode: QuickCaptureClipboardMode;
   quickCaptureExistingContentMode: QuickCaptureExistingContentMode;
   quickCaptureRecognizeClipboardLinks: boolean;
+  clipboardAutoFillState: ClipboardAutoFillState;
   linkAnalysisEnabled: boolean;
   linkAnalysisMobileEnabled: boolean;
   linkAnalysisMaxLinks: number;
@@ -300,6 +306,9 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   quickCaptureClipboardMobileMode: "ask",
   quickCaptureExistingContentMode: "ask",
   quickCaptureRecognizeClipboardLinks: true,
+  clipboardAutoFillState: {
+    ...DEFAULT_CLIPBOARD_AUTO_FILL_STATE
+  },
   linkAnalysisEnabled: true,
   linkAnalysisMobileEnabled: true,
   linkAnalysisMaxLinks: 3,
@@ -539,6 +548,7 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
       typeof raw.quickCaptureRecognizeClipboardLinks === "boolean"
         ? raw.quickCaptureRecognizeClipboardLinks
         : DEFAULT_SETTINGS.quickCaptureRecognizeClipboardLinks,
+    clipboardAutoFillState: normalizeClipboardAutoFillState(raw.clipboardAutoFillState),
     linkAnalysisEnabled: typeof raw.linkAnalysisEnabled === "boolean" ? raw.linkAnalysisEnabled : DEFAULT_SETTINGS.linkAnalysisEnabled,
     linkAnalysisMobileEnabled:
       typeof raw.linkAnalysisMobileEnabled === "boolean" ? raw.linkAnalysisMobileEnabled : DEFAULT_SETTINGS.linkAnalysisMobileEnabled,
