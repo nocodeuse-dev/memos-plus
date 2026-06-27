@@ -3367,6 +3367,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     return [
       `${t(lang, "settings.templateSummaryEntry")}：${entry}`,
       `${t(lang, "settings.templateSummaryFormat")}：${format}`,
+      template.boundHeadings.length > 0 ? `${t(lang, "settings.templateSummaryBoundHeadings")}：${template.boundHeadings.join("、")}` : "",
       `${t(lang, "settings.templateSummaryAfterSend")}：${afterSend}`
     ]
       .filter(Boolean)

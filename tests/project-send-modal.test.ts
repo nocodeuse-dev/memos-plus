@@ -291,6 +291,10 @@ describe("project send modal source", () => {
 
   it("uses template-owned task decisions instead of fixed task section names", () => {
     expect(modalSource).toContain("resolveTemplateTaskDecision");
+    expect(modalSource).toContain("findManagedTemplateForHeading");
+    expect(modalSource).toContain("private templateForHeading(heading: string)");
+    expect(mobilePanelSource).toContain("findManagedTemplateForHeading");
+    expect(mobilePanelSource).toContain("private templateForHeading(heading: string)");
     expect(modalSource).toContain("handleFileTargetChoice");
     expect(modalSource).toContain("taskDecisionFor");
     expect(modalSource).not.toContain('normalized === this.options.taskSettings.defaultSection || normalized === "待办" || normalized === "任务"');

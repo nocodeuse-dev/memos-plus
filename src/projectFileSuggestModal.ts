@@ -35,7 +35,7 @@ import { focusOnDesktopOnly } from "./modalFocus";
 import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import { debounce, modalDebounceDelay, modalResultLimit } from "./performance";
 import { createTaskOptionsForm } from "./taskOptionsForm";
-import { resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
+import { findManagedTemplateForHeading, resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
 
 export type ProjectSendInitialMode = "project" | "tag" | "recent" | "search";
@@ -1376,29 +1376,30 @@ export class ProjectSendModal extends Modal {
     targetOptions: Partial<FileSendTarget> = {}
   ): void {
     const taskHeading = position === "new-heading" ? targetOptions.newHeadingName ?? heading : heading;
-    const decision = this.taskDecisionFor(taskHeading);
+    const template = this.templateForHeading(taskHeading);
+    const decision = this.taskDecisionFor(taskHeading, template);
     if (decision === "ask") {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(this.options.language, `fileSend.position.${position === "file-start" ? "fileStart" : position === "new-heading" ? "newHeading" : "fileEnd"}`)}`,
         backAction ?? (() => this.renderCurrentMode()),
-        (task) => this.chooseFile(file, heading, position, this.currentTemplate(), task, createHeadingIfMissing, targetOptions),
+        (task) => this.chooseFile(file, heading, position, template, task, createHeadingIfMissing, targetOptions),
         true,
-        this.taskContentModeForCurrentTemplate()
+        this.taskContentModeForTemplate(template)
       );
       return;
     }
-    const task = decision === "task" ? this.defaultTaskOptions() : undefined;
-    this.chooseFile(file, heading, position, this.currentTemplate(), task, createHeadingIfMissing, targetOptions);
+    const task = decision === "task" ? this.defaultTaskOptions(template) : undefined;
+    this.chooseFile(file, heading, position, template, task, createHeadingIfMissing, targetOptions);
   }
 
-  private taskDecisionFor(heading: string): TemplateTaskDecision {
-    return resolveTemplateTaskDecision(this.currentTemplate(), {
+  private taskDecisionFor(heading: string, template = this.currentTemplate()): TemplateTaskDecision {
+    return resolveTemplateTaskDecision(template, {
       content: this.options.content,
       heading
     });
   }
 
-  private defaultTaskOptions(): ProjectTaskOptions {
+  private defaultTaskOptions(template = this.currentTemplate()): ProjectTaskOptions {
     return {
       isTask: true,
       priority: this.options.taskSettings.defaultPriority,
@@ -1406,16 +1407,16 @@ export class ProjectSendModal extends Modal {
       dueDate: this.options.taskSettings.defaultDueDate,
       recurrence: this.options.taskSettings.defaultRecurrence,
       addCreatedDate: this.options.taskSettings.addCreatedDate,
-      contentMode: this.defaultTaskContentMode()
+      contentMode: this.defaultTaskContentMode(template)
     };
   }
 
-  private taskContentModeForCurrentTemplate(): TaskContentMode {
-    return this.currentTemplate()?.taskContentMode ?? "task-with-detail";
+  private taskContentModeForTemplate(template = this.currentTemplate()): TaskContentMode {
+    return template?.taskContentMode ?? "task-with-detail";
   }
 
-  private defaultTaskContentMode(): TaskContentMode {
-    const mode = this.taskContentModeForCurrentTemplate();
+  private defaultTaskContentMode(template = this.currentTemplate()): TaskContentMode {
+    const mode = this.taskContentModeForTemplate(template);
     return mode === "ask" ? "task-with-detail" : mode;
   }
 
@@ -1595,6 +1596,10 @@ export class ProjectSendModal extends Modal {
     this.settled = true;
     this.options.onChoose({ file, section: heading, task, mode: "file", fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions }, template });
     this.close();
+  }
+
+  private templateForHeading(heading: string): ManagedTemplate | undefined {
+    return findManagedTemplateForHeading(this.options.templates, heading) ?? this.currentTemplate();
   }
 
   private renderDirectSendButton(container: HTMLElement): void {

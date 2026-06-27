@@ -19,6 +19,10 @@ describe("template manager editor source", () => {
     expect(modalSource).toContain("renderBasicInfoSection");
     expect(modalSource).toContain("renderFormatSection");
     expect(modalSource).toContain("renderAfterSendSection");
+    expect(modalSource).toContain("normalizeTemplateBoundHeadings");
+    expect(modalSource).toContain('setName(t(lang, "templateManager.boundHeadings"))');
+    expect(i18nSource).toContain('"templateManager.boundHeadings"');
+    expect(i18nSource).toContain('"templateManager.boundHeadingsDesc"');
     expect(modalSource).not.toContain("renderTargetFileSection");
     expect(modalSource).not.toContain("renderNewFileSection");
     expect(modalSource).not.toContain("renderInsertSection");

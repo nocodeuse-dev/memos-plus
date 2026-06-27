@@ -32,6 +32,7 @@ export interface ManagedTemplate {
   filenameRule: TemplateFilenameRule;
   customFilenameRule: string;
   defaultTags: string[];
+  boundHeadings: string[];
   heading: string;
   insertLocation: TemplateInsertLocation;
   insertFormat: TemplateInsertFormat;
@@ -117,6 +118,7 @@ export function createDefaultProjectTemplate(
     filenameRule: "title",
     customFilenameRule: "{{title}}",
     defaultTags: [normalizedTag],
+    boundHeadings: [],
     heading: heading.trim() || DEFAULT_TEMPLATE_HEADING,
     insertLocation: "heading",
     insertFormat: options.insertFormat ?? "note",
@@ -156,6 +158,7 @@ export function createEmptyManagedTemplate(): ManagedTemplate {
     filenameRule: "title",
     customFilenameRule: "{{title}}",
     defaultTags: [],
+    boundHeadings: [],
     heading: DEFAULT_TEMPLATE_HEADING,
     insertLocation: "heading",
     insertFormat: "note",
@@ -226,6 +229,7 @@ export function normalizeManagedTemplates(value: unknown): ManagedTemplate[] {
         filenameRule: normalizeFilenameRule(item.filenameRule),
         customFilenameRule: normalizeText(item.customFilenameRule, "{{title}}"),
         defaultTags,
+        boundHeadings: normalizeTemplateBoundHeadings(item.boundHeadings),
         heading: normalizeText(item.heading, DEFAULT_TEMPLATE_HEADING),
         insertLocation: normalizeTemplateInsertLocation(item.insertLocation, insertPosition),
         insertFormat,
@@ -260,6 +264,7 @@ export function cloneManagedTemplate(template: ManagedTemplate): ManagedTemplate
     id: createTemplateId(),
     name: `${template.name} 副本`,
     defaultTags: [...template.defaultTags],
+    boundHeadings: [...(template.boundHeadings ?? [])],
     taskAutoKeywords: [...template.taskAutoKeywords],
     taskAutoTags: [...template.taskAutoTags],
     taskAutoPrefixes: [...template.taskAutoPrefixes],
@@ -290,6 +295,34 @@ export function resolveTemplateTaskDecision(template: ManagedTemplate | undefine
     return "none";
   }
   return template.insertFormat === "task" ? "task" : "none";
+}
+
+export function normalizeTemplateHeadingText(value: unknown): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text.replace(/^#{1,6}\s*/, "").replace(/\s+/g, " ").trim();
+}
+
+export function normalizeTemplateBoundHeadings(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,，]+/) : [];
+  const seen = new Set<string>();
+  return source.flatMap((item) => {
+    const heading = normalizeTemplateHeadingText(item);
+    const key = heading.toLocaleLowerCase();
+    if (!heading || seen.has(key)) {
+      return [];
+    }
+    seen.add(key);
+    return [heading];
+  });
+}
+
+export function findManagedTemplateForHeading(templates: ManagedTemplate[], heading: unknown): ManagedTemplate | undefined {
+  const normalizedHeading = normalizeTemplateHeadingText(heading);
+  if (!normalizedHeading) {
+    return undefined;
+  }
+  const key = normalizedHeading.toLocaleLowerCase();
+  return templates.find((template) => template.boundHeadings.some((boundHeading) => normalizeTemplateHeadingText(boundHeading).toLocaleLowerCase() === key));
 }
 
 export function buildTemplateFilePath(template: ManagedTemplate, title: string, now = new Date()): string {

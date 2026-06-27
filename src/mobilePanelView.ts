@@ -22,7 +22,7 @@ import { t } from "./i18n";
 import { withMobileClickLock } from "./mobileModalSafety";
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
 import { createTaskOptionsForm } from "./taskOptionsForm";
-import { resolveTemplateTaskDecision, type ManagedTemplate } from "./templateManager";
+import { findManagedTemplateForHeading, resolveTemplateTaskDecision, type ManagedTemplate } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode } from "./tasksFormat";
 import type MemosPlusPlugin from "../main";
 
@@ -869,7 +869,8 @@ export class MemosPlusMobilePanelView extends ItemView {
       return;
     }
     const taskHeading = position === "new-heading" ? targetOptions.newHeadingName ?? heading : heading;
-    const decision = resolveTemplateTaskDecision(this.currentTemplate(), {
+    const template = this.templateForHeading(taskHeading);
+    const decision = resolveTemplateTaskDecision(template, {
       content: options.content,
       heading: taskHeading
     });
@@ -879,12 +880,12 @@ export class MemosPlusMobilePanelView extends ItemView {
         () => void this.renderHeadingPicker(info).catch((error) => {
           console.warn("[Memos Plus] Failed to render mobile heading picker", error);
         }),
-        (task) => this.chooseFile(file, heading, position, task, createHeadingIfMissing, targetOptions),
-        this.defaultTaskContentMode()
+        (task) => this.chooseFile(file, heading, position, task, createHeadingIfMissing, targetOptions, template),
+        this.defaultTaskContentMode(template)
       );
       return;
     }
-    this.chooseFile(file, heading, position, decision === "task" ? this.defaultTaskOptions() : undefined, createHeadingIfMissing, targetOptions);
+    this.chooseFile(file, heading, position, decision === "task" ? this.defaultTaskOptions(template) : undefined, createHeadingIfMissing, targetOptions, template);
   }
 
   private renderTaskOptions(
@@ -919,7 +920,8 @@ export class MemosPlusMobilePanelView extends ItemView {
     position: FileInsertPosition,
     task?: ProjectTaskOptions,
     createHeadingIfMissing = false,
-    targetOptions: Partial<FileSendTarget> = {}
+    targetOptions: Partial<FileSendTarget> = {},
+    template = this.currentTemplate()
   ): void {
     this.resolveOnce({
       file,
@@ -927,7 +929,7 @@ export class MemosPlusMobilePanelView extends ItemView {
       task,
       mode: "file",
       fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions },
-      template: this.currentTemplate()
+      template
     });
     void this.leaf.detach();
   }
@@ -937,11 +939,16 @@ export class MemosPlusMobilePanelView extends ItemView {
     return options?.templates.find((template) => template.id === options.initialTemplateId) ?? options?.templates[0];
   }
 
+  private templateForHeading(heading: string): ManagedTemplate | undefined {
+    const options = this.options;
+    return options ? findManagedTemplateForHeading(options.templates, heading) ?? this.currentTemplate() : undefined;
+  }
+
   private defaultInsertHeading(): string {
     return this.options?.defaultHeading.trim() || "收集箱";
   }
 
-  private defaultTaskOptions(): ProjectTaskOptions {
+  private defaultTaskOptions(template = this.currentTemplate()): ProjectTaskOptions {
     const taskSettings = this.options?.taskSettings;
     return {
       isTask: true,
@@ -950,12 +957,12 @@ export class MemosPlusMobilePanelView extends ItemView {
       dueDate: taskSettings?.defaultDueDate ?? "",
       recurrence: taskSettings?.defaultRecurrence ?? "none",
       addCreatedDate: taskSettings?.addCreatedDate ?? true,
-      contentMode: this.defaultTaskContentMode()
+      contentMode: this.defaultTaskContentMode(template)
     };
   }
 
-  private defaultTaskContentMode(): TaskContentMode {
-    const mode = this.currentTemplate()?.taskContentMode ?? "task-with-detail";
+  private defaultTaskContentMode(template = this.currentTemplate()): TaskContentMode {
+    const mode = template?.taskContentMode ?? "task-with-detail";
     return mode === "ask" ? "task-with-detail" : mode;
   }
 }

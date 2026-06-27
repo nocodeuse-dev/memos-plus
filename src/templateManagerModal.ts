@@ -9,6 +9,7 @@ import {
   TEMPLATE_INSERT_FORMATS,
   buildTemplateFileContent,
   createEmptyManagedTemplate,
+  normalizeTemplateBoundHeadings,
   type ManagedTemplate,
   type TemplateAfterTransferAction,
   type TemplateGlobalOverrideMode,
@@ -34,7 +35,9 @@ export class TemplateEditorModal extends Modal {
 
   constructor(app: App, private readonly options: TemplateEditorModalOptions) {
     super(app);
-    this.draft = options.template ? { ...options.template, defaultTags: [...options.template.defaultTags] } : createEmptyManagedTemplate();
+    this.draft = options.template
+      ? { ...options.template, defaultTags: [...options.template.defaultTags], boundHeadings: [...(options.template.boundHeadings ?? [])] }
+      : createEmptyManagedTemplate();
   }
 
   onOpen(): void {
@@ -100,6 +103,18 @@ export class TemplateEditorModal extends Modal {
           applyPurpose(this.draft, value as TemplatePurpose);
           this.rerenderForm();
         });
+      });
+
+    new Setting(section)
+      .setName(t(lang, "templateManager.boundHeadings"))
+      .setDesc(t(lang, "templateManager.boundHeadingsDesc"))
+      .addTextArea((text) => {
+        text.setPlaceholder(t(lang, "templateManager.boundHeadingsPlaceholder"));
+        text.setValue(this.draft.boundHeadings.join("\n")).onChange((value) => {
+          this.draft.boundHeadings = normalizeTemplateBoundHeadings(value);
+          this.refreshPreview();
+        });
+        text.inputEl.rows = 3;
       });
   }
 
@@ -265,7 +280,11 @@ export class TemplateEditorModal extends Modal {
     }
     button.disabled = true;
     try {
-      await this.options.onSubmit({ ...this.draft, defaultTags: [...this.draft.defaultTags] });
+      await this.options.onSubmit({
+        ...this.draft,
+        defaultTags: [...this.draft.defaultTags],
+        boundHeadings: normalizeTemplateBoundHeadings(this.draft.boundHeadings)
+      });
       this.close();
     } finally {
       if (button.isConnected) {

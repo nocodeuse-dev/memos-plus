@@ -3,7 +3,10 @@ import {
   buildTemplateFileContent,
   buildTemplateFilePath,
   createDefaultProjectTemplate,
+  findManagedTemplateForHeading,
   normalizeManagedTemplates,
+  normalizeTemplateBoundHeadings,
+  normalizeTemplateHeadingText,
   resolveTemplateAfterTransferAction,
   resolveTemplateClearAfterSend,
   resolveTemplateTaskDecision,
@@ -33,6 +36,7 @@ describe("template manager helpers", () => {
     expect(template.insertLocation).toBe("heading");
     expect(template.insertFormat).toBe("note");
     expect(template.taskMode).toBe("ask");
+    expect(template.boundHeadings).toEqual([]);
     expect(template.clearAfterSendMode).toBe("global");
     expect(template.clearAfterSend).toBe(true);
     expect(template.afterTransferActionMode).toBe("global");
@@ -62,6 +66,7 @@ describe("template manager helpers", () => {
           taskAutoTags: ["任务"],
           taskAutoPrefixes: ["任务："],
           taskAutoHeadings: ["待办"],
+          boundHeadings: [" ## 待办 ", "待办", " 资料 "],
           taskAutoUseInsertFormat: true,
           taskAutoUseTemplateName: true,
           taskAutoConfirm: true,
@@ -96,6 +101,7 @@ describe("template manager helpers", () => {
         taskAutoTags: ["任务"],
         taskAutoPrefixes: ["任务："],
         taskAutoHeadings: ["待办"],
+        boundHeadings: ["待办", "资料"],
         taskAutoUseInsertFormat: true,
         taskAutoUseTemplateName: true,
         taskAutoConfirm: true,
@@ -136,6 +142,7 @@ describe("template manager helpers", () => {
         heading: "资料",
         insertLocation: "heading",
         insertFormat: "note",
+        boundHeadings: [],
         taskMode: "ask",
         clearAfterSendMode: "global",
         clearAfterSend: true,
@@ -181,6 +188,42 @@ describe("template manager helpers", () => {
         fixedFilePath: ""
       }
     ]);
+  });
+
+  it("normalizes heading bindings as heading body text", () => {
+    expect(normalizeTemplateHeadingText(" ## 待办 ")).toBe("待办");
+    expect(normalizeTemplateHeadingText("### 资料")).toBe("资料");
+    expect(normalizeTemplateHeadingText("~~~python")).toBe("~~~python");
+    expect(normalizeTemplateBoundHeadings([" ## 待办 ", "待办", "### 资料", "  ", "TODO", "todo"])).toEqual(["待办", "资料", "TODO"]);
+  });
+
+  it("finds the first format rule bound to the selected heading across entry types", () => {
+    const [first, second, fallback] = normalizeManagedTemplates([
+      {
+        id: "search-task",
+        name: "待办任务格式",
+        targetSource: "vault-search",
+        insertFormat: "task",
+        boundHeadings: ["待办"]
+      },
+      {
+        id: "project-task",
+        name: "项目待办格式",
+        targetSource: "project-tag",
+        insertFormat: "callout",
+        boundHeadings: ["## 待办", "Todo"]
+      },
+      {
+        id: "project-default",
+        name: "项目默认格式",
+        targetSource: "project-tag",
+        insertFormat: "note"
+      }
+    ]);
+
+    expect(findManagedTemplateForHeading([first, second, fallback], "## 待办")?.id).toBe("search-task");
+    expect(findManagedTemplateForHeading([second, first, fallback], "todo")?.id).toBe("project-task");
+    expect(findManagedTemplateForHeading([fallback, second], "资料")).toBeUndefined();
   });
 
   it("resolves rule-level global/custom post-send behavior without losing legacy values", () => {
