@@ -12,15 +12,15 @@ interface CommandRegistryApp {
 }
 
 export async function runExcalidrawCreateAfterTargetSelection(host: ProjectDeliveryHost): Promise<void> {
-  const command = findRegisteredExcalidrawEmbedCommand(host.app);
-  if (!command) {
-    new Notice("未找到 Excalidraw 嵌入命令，请先启用 Excalidraw 插件");
-    return;
-  }
-
   const targetTemplate = createExcalidrawTargetTemplate(host.settings.projectTag, host.settings.projectFolderPath, host.settings.defaultProjectSection);
   const choice = await selectProjectTarget(host, "", "search", undefined, [targetTemplate], targetTemplate);
   if (!choice?.fileTarget) {
+    return;
+  }
+
+  const command = findRegisteredExcalidrawEmbedCommand(host.app);
+  if (!command) {
+    new Notice("未找到 Excalidraw 嵌入命令，请先启用 Excalidraw 插件");
     return;
   }
 

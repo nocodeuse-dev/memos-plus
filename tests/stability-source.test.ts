@@ -40,6 +40,11 @@ describe("stability guardrails", () => {
   });
 
   it("guards Excalidraw command execution after target selection", () => {
+    const targetSelectionIndex = excalidrawEmbedSource.indexOf("const choice = await selectProjectTarget");
+    const commandLookupIndex = excalidrawEmbedSource.indexOf("const command = findRegisteredExcalidrawEmbedCommand");
+
+    expect(targetSelectionIndex).toBeGreaterThanOrEqual(0);
+    expect(commandLookupIndex).toBeGreaterThan(targetSelectionIndex);
     expect(excalidrawEmbedSource).toContain("const executed = executeRegisteredCommand(host.app, command.id);");
     expect(excalidrawEmbedSource).toContain('new Notice("无法执行 Excalidraw 嵌入命令，请确认 Excalidraw 插件已启用")');
     expect(excalidrawEmbedSource).toContain("function executeRegisteredCommand(app: App, id: string): boolean");
