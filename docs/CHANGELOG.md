@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.217 - Unreleased
+
+- 修复桌面端输入框工具栏“新建 Excalidraw”选择目标文件和标题位置后不弹出绘图的问题：桌面端现在优先调用 Excalidraw 插件自身的 `createDrawing`、`embedDrawing`、`openDrawing("new-pane")` API，复用 Excalidraw 的创建、嵌入和打开逻辑；当插件 API 不可用时再回退到 Obsidian command registry。移动端继续使用已验证稳定的命令路径。
+
 ## 0.1.216 - Unreleased
 
 - 继续修复输入框工具栏“新建 Excalidraw”目标插入流程：选择文件和标题位置后，会等待目标 Markdown 文件真正成为 Obsidian 当前 active Markdown view，并重新定位光标后再执行 Excalidraw 的“新建绘图 - 于新面板 - 并嵌入到当前 Markdown 文档中”命令，避免命令在 Memos Plus 选择界面上下文中被触发后静默不创建绘图。

@@ -50,7 +50,9 @@ describe("stability guardrails", () => {
     expect(excalidrawEmbedSource).toContain("await waitForActiveMarkdownFile(app, file);");
     expect(excalidrawEmbedSource).toContain("function waitForWorkspaceFrame(app: App): Promise<void>");
     expect(excalidrawEmbedSource).toContain("leaf.view instanceof MarkdownView");
-    expect(excalidrawEmbedSource).toContain("const executed = executeRegisteredCommand(host.app, command.id);");
+    expect(excalidrawEmbedSource).toContain("await executeExcalidrawPluginApi(host.app, choice.file);");
+    expect(excalidrawEmbedSource).toContain('api.openDrawing(drawing, "new-pane", true, undefined, true);');
+    expect(excalidrawEmbedSource).toContain("const executed = apiExecuted || (command ? executeRegisteredCommand(host.app, command.id) : false);");
     expect(excalidrawEmbedSource).toContain('new Notice("无法执行 Excalidraw 嵌入命令，请确认 Excalidraw 插件已启用")');
     expect(excalidrawEmbedSource).toContain("function executeRegisteredCommand(app: App, id: string): boolean");
   });

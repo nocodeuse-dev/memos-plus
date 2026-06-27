@@ -11,6 +11,21 @@ interface CommandRegistryApp {
   };
 }
 
+interface ExcalidrawPluginApi {
+  settings?: {
+    compatibilityMode?: boolean;
+  };
+  createDrawing: (filename: string, folder?: string | null) => Promise<TFile>;
+  embedDrawing: (file: TFile) => Promise<unknown>;
+  openDrawing: (file: TFile, openMode: "new-pane" | "new-tab" | "active-pane", active?: boolean, openState?: unknown, focus?: boolean) => unknown;
+}
+
+interface PluginRegistryApp {
+  plugins?: {
+    plugins?: Record<string, unknown>;
+  };
+}
+
 export async function runExcalidrawCreateAfterTargetSelection(host: ProjectDeliveryHost): Promise<void> {
   const targetTemplate = createExcalidrawTargetTemplate(host.settings.projectTag, host.settings.projectFolderPath, host.settings.defaultProjectSection);
   const choice = await selectProjectTarget(host, "", "search", undefined, [targetTemplate], targetTemplate);
@@ -19,7 +34,8 @@ export async function runExcalidrawCreateAfterTargetSelection(host: ProjectDeliv
   }
 
   const command = findRegisteredExcalidrawEmbedCommand(host.app);
-  if (!command) {
+  const hasPluginApi = Boolean(findExcalidrawPluginApi(host.app));
+  if (!command && !hasPluginApi) {
     new Notice("未找到 Excalidraw 嵌入命令，请先启用 Excalidraw 插件");
     return;
   }
@@ -36,7 +52,8 @@ export async function runExcalidrawCreateAfterTargetSelection(host: ProjectDeliv
 
   host.settings.recentFileTargetPaths = [choice.file.path, ...host.settings.recentFileTargetPaths.filter((path) => path !== choice.file.path)].slice(0, 10);
   await host.persistSettings();
-  const executed = executeRegisteredCommand(host.app, command.id);
+  const apiExecuted = Platform.isMobile ? false : await executeExcalidrawPluginApi(host.app, choice.file);
+  const executed = apiExecuted || (command ? executeRegisteredCommand(host.app, command.id) : false);
   if (!executed) {
     new Notice("无法执行 Excalidraw 嵌入命令，请确认 Excalidraw 插件已启用");
   }
@@ -135,6 +152,47 @@ function findRegisteredExcalidrawEmbedCommand(app: App): ObsidianCommandInfo | n
   return findExcalidrawEmbedCommand(commands);
 }
 
+async function executeExcalidrawPluginApi(app: App, targetFile: TFile): Promise<boolean> {
+  const api = findExcalidrawPluginApi(app);
+  if (!api) {
+    return false;
+  }
+  const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+  if (activeView?.file?.path !== targetFile.path) {
+    return false;
+  }
+  try {
+    const drawing = await api.createDrawing(buildExcalidrawDrawingFilename(targetFile, Boolean(api.settings?.compatibilityMode)));
+    const view = await waitForActiveMarkdownFile(app, targetFile);
+    if (!view) {
+      return false;
+    }
+    view.editor.focus();
+    await api.embedDrawing(drawing);
+    api.openDrawing(drawing, "new-pane", true, undefined, true);
+    return true;
+  } catch (error) {
+    console.warn("[Memos Plus] Failed to execute Excalidraw plugin API", error);
+    return false;
+  }
+}
+
+function findExcalidrawPluginApi(app: App): ExcalidrawPluginApi | null {
+  const plugin = (app as unknown as PluginRegistryApp).plugins?.plugins?.["obsidian-excalidraw-plugin"];
+  if (!isExcalidrawPluginApi(plugin)) {
+    return null;
+  }
+  return plugin;
+}
+
+function isExcalidrawPluginApi(value: unknown): value is ExcalidrawPluginApi {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return typeof record.createDrawing === "function" && typeof record.embedDrawing === "function" && typeof record.openDrawing === "function";
+}
+
 function executeRegisteredCommand(app: App, id: string): boolean {
   const registry = (app as unknown as CommandRegistryApp).commands;
   try {
@@ -153,6 +211,31 @@ function createExcalidrawTargetTemplate(projectTag: string, projectFolderPath: s
     insertFormat: "note",
     taskMode: "none"
   };
+}
+
+function buildExcalidrawDrawingFilename(targetFile: TFile, compatibilityMode: boolean, now = new Date()): string {
+  const base = sanitizeExcalidrawFilenamePart(targetFile.basename);
+  const stamp = [
+    now.getFullYear(),
+    padDatePart(now.getMonth() + 1),
+    padDatePart(now.getDate()),
+    padDatePart(now.getHours()),
+    padDatePart(now.getMinutes()),
+    padDatePart(now.getSeconds())
+  ].join("-");
+  return `${base} ${stamp}${compatibilityMode ? ".excalidraw" : ".excalidraw.md"}`;
+}
+
+function sanitizeExcalidrawFilenamePart(value: string): string {
+  return value
+    .replace(/[<>:"/\\|?*#^[\]\r\n]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80) || "Drawing";
+}
+
+function padDatePart(value: number): string {
+  return value.toString().padStart(2, "0");
 }
 
 function markdownHeadingText(line: string): string | null {
