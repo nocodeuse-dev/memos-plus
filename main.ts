@@ -167,13 +167,13 @@ export default class MemosPlusPlugin extends Plugin {
   async activateView(): Promise<WorkspaceLeaf | null> {
     const existing = this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE)[0];
     if (existing) {
-      this.app.workspace.revealLeaf(existing);
+      await this.app.workspace.revealLeaf(existing);
       return existing;
     }
 
     const leaf = this.app.workspace.getLeaf(false);
     await leaf.setViewState({ type: MEMOS_PLUS_VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
     return leaf;
   }
 
@@ -197,7 +197,7 @@ export default class MemosPlusPlugin extends Plugin {
     }
     const existing = this.app.workspace.getLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE)[0];
     if (existing) {
-      this.app.workspace.revealLeaf(existing);
+      await this.app.workspace.revealLeaf(existing);
       if (focusComposer && existing.view instanceof MemosPlusQuickInputView) {
         existing.view.focusComposer();
       }
@@ -205,7 +205,7 @@ export default class MemosPlusPlugin extends Plugin {
     }
     const leaf = this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getLeaf(false);
     await leaf.setViewState({ type: MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
     if (focusComposer && leaf.view instanceof MemosPlusQuickInputView) {
       leaf.view.focusComposer();
     }
@@ -216,7 +216,7 @@ export default class MemosPlusPlugin extends Plugin {
     const existing = this.app.workspace.getLeavesOfType(MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE)[0];
     const leaf = existing ?? this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
     if (leaf.view instanceof MemosPlusMobilePanelView) {
       return leaf.view.startProjectSend(options);
     }

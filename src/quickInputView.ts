@@ -167,10 +167,14 @@ export class MemosPlusQuickInputView extends ItemView {
       return;
     }
     if (!this.plugin.settings.sidebarAutoDetectClipboard) {
-      void this.composerSession.applyInitialContent("none");
+      void this.composerSession.applyInitialContent("none").catch((error) => {
+        console.warn("[Memos Plus] Failed to apply sidebar initial content", error);
+      });
       return;
     }
-    void this.composerSession.applyInitialContent("auto");
+    void this.composerSession.applyInitialContent("auto").catch((error) => {
+      console.warn("[Memos Plus] Failed to apply sidebar initial content", error);
+    });
   }
 
   private renderHeaderActions(header: HTMLElement, modules: Set<DisplayModuleId>): void {

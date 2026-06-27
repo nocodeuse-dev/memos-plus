@@ -1,6 +1,6 @@
 {
   "name": "memos-plus",
-  "version": "0.1.206",
+  "version": "0.1.207",
   "description": "A local-first memo workbench for Obsidian, stored as readable Markdown.",
   "main": "main.js",
   "type": "module",

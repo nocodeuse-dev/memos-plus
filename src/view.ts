@@ -604,7 +604,9 @@ export class MemosPlusView extends ItemView {
       clipboardAutoFillState: this.plugin.settings.clipboardAutoFillState,
       displayModules: modules
     });
-    void this.composerSession.applyInitialContent("auto");
+    void this.composerSession.applyInitialContent("auto").catch((error) => {
+      console.warn("[Memos Plus] Failed to apply composer initial content", error);
+    });
   }
 
   private async renderTimeline(main: Element): Promise<void> {

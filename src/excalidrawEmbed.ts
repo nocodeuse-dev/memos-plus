@@ -36,7 +36,10 @@ export async function runExcalidrawCreateAfterTargetSelection(host: ProjectDeliv
 
   host.settings.recentFileTargetPaths = [choice.file.path, ...host.settings.recentFileTargetPaths.filter((path) => path !== choice.file.path)].slice(0, 10);
   await host.persistSettings();
-  executeRegisteredCommand(host.app, command.id);
+  const executed = executeRegisteredCommand(host.app, command.id);
+  if (!executed) {
+    new Notice("无法执行 Excalidraw 嵌入命令，请确认 Excalidraw 插件已启用");
+  }
 }
 
 async function prepareExcalidrawTargetCursor(app: App, file: TFile, target: FileSendTarget): Promise<EditorPosition & { fallbackToFileEnd: boolean }> {
@@ -99,9 +102,14 @@ function findRegisteredExcalidrawEmbedCommand(app: App): ObsidianCommandInfo | n
   return findExcalidrawEmbedCommand(commands);
 }
 
-function executeRegisteredCommand(app: App, id: string): void {
+function executeRegisteredCommand(app: App, id: string): boolean {
   const registry = (app as unknown as CommandRegistryApp).commands;
-  registry?.executeCommandById?.(id);
+  try {
+    return registry?.executeCommandById?.(id) !== false;
+  } catch (error) {
+    console.warn("[Memos Plus] Failed to execute Excalidraw command", error);
+    return false;
+  }
 }
 
 function createExcalidrawTargetTemplate(projectTag: string, projectFolderPath: string, defaultHeading: string): ManagedTemplate {
