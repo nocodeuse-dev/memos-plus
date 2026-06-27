@@ -35,7 +35,13 @@ import { focusOnDesktopOnly } from "./modalFocus";
 import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import { debounce, modalDebounceDelay, modalResultLimit } from "./performance";
 import { createTaskOptionsForm } from "./taskOptionsForm";
-import { findManagedTemplateForHeading, resolveTemplateTaskDecision, type ManagedTemplate, type TemplateTaskDecision } from "./templateManager";
+import {
+  findManagedTemplateForHeading,
+  resolveTemplateTaskDecision,
+  shouldPromptForHeadingBoundTask,
+  type ManagedTemplate,
+  type TemplateTaskDecision
+} from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
 
 export type ProjectSendInitialMode = "project" | "tag" | "recent" | "search";
@@ -1376,9 +1382,11 @@ export class ProjectSendModal extends Modal {
     targetOptions: Partial<FileSendTarget> = {}
   ): void {
     const taskHeading = position === "new-heading" ? targetOptions.newHeadingName ?? heading : heading;
+    const headingBoundTemplate = this.headingBoundTemplateForHeading(taskHeading);
     const template = this.templateForHeading(taskHeading);
     const decision = this.taskDecisionFor(taskHeading, template);
-    if (decision === "ask") {
+    const promptForHeadingBoundTask = shouldPromptForHeadingBoundTask(template, headingBoundTemplate, this.options.taskSettings.promptOnCreate);
+    if (decision === "ask" || (decision === "task" && promptForHeadingBoundTask)) {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(this.options.language, `fileSend.position.${position === "file-start" ? "fileStart" : position === "new-heading" ? "newHeading" : "fileEnd"}`)}`,
         backAction ?? (() => this.renderCurrentMode()),
@@ -1599,7 +1607,11 @@ export class ProjectSendModal extends Modal {
   }
 
   private templateForHeading(heading: string): ManagedTemplate | undefined {
-    return findManagedTemplateForHeading(this.options.templates, heading) ?? this.currentTemplate();
+    return this.headingBoundTemplateForHeading(heading) ?? this.currentTemplate();
+  }
+
+  private headingBoundTemplateForHeading(heading: string): ManagedTemplate | undefined {
+    return findManagedTemplateForHeading(this.options.templates, heading);
   }
 
   private renderDirectSendButton(container: HTMLElement): void {

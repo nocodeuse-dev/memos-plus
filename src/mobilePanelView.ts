@@ -22,7 +22,7 @@ import { t } from "./i18n";
 import { withMobileClickLock } from "./mobileModalSafety";
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
 import { createTaskOptionsForm } from "./taskOptionsForm";
-import { findManagedTemplateForHeading, resolveTemplateTaskDecision, type ManagedTemplate } from "./templateManager";
+import { findManagedTemplateForHeading, resolveTemplateTaskDecision, shouldPromptForHeadingBoundTask, type ManagedTemplate } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode } from "./tasksFormat";
 import type MemosPlusPlugin from "../main";
 
@@ -869,12 +869,14 @@ export class MemosPlusMobilePanelView extends ItemView {
       return;
     }
     const taskHeading = position === "new-heading" ? targetOptions.newHeadingName ?? heading : heading;
+    const headingBoundTemplate = this.headingBoundTemplateForHeading(taskHeading);
     const template = this.templateForHeading(taskHeading);
     const decision = resolveTemplateTaskDecision(template, {
       content: options.content,
       heading: taskHeading
     });
-    if (decision === "ask") {
+    const promptForHeadingBoundTask = shouldPromptForHeadingBoundTask(template, headingBoundTemplate, options.taskSettings.promptOnCreate);
+    if (decision === "ask" || (decision === "task" && promptForHeadingBoundTask)) {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(options.language, position === "file-start" ? "fileSend.position.fileStart" : "fileSend.position.fileEnd")}`,
         () => void this.renderHeadingPicker(info).catch((error) => {
@@ -941,7 +943,11 @@ export class MemosPlusMobilePanelView extends ItemView {
 
   private templateForHeading(heading: string): ManagedTemplate | undefined {
     const options = this.options;
-    return options ? findManagedTemplateForHeading(options.templates, heading) ?? this.currentTemplate() : undefined;
+    return options ? this.headingBoundTemplateForHeading(heading) ?? this.currentTemplate() : undefined;
+  }
+
+  private headingBoundTemplateForHeading(heading: string): ManagedTemplate | undefined {
+    return this.options ? findManagedTemplateForHeading(this.options.templates, heading) : undefined;
   }
 
   private defaultInsertHeading(): string {

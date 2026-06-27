@@ -10,7 +10,8 @@ import {
   resolveTemplateAfterTransferAction,
   resolveTemplateClearAfterSend,
   resolveTemplateTaskDecision,
-  renderTemplateVariables
+  renderTemplateVariables,
+  shouldPromptForHeadingBoundTask
 } from "../src/templateManager";
 
 vi.mock("obsidian", () => ({
@@ -224,6 +225,28 @@ describe("template manager helpers", () => {
     expect(findManagedTemplateForHeading([first, second, fallback], "## 待办")?.id).toBe("search-task");
     expect(findManagedTemplateForHeading([second, first, fallback], "todo")?.id).toBe("project-task");
     expect(findManagedTemplateForHeading([fallback, second], "资料")).toBeUndefined();
+  });
+
+  it("prompts for task options only when a heading-bound task rule is matched", () => {
+    const [taskRule, noteRule] = normalizeManagedTemplates([
+      {
+        id: "task",
+        name: "待办任务格式",
+        insertFormat: "task",
+        boundHeadings: ["待办"]
+      },
+      {
+        id: "note",
+        name: "普通格式",
+        insertFormat: "note",
+        boundHeadings: ["资料"]
+      }
+    ]);
+
+    expect(shouldPromptForHeadingBoundTask(taskRule, taskRule, true)).toBe(true);
+    expect(shouldPromptForHeadingBoundTask(taskRule, taskRule, false)).toBe(false);
+    expect(shouldPromptForHeadingBoundTask(taskRule, undefined, true)).toBe(false);
+    expect(shouldPromptForHeadingBoundTask(noteRule, noteRule, true)).toBe(false);
   });
 
   it("resolves rule-level global/custom post-send behavior without losing legacy values", () => {

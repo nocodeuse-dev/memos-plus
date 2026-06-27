@@ -325,6 +325,14 @@ export function findManagedTemplateForHeading(templates: ManagedTemplate[], head
   return templates.find((template) => template.boundHeadings.some((boundHeading) => normalizeTemplateHeadingText(boundHeading).toLocaleLowerCase() === key));
 }
 
+export function shouldPromptForHeadingBoundTask(
+  template: ManagedTemplate | undefined,
+  headingBoundTemplate: ManagedTemplate | undefined,
+  promptOnCreate: boolean
+): boolean {
+  return Boolean(promptOnCreate && template && headingBoundTemplate && template.id === headingBoundTemplate.id && template.insertFormat === "task");
+}
+
 export function buildTemplateFilePath(template: ManagedTemplate, title: string, now = new Date()): string {
   const folder = normalizePath(template.folderPath || "我的资源/Memos");
   const filename = sanitizeFileName(renderFilenameRule(template, title, now)) || "未命名";
