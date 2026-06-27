@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.215 - Unreleased
+
+- 修复输入框工具栏“新建 Excalidraw”在选择目标文件和插入位置后没有弹出绘图的问题：命令匹配现在优先选择“新面板 / 新窗口并嵌入到当前 Markdown 文档中”的 Excalidraw 命令，避免误选“当前面板”或“嵌入已有绘图”；执行命令前会显式 reveal 并激活目标 Markdown leaf，确保 Excalidraw 把新绘图嵌入到刚选择的文件。
+
 ## 0.1.214 - Unreleased
 
 - 修复输入框工具栏“新建 Excalidraw”的流程顺序：点击后现在会先进入 Memos Plus 的“选择文件 / 选择标题或插入位置”流程，用户确认目标后才检查并执行 Excalidraw 的嵌入命令；如果命令未找到，只在目标选择完成后提示启用 Excalidraw，不再一点击就跳过目标选择。

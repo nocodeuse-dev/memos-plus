@@ -85,7 +85,9 @@ async function ensureNewHeadingTarget(app: App, file: TFile, target: FileSendTar
 async function openMarkdownFileAtCursor(app: App, file: TFile, cursor: EditorPosition): Promise<boolean> {
   const leaf = app.workspace.getLeaf(false);
   await leaf.openFile(file);
-  const view = app.workspace.getActiveViewOfType(MarkdownView);
+  await app.workspace.revealLeaf(leaf);
+  app.workspace.setActiveLeaf(leaf, { focus: !Platform.isMobile });
+  const view = leaf.view instanceof MarkdownView ? leaf.view : app.workspace.getActiveViewOfType(MarkdownView);
   if (!view || view.file?.path !== file.path) {
     return false;
   }
