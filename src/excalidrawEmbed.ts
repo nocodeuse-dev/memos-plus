@@ -1,22 +1,14 @@
 import { MarkdownView, Notice, Platform, type App, type EditorPosition, type TFile } from "obsidian";
-import { findExcalidrawEmbedCommand, type ObsidianCommandInfo } from "./excalidrawCommand";
+import { formatExcalidrawMarkdownLink } from "./excalidrawLink";
 import { resolveFileInsertCursor, type FileSendTarget } from "./fileSend";
 import { selectProjectTarget, type ProjectDeliveryHost } from "./projectDelivery";
 import { createDefaultProjectTemplate, type ManagedTemplate } from "./templateManager";
-
-interface CommandRegistryApp {
-  commands?: {
-    listCommands?: () => ObsidianCommandInfo[];
-    executeCommandById?: (id: string) => unknown;
-  };
-}
 
 interface ExcalidrawPluginApi {
   settings?: {
     compatibilityMode?: boolean;
   };
   createDrawing: (filename: string, folder?: string | null) => Promise<TFile>;
-  embedDrawing: (file: TFile) => Promise<unknown>;
   openDrawing: (file: TFile, openMode: "new-pane" | "new-tab" | "active-pane", active?: boolean, openState?: unknown, focus?: boolean) => unknown;
 }
 
@@ -33,10 +25,9 @@ export async function runExcalidrawCreateAfterTargetSelection(host: ProjectDeliv
     return;
   }
 
-  const command = findRegisteredExcalidrawEmbedCommand(host.app);
   const hasPluginApi = Boolean(findExcalidrawPluginApi(host.app));
-  if (!command && !hasPluginApi) {
-    new Notice("未找到 Excalidraw 嵌入命令，请先启用 Excalidraw 插件");
+  if (!hasPluginApi) {
+    new Notice("未找到 Excalidraw 创建接口，请先启用或更新 Excalidraw 插件");
     return;
   }
 
@@ -52,10 +43,9 @@ export async function runExcalidrawCreateAfterTargetSelection(host: ProjectDeliv
 
   host.settings.recentFileTargetPaths = [choice.file.path, ...host.settings.recentFileTargetPaths.filter((path) => path !== choice.file.path)].slice(0, 10);
   await host.persistSettings();
-  const apiExecuted = Platform.isMobile ? false : await executeExcalidrawPluginApi(host.app, choice.file);
-  const executed = apiExecuted || (command ? executeRegisteredCommand(host.app, command.id) : false);
+  const executed = await executeExcalidrawPluginApi(host.app, choice.file);
   if (!executed) {
-    new Notice("无法执行 Excalidraw 嵌入命令，请确认 Excalidraw 插件已启用");
+    new Notice("无法创建 Excalidraw 链接，请确认 Excalidraw 插件已启用");
   }
 }
 
@@ -146,12 +136,6 @@ function waitForWorkspaceFrame(app: App): Promise<void> {
   });
 }
 
-function findRegisteredExcalidrawEmbedCommand(app: App): ObsidianCommandInfo | null {
-  const registry = (app as unknown as CommandRegistryApp).commands;
-  const commands = registry?.listCommands?.() ?? [];
-  return findExcalidrawEmbedCommand(commands);
-}
-
 async function executeExcalidrawPluginApi(app: App, targetFile: TFile): Promise<boolean> {
   const api = findExcalidrawPluginApi(app);
   if (!api) {
@@ -167,8 +151,11 @@ async function executeExcalidrawPluginApi(app: App, targetFile: TFile): Promise<
     if (!view) {
       return false;
     }
-    view.editor.focus();
-    await api.embedDrawing(drawing);
+    if (!Platform.isMobile) {
+      view.editor.focus();
+    }
+    const linkText = app.metadataCache.fileToLinktext(drawing, targetFile.path, false);
+    view.editor.replaceSelection(formatExcalidrawMarkdownLink(linkText));
     api.openDrawing(drawing, "new-pane", true, undefined, true);
     return true;
   } catch (error) {
@@ -190,17 +177,7 @@ function isExcalidrawPluginApi(value: unknown): value is ExcalidrawPluginApi {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return typeof record.createDrawing === "function" && typeof record.embedDrawing === "function" && typeof record.openDrawing === "function";
-}
-
-function executeRegisteredCommand(app: App, id: string): boolean {
-  const registry = (app as unknown as CommandRegistryApp).commands;
-  try {
-    return registry?.executeCommandById?.(id) !== false;
-  } catch (error) {
-    console.warn("[Memos Plus] Failed to execute Excalidraw command", error);
-    return false;
-  }
+  return typeof record.createDrawing === "function" && typeof record.openDrawing === "function";
 }
 
 function createExcalidrawTargetTemplate(projectTag: string, projectFolderPath: string, defaultHeading: string): ManagedTemplate {

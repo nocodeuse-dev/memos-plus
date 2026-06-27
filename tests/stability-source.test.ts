@@ -41,19 +41,20 @@ describe("stability guardrails", () => {
 
   it("guards Excalidraw command execution after target selection", () => {
     const targetSelectionIndex = excalidrawEmbedSource.indexOf("const choice = await selectProjectTarget");
-    const commandLookupIndex = excalidrawEmbedSource.indexOf("const command = findRegisteredExcalidrawEmbedCommand");
+    const apiExecutionIndex = excalidrawEmbedSource.indexOf("const executed = await executeExcalidrawPluginApi");
 
     expect(targetSelectionIndex).toBeGreaterThanOrEqual(0);
-    expect(commandLookupIndex).toBeGreaterThan(targetSelectionIndex);
+    expect(apiExecutionIndex).toBeGreaterThan(targetSelectionIndex);
     expect(excalidrawEmbedSource).toContain("await app.workspace.revealLeaf(leaf);");
     expect(excalidrawEmbedSource).toContain("app.workspace.setActiveLeaf(leaf");
     expect(excalidrawEmbedSource).toContain("await waitForActiveMarkdownFile(app, file);");
     expect(excalidrawEmbedSource).toContain("function waitForWorkspaceFrame(app: App): Promise<void>");
     expect(excalidrawEmbedSource).toContain("leaf.view instanceof MarkdownView");
     expect(excalidrawEmbedSource).toContain("await executeExcalidrawPluginApi(host.app, choice.file);");
+    expect(excalidrawEmbedSource).toContain("view.editor.replaceSelection(formatExcalidrawMarkdownLink(linkText));");
     expect(excalidrawEmbedSource).toContain('api.openDrawing(drawing, "new-pane", true, undefined, true);');
-    expect(excalidrawEmbedSource).toContain("const executed = apiExecuted || (command ? executeRegisteredCommand(host.app, command.id) : false);");
-    expect(excalidrawEmbedSource).toContain('new Notice("无法执行 Excalidraw 嵌入命令，请确认 Excalidraw 插件已启用")');
-    expect(excalidrawEmbedSource).toContain("function executeRegisteredCommand(app: App, id: string): boolean");
+    expect(excalidrawEmbedSource).not.toContain("executeRegisteredCommand");
+    expect(excalidrawEmbedSource).not.toContain("api.embedDrawing");
+    expect(excalidrawEmbedSource).toContain('new Notice("无法创建 Excalidraw 链接，请确认 Excalidraw 插件已启用")');
   });
 });

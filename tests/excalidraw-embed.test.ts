@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findExcalidrawEmbedCommand } from "../src/excalidrawCommand";
+import { formatExcalidrawMarkdownLink } from "../src/excalidrawLink";
 
 describe("Excalidraw embed command lookup", () => {
   it("prefers the command that creates a new drawing and embeds it into Markdown", () => {
@@ -59,5 +60,10 @@ describe("Excalidraw embed command lookup", () => {
     ]);
 
     expect(command?.id).toBe("obsidian-excalidraw-plugin:autocreate-new-pane");
+  });
+
+  it("formats Memos Plus Excalidraw insertions as links instead of embeds", () => {
+    expect(formatExcalidrawMarkdownLink("机器人 2026-06-27 20.55.35.excalidraw")).toBe("[[机器人 2026-06-27 20.55.35.excalidraw]]");
+    expect(formatExcalidrawMarkdownLink("绘图.excalidraw.md")).not.toMatch(/^!/);
   });
 });

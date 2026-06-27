@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.218 - Unreleased
+
+- 调整输入框工具栏“新建 Excalidraw”的插入格式：Memos Plus 现在创建并打开 Excalidraw 绘图后，在目标 Markdown 文件中插入普通 wiki 链接 `[[drawing]]`，不再插入带预览前缀的 `![[drawing]]`；此行为只影响 Memos Plus 的 Excalidraw 新建流程，不修改 Excalidraw 插件全局设置。
+
 ## 0.1.217 - Unreleased
 
 - 修复桌面端输入框工具栏“新建 Excalidraw”选择目标文件和标题位置后不弹出绘图的问题：桌面端现在优先调用 Excalidraw 插件自身的 `createDrawing`、`embedDrawing`、`openDrawing("new-pane")` API，复用 Excalidraw 的创建、嵌入和打开逻辑；当插件 API 不可用时再回退到 Obsidian command registry。移动端继续使用已验证稳定的命令路径。
