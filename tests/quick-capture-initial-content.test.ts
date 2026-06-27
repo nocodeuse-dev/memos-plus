@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  AUTO_CLIPBOARD_SOURCE,
+  getClipboardImageAutoFillKey,
+  markClipboardAutoApplied,
+  normalizeClipboardAutoFillState
+} from "../src/clipboardAutoFill";
 import { DEFAULT_SETTINGS, normalizeSettings, type MemosPlusSettings } from "../src/settings";
 import { getQuickCaptureInitialContent, quickCaptureClipboardModeForPlatform } from "../src/quickCaptureContent";
 
@@ -21,6 +27,14 @@ vi.mock("obsidian", () => ({
 
 function settings(overrides: Partial<MemosPlusSettings> = {}): MemosPlusSettings {
   return { ...DEFAULT_SETTINGS, ...overrides };
+}
+
+function clipboardImage(size = 1024, type = "image/png"): File {
+  return {
+    name: "clipboard.png",
+    size,
+    type
+  } as File;
 }
 
 describe("quick capture initial content", () => {
@@ -125,5 +139,67 @@ describe("quick capture initial content", () => {
     } finally {
       obsidianMock.Platform.isMobile = false;
     }
+  });
+
+  it("prevents the same clipboard image from being auto-applied repeatedly", async () => {
+    const state = normalizeClipboardAutoFillState({});
+    const image = clipboardImage();
+    const first = await getQuickCaptureInitialContent({
+      settings: settings({ quickCaptureClipboardDesktopMode: "replace" }),
+      existingContent: "",
+      readSelection: () => "",
+      readClipboardText: async () => "",
+      readClipboardImage: async () => image,
+      clipboardAutoFillState: state,
+      clipboardAutoFillContext: "main",
+      clipboardThrottleMs: 0
+    });
+
+    expect(first?.source).toBe("clipboard-image");
+    expect(first?.content).toBe("clipboard.png");
+    expect(first?.autoFillFingerprintContent).toBe(getClipboardImageAutoFillKey(image));
+
+    markClipboardAutoApplied(first?.autoFillFingerprintContent ?? "", {
+      context: "main",
+      source: AUTO_CLIPBOARD_SOURCE,
+      state,
+      now: 1000
+    });
+
+    const repeated = await getQuickCaptureInitialContent({
+      settings: settings({ quickCaptureClipboardDesktopMode: "replace" }),
+      existingContent: "",
+      readSelection: () => "",
+      readClipboardText: async () => "",
+      readClipboardImage: async () => clipboardImage(),
+      clipboardAutoFillState: state,
+      clipboardAutoFillContext: "main",
+      clipboardThrottleMs: 0
+    });
+
+    expect(repeated).toBeNull();
+  });
+
+  it("allows a different clipboard image metadata to be auto-applied", async () => {
+    const state = normalizeClipboardAutoFillState({});
+    markClipboardAutoApplied(getClipboardImageAutoFillKey(clipboardImage(1024)), {
+      context: "main",
+      source: AUTO_CLIPBOARD_SOURCE,
+      state,
+      now: 1000
+    });
+
+    const next = await getQuickCaptureInitialContent({
+      settings: settings({ quickCaptureClipboardDesktopMode: "replace" }),
+      existingContent: "",
+      readSelection: () => "",
+      readClipboardText: async () => "",
+      readClipboardImage: async () => clipboardImage(2048),
+      clipboardAutoFillState: state,
+      clipboardAutoFillContext: "main",
+      clipboardThrottleMs: 0
+    });
+
+    expect(next?.source).toBe("clipboard-image");
   });
 });

@@ -83,6 +83,21 @@ export function getClipboardFingerprint(text: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
+export interface ClipboardImageAutoFillSource {
+  type?: string;
+  size?: number;
+}
+
+export function getClipboardImageAutoFillKey(image: ClipboardImageAutoFillSource): string {
+  const type = typeof image.type === "string" && image.type.trim()
+    ? image.type.trim().toLowerCase()
+    : "image/*";
+  const size = typeof image.size === "number" && Number.isFinite(image.size) && image.size >= 0
+    ? Math.trunc(image.size)
+    : 0;
+  return `clipboard-image:${type}:${size}`;
+}
+
 export interface ClipboardAutoFillCheckOptions {
   context: ClipboardAutoFillContext;
   state?: ClipboardAutoFillState;

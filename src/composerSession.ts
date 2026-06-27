@@ -128,6 +128,7 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
   const applyIncomingContent = async (result: QuickCaptureInitialContentResult): Promise<void> => {
     if (result.imageFile) {
       await widget.insertImageFile(result.imageFile);
+      markAutoFillIfNeeded(result.source, result.autoFillFingerprintContent ?? result.content);
       await options.onIncomingContentApplied?.();
       return;
     }
@@ -209,7 +210,7 @@ function shouldMarkAutoFillContent(
   content: string,
   options: ComposerSessionOptions
 ): boolean {
-  if (source !== "clipboard-text" && source !== "clipboard-link") {
+  if (source !== "clipboard-text" && source !== "clipboard-link" && source !== "clipboard-image") {
     return false;
   }
   if (!content.trim()) {

@@ -5,6 +5,7 @@ import { type MemosPlusSettings, type QuickCaptureClipboardMode } from "./settin
 import {
   type ClipboardAutoFillContext,
   type ClipboardAutoFillState,
+  getClipboardImageAutoFillKey,
   shouldAutoApplyClipboard
 } from "./clipboardAutoFill";
 
@@ -22,6 +23,7 @@ export interface QuickCaptureInitialContentResult {
   action: QuickCaptureContentAction;
   content: string;
   source: QuickCaptureContentSource;
+  autoFillFingerprintContent?: string;
   imageFile?: File;
 }
 
@@ -71,8 +73,17 @@ export async function getQuickCaptureInitialContent(options: QuickCaptureInitial
   }
   const imageFile = await options.readClipboardImage?.();
   if (imageFile) {
+    const autoFillFingerprintContent = getClipboardImageAutoFillKey(imageFile);
+    const allowed = shouldAutoApplyClipboard(autoFillFingerprintContent, {
+      context: options.clipboardAutoFillContext ?? "quickCapture",
+      state: options.clipboardAutoFillState,
+      throttleMs: options.clipboardThrottleMs
+    });
+    if (!allowed) {
+      return null;
+    }
     const result = await resolveIncomingContent(options, imageFile.name, "clipboard-image");
-    return result ? { ...result, imageFile } : null;
+    return result ? { ...result, autoFillFingerprintContent, imageFile } : null;
   }
   return null;
 }
