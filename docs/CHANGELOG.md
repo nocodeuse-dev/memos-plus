@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.210 - Unreleased
+
+- 优化移动端主页、侧边栏目录和快速目录列表项样式：移动端列表项统一使用 10px 低成本圆角变量，移除列表项阴影、滤镜、渐变背景和右侧更多按钮的额外圆角遮罩，避免出现内外双层圆弧叠加；桌面端继续保留较紧凑的原有视觉层级，不改变列表数据、点击、拖拽或筛选逻辑。
+
 ## 0.1.207 - Unreleased
 
 - 提升移动端发送后稳定性：移动端输入框不再创建 Obsidian 内嵌 Markdown/CodeMirror editor，改用稳定 textarea 回退，避免 iOS 上 `cm-content` 聚焦、光标更新和发送后刷新链路触发 Obsidian Mobile 内部异常或插件重载；桌面端仍保留原生 Markdown editor 体验。

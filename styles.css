@@ -631,6 +631,10 @@
   --memos-plus-accent: var(--interactive-accent);
   --memos-plus-card: var(--background-primary-alt);
   --memos-plus-sidebar: var(--background-secondary);
+  --memos-plus-list-item-radius: 8px;
+  --memos-plus-mobile-list-item-radius: 10px;
+  --memos-plus-list-item-background: var(--background-primary-alt);
+  --memos-plus-list-item-background-strong: var(--background-primary);
   height: 100%;
   overflow: hidden;
 }
@@ -739,8 +743,8 @@
   width: 100%;
   min-width: 0;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
-  background: var(--background-secondary);
+  border-radius: var(--memos-plus-mobile-list-item-radius);
+  background: var(--memos-plus-list-item-background);
   color: var(--text-normal);
   padding: 8px 10px;
   text-align: left;
@@ -1027,8 +1031,8 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--memos-plus-border);
-  border-radius: 6px;
-  background: var(--background-primary-alt);
+  border-radius: var(--memos-plus-list-item-radius);
+  background: var(--memos-plus-list-item-background);
   color: var(--text-muted);
 }
 
@@ -1257,7 +1261,7 @@
   align-items: center;
   gap: 8px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--memos-plus-list-item-radius);
   background: transparent;
   color: var(--text-muted);
   padding: 0 8px;
@@ -1340,8 +1344,8 @@
   align-items: flex-start;
   gap: 8px;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
-  background: var(--background-primary);
+  border-radius: var(--memos-plus-list-item-radius);
+  background: var(--memos-plus-list-item-background-strong);
   color: var(--text-normal);
   padding: 10px;
   text-align: left;
@@ -1642,7 +1646,7 @@
 
 .memos-plus-card {
   border: 1px solid var(--memos-plus-border);
-  border-radius: 8px;
+  border-radius: var(--memos-plus-list-item-radius);
   background: var(--memos-plus-card);
   padding: 12px 14px;
 }
@@ -3005,7 +3009,12 @@
 
 @media (max-width: 760px) {
   .memos-plus-view {
+    --memos-plus-list-item-radius: var(--memos-plus-mobile-list-item-radius);
     overflow: auto;
+  }
+
+  .memos-plus-mobile-light-shell {
+    --memos-plus-list-item-radius: var(--memos-plus-mobile-list-item-radius);
   }
 
   .memos-plus-shell {
@@ -3109,6 +3118,39 @@
 
   .memos-plus-quick-directory-result-list {
     max-height: 160px;
+  }
+
+  .memos-plus-side-search-row,
+  .memos-plus-quick-directory-row,
+  .memos-plus-quick-directory-result-card,
+  .memos-plus-card,
+  .memos-plus-mobile-light-item {
+    border-radius: var(--memos-plus-mobile-list-item-radius);
+    box-shadow: none;
+    filter: none;
+    background-image: none;
+  }
+
+  .memos-plus-side-action,
+  .memos-plus-side-more,
+  .memos-plus-card-more {
+    border-radius: 0;
+    box-shadow: none;
+    filter: none;
+    background: transparent;
+    background-image: none;
+  }
+
+  .memos-plus-side-action:hover,
+  .memos-plus-side-more:hover,
+  .memos-plus-card-more:hover {
+    background: transparent;
+    color: var(--text-normal);
+  }
+
+  .memos-plus-quick-directory-row.is-selected {
+    box-shadow: none;
+    background: var(--memos-plus-list-item-background);
   }
 
   .memos-plus-composer .memos-plus-save-button {
