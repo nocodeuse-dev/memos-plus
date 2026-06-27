@@ -87,7 +87,7 @@ async function openMarkdownFileAtCursor(app: App, file: TFile, cursor: EditorPos
   await leaf.openFile(file);
   await app.workspace.revealLeaf(leaf);
   app.workspace.setActiveLeaf(leaf, { focus: !Platform.isMobile });
-  const view = leaf.view instanceof MarkdownView ? leaf.view : app.workspace.getActiveViewOfType(MarkdownView);
+  let view = leaf.view instanceof MarkdownView ? leaf.view : app.workspace.getActiveViewOfType(MarkdownView);
   if (!view || view.file?.path !== file.path) {
     return false;
   }
@@ -95,7 +95,38 @@ async function openMarkdownFileAtCursor(app: App, file: TFile, cursor: EditorPos
   if (!Platform.isMobile) {
     view.editor.focus();
   }
+  await waitForWorkspaceFrame(app);
+  view = await waitForActiveMarkdownFile(app, file);
+  if (!view) {
+    return false;
+  }
+  view.editor.setCursor({ line: cursor.line, ch: cursor.ch });
+  if (!Platform.isMobile) {
+    view.editor.focus();
+  }
+  await waitForWorkspaceFrame(app);
   return true;
+}
+
+async function waitForActiveMarkdownFile(app: App, file: TFile): Promise<MarkdownView | null> {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const view = app.workspace.getActiveViewOfType(MarkdownView);
+    if (view?.file?.path === file.path) {
+      return view;
+    }
+    await waitForWorkspaceFrame(app);
+  }
+  return null;
+}
+
+function waitForWorkspaceFrame(app: App): Promise<void> {
+  const frameWindow = app.workspace.containerEl.ownerDocument.defaultView;
+  if (!frameWindow) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    frameWindow.requestAnimationFrame(() => resolve());
+  });
 }
 
 function findRegisteredExcalidrawEmbedCommand(app: App): ObsidianCommandInfo | null {

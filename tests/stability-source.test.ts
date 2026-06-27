@@ -47,6 +47,8 @@ describe("stability guardrails", () => {
     expect(commandLookupIndex).toBeGreaterThan(targetSelectionIndex);
     expect(excalidrawEmbedSource).toContain("await app.workspace.revealLeaf(leaf);");
     expect(excalidrawEmbedSource).toContain("app.workspace.setActiveLeaf(leaf");
+    expect(excalidrawEmbedSource).toContain("await waitForActiveMarkdownFile(app, file);");
+    expect(excalidrawEmbedSource).toContain("function waitForWorkspaceFrame(app: App): Promise<void>");
     expect(excalidrawEmbedSource).toContain("leaf.view instanceof MarkdownView");
     expect(excalidrawEmbedSource).toContain("const executed = executeRegisteredCommand(host.app, command.id);");
     expect(excalidrawEmbedSource).toContain('new Notice("无法执行 Excalidraw 嵌入命令，请确认 Excalidraw 插件已启用")');

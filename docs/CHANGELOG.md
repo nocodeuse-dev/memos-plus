@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.216 - Unreleased
+
+- 继续修复输入框工具栏“新建 Excalidraw”目标插入流程：选择文件和标题位置后，会等待目标 Markdown 文件真正成为 Obsidian 当前 active Markdown view，并重新定位光标后再执行 Excalidraw 的“新建绘图 - 于新面板 - 并嵌入到当前 Markdown 文档中”命令，避免命令在 Memos Plus 选择界面上下文中被触发后静默不创建绘图。
+
 ## 0.1.215 - Unreleased
 
 - 修复输入框工具栏“新建 Excalidraw”在选择目标文件和插入位置后没有弹出绘图的问题：命令匹配现在优先选择“新面板 / 新窗口并嵌入到当前 Markdown 文档中”的 Excalidraw 命令，避免误选“当前面板”或“嵌入已有绘图”；执行命令前会显式 reveal 并激活目标 Markdown leaf，确保 Excalidraw 把新绘图嵌入到刚选择的文件。
