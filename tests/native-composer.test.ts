@@ -162,44 +162,22 @@ describe("createNativeMarkdownComposer", () => {
     expect(embed.unload).toHaveBeenCalled();
   });
 
-  it("uses only one touch focus listener for mobile markdown embeds", () => {
+  it("uses textarea on mobile instead of Obsidian markdown embeds", () => {
     Platform.isMobile = true;
     installFakeDocument();
-    vi.stubGlobal("window", {
-      requestAnimationFrame: (callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      }
-    });
-    const editor = {
-      getValue: vi.fn(() => ""),
-      setValue: vi.fn(),
-      replaceSelection: vi.fn(),
-      getCursor: vi.fn(() => ({ line: 0, ch: 0 })),
-      posToOffset: vi.fn(() => 0),
-      offsetToPos: vi.fn(() => ({ line: 0, ch: 0 })),
-      setCursor: vi.fn(),
-      focus: vi.fn()
-    };
-    const embed = {
-      set: vi.fn(),
-      showEditor: vi.fn(),
-      unload: vi.fn(),
-      editMode: { editor }
-    };
+    const factory = vi.fn();
     const container = new FakeElement("div");
 
     const composer = createNativeMarkdownComposer({
-      app: { embedRegistry: { embedByExtension: { md: () => embed } } } as never,
+      app: { embedRegistry: { embedByExtension: { md: factory } } } as never,
       container: container as never,
       placeholder: "",
       sourcePath: "Memos/memos.md"
     });
 
-    const host = composer.element as unknown as FakeElement;
-    expect(host.listeners.get("touchstart")?.[0]?.capture).toBe(true);
-    expect(host.listeners.get("mousedown")).toBeUndefined();
-    expect(host.listeners.get("click")).toBeUndefined();
+    expect(factory).not.toHaveBeenCalled();
+    expect(composer.kind).toBe("textarea");
+    expect((composer.element as unknown as FakeElement).tagName).toBe("textarea");
   });
 
   it("falls back to a textarea when the markdown embed is unavailable", () => {

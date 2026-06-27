@@ -2,6 +2,7 @@
 
 ## 0.1.207 - Unreleased
 
+- 提升移动端发送后稳定性：移动端输入框不再创建 Obsidian 内嵌 Markdown/CodeMirror editor，改用稳定 textarea 回退，避免 iOS 上 `cm-content` 聚焦、光标更新和发送后刷新链路触发 Obsidian Mobile 内部异常或插件重载；桌面端仍保留原生 Markdown editor 体验。
 - 继续收口 Obsidian Community Promise warning：命令回调不再直接返回 async Promise，统一通过安全 helper 记录失败；主视图新增目录分组和移动端任务选项返回按钮等 UI 回调显式捕获异步错误，避免未处理 Promise 静默失败。
 
 ## 0.1.206 - Unreleased

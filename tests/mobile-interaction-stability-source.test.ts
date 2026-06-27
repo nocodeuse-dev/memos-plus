@@ -30,7 +30,9 @@ describe("mobile interaction stability source", () => {
     expect(composerWidgetSource).toContain("if (!this.isMobileKeyboardSessionActive())");
     expect(composerWidgetSource).toContain("scheduleMobileKeyboardViewportUpdate");
     expect(nativeComposerSource).toContain("Platform.isMobile");
-    expect(nativeComposerSource).toContain('host.addEventListener("touchstart", focusEditor, true)');
+    expect(nativeComposerSource).toContain("if (Platform.isMobile) {");
+    expect(nativeComposerSource).toContain("return createTextareaComposer(options);");
+    expect(nativeComposerSource).not.toContain('host.addEventListener("touchstart", focusEditor, true)');
     expect(nativeComposerSource).toContain('host.addEventListener("mousedown", focusEditor, true)');
     expect(nativeComposerSource).toContain('host.addEventListener("click", focusEditor, true)');
   });

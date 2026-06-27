@@ -42,6 +42,9 @@ const MOBILE_TEXTAREA_MIN_HEIGHT = 120;
 const MOBILE_TEXTAREA_MAX_HEIGHT = 280;
 
 export function createNativeMarkdownComposer(options: NativeMarkdownComposerOptions): NativeMarkdownComposer {
+  if (Platform.isMobile) {
+    return createTextareaComposer(options);
+  }
   const native = tryCreateNativeComposer(options);
   return native ?? createTextareaComposer(options);
 }
@@ -74,12 +77,8 @@ function tryCreateNativeComposer(options: NativeMarkdownComposerOptions): Native
         editor.focus();
       });
     };
-    if (Platform.isMobile) {
-      host.addEventListener("touchstart", focusEditor, true);
-    } else {
-      host.addEventListener("mousedown", focusEditor, true);
-      host.addEventListener("click", focusEditor, true);
-    }
+    host.addEventListener("mousedown", focusEditor, true);
+    host.addEventListener("click", focusEditor, true);
     return new EmbeddedMarkdownComposer(host, embed, editor);
   } catch (error) {
     console.warn("[Memos Plus] Could not create native Markdown composer", error);
@@ -224,9 +223,10 @@ class TextareaMarkdownComposer implements NativeMarkdownComposer {
 }
 
 function composerAutoResizeBounds(element: HTMLElement): { minHeight: number; maxHeight: number } {
-  const computed = window.getComputedStyle?.(element);
+  const activeWindow = typeof window === "undefined" ? null : window;
+  const computed = activeWindow?.getComputedStyle?.(element);
   const minHeight = parseCssPixelValue(computed?.getPropertyValue("--memos-plus-mobile-composer-min-height")) ?? parseCssPixelValue(computed?.minHeight) ?? MOBILE_TEXTAREA_MIN_HEIGHT;
-  const visualHeight = Math.round(window.visualViewport?.height ?? window.innerHeight ?? 700);
+  const visualHeight = Math.round(activeWindow?.visualViewport?.height ?? activeWindow?.innerHeight ?? 700);
   const viewportBound = Math.min(Math.round(visualHeight * 0.4), MOBILE_TEXTAREA_MAX_HEIGHT);
   const maxHeight = Math.max(minHeight, parseCssPixelValue(computed?.maxHeight) ?? viewportBound);
   return { minHeight, maxHeight };
