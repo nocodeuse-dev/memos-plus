@@ -72,7 +72,17 @@ export class MemosPlusMobilePanelView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.contentEl.addClass("memos-plus-mobile-panel-view");
+    this.contentEl.tabIndex = -1;
     this.renderIdle();
+  }
+
+  async prepareForImmediateInteraction(): Promise<void> {
+    this.contentEl.tabIndex = -1;
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    if (!this.contentEl.isConnected) {
+      return;
+    }
+    this.contentEl.focus({ preventScroll: true });
   }
 
   async onClose(): Promise<void> {

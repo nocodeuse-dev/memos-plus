@@ -17,6 +17,14 @@ describe("stability guardrails", () => {
     }
   });
 
+  it("actively selects the mobile target picker leaf so the first tap reaches controls", () => {
+    const mobileTargetBlock = mainSource.match(/async selectProjectTargetOnMobile[\s\S]*?\n {2}\}/)?.[0] ?? "";
+
+    expect(mobileTargetBlock).toContain("await this.app.workspace.revealLeaf(leaf);");
+    expect(mobileTargetBlock).toContain("this.app.workspace.setActiveLeaf(leaf");
+    expect(mobileTargetBlock).toContain("await leaf.view.prepareForImmediateInteraction();");
+  });
+
   it("catches fire-and-forget composer initial content failures", () => {
     expect(quickInputSource).toContain('this.composerSession.applyInitialContent("auto").catch');
     expect(quickInputSource).toContain('this.composerSession.applyInitialContent("none").catch');

@@ -219,8 +219,11 @@ export default class MemosPlusPlugin extends Plugin {
     const leaf = existing ?? this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
     if (leaf.view instanceof MemosPlusMobilePanelView) {
-      return leaf.view.startProjectSend(options);
+      const choice = leaf.view.startProjectSend(options);
+      await leaf.view.prepareForImmediateInteraction();
+      return choice;
     }
     return null;
   }
