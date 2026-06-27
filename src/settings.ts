@@ -69,6 +69,7 @@ import {
   createTagFilterFileTemplateTab,
   createTemplateGroupFileTemplateTab,
   getFileTemplateLibraryTemplateGroupTab,
+  getFileTemplateLibraryTemplateGroupTabId,
   getVisibleFileTemplateLibraryTabIds,
   legacyProjectSendTagsToFileTemplateTabs,
   normalizeFileTemplateDefaults,
@@ -467,7 +468,11 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
   const taskDefaultSection = normalizeTextSetting(raw.taskDefaultSection, DEFAULT_SETTINGS.taskDefaultSection);
   const projectSendTagTabs = normalizeProjectSendTagTabs(raw.projectSendTagTabs);
   const explicitFileTemplateTabs = normalizeFileTemplateTabs(raw.fileTemplateTabs);
-  const fileTemplateTabs = explicitFileTemplateTabs.length > 0 ? explicitFileTemplateTabs : legacyProjectSendTagsToFileTemplateTabs(projectSendTagTabs);
+  const fileTemplateTabMigration = migrateLegacyFileTemplateFavorites(
+    explicitFileTemplateTabs.length > 0 ? explicitFileTemplateTabs : legacyProjectSendTagsToFileTemplateTabs(projectSendTagTabs),
+    raw.fileTemplateLibraryFavorites
+  );
+  const fileTemplateTabs = fileTemplateTabMigration.tabs;
   const projectTag = normalizeProjectTag(raw.projectTag) || DEFAULT_SETTINGS.projectTag;
   const projectFolderPath = normalizeVaultPath(raw.projectFolderPath, DEFAULT_PROJECT_FOLDER);
   const clearAfterSave = typeof raw.clearAfterSave === "boolean" ? raw.clearAfterSave : DEFAULT_SETTINGS.clearAfterSave;
@@ -481,8 +486,14 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
       : DEFAULT_SETTINGS.mobileLayout;
   const normalizedManagedTemplates = normalizeManagedTemplates(raw.managedTemplates);
   const managedTemplates = normalizedManagedTemplates;
-  const fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(fileTemplateTabs, raw.fileTemplateLibraryTabOrder);
-  const fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(raw.fileTemplateLibraryDefaultTabId, fileTemplateTabs);
+  const fileTemplateLibraryTabOrder = getVisibleFileTemplateLibraryTabIds(
+    fileTemplateTabs,
+    replaceLegacyFileTemplateFavoriteTab(raw.fileTemplateLibraryTabOrder, fileTemplateTabMigration.favoriteGroupId)
+  );
+  const fileTemplateLibraryDefaultTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(
+    replaceLegacyFileTemplateFavoriteTab(raw.fileTemplateLibraryDefaultTabId, fileTemplateTabMigration.favoriteGroupId),
+    fileTemplateTabs
+  );
   let normalizedProjectSections = projectSections;
   if (!normalizedProjectSections.includes(defaultProjectSection)) {
     normalizedProjectSections = [defaultProjectSection, ...normalizedProjectSections];
@@ -632,6 +643,67 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     taskDefaultRecurrence: normalizeTaskRecurrence(raw.taskDefaultRecurrence),
     taskPromptOnCreate: typeof raw.taskPromptOnCreate === "boolean" ? raw.taskPromptOnCreate : DEFAULT_SETTINGS.taskPromptOnCreate
   };
+}
+
+function migrateLegacyFileTemplateFavorites(
+  tabs: FileTemplateTab[],
+  legacyFavorites: unknown
+): { tabs: FileTemplateTab[]; favoriteGroupId?: string } {
+  const favoritePaths = normalizeFileTemplateLibraryPaths(legacyFavorites);
+  if (favoritePaths.length === 0) {
+    return { tabs: normalizeFileTemplateTabs(tabs) };
+  }
+
+  const normalizedTabs = normalizeFileTemplateTabs(tabs);
+  const favoriteGroup =
+    normalizedTabs.find((tab) => tab.type === "template-group" && tab.id === "group-收藏") ??
+    normalizedTabs.find((tab) => tab.type === "template-group" && tab.name === "收藏");
+  const favoriteGroupId = favoriteGroup?.id ?? "group-收藏";
+  const mergedPaths = (existingPaths: string[]): string[] => {
+    const existing = new Set(normalizeFileTemplateLibraryPaths(existingPaths));
+    return [...normalizeFileTemplateLibraryPaths(existingPaths), ...favoritePaths.filter((path) => !existing.has(path))];
+  };
+
+  if (favoriteGroup) {
+    return {
+      favoriteGroupId,
+      tabs: normalizeFileTemplateTabs(
+        normalizedTabs.map((tab) => (tab.id === favoriteGroup.id ? { ...tab, templatePaths: mergedPaths(tab.templatePaths) } : tab))
+      )
+    };
+  }
+
+  return {
+    favoriteGroupId,
+    tabs: normalizeFileTemplateTabs([
+      ...normalizedTabs,
+      {
+        id: favoriteGroupId,
+        name: "收藏",
+        type: "template-group",
+        tags: [],
+        templatePaths: favoritePaths
+      }
+    ])
+  };
+}
+
+function replaceLegacyFileTemplateFavoriteTab(value: unknown, favoriteGroupId?: string): unknown {
+  if (!favoriteGroupId) {
+    return value;
+  }
+  const replacement = getFileTemplateLibraryTemplateGroupTabId(favoriteGroupId);
+  const replaceOne = (item: unknown): unknown => (item === "favorite" ? replacement : item);
+  if (Array.isArray(value)) {
+    return value.map(replaceOne);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,，]+/)
+      .map((item) => (item.trim() === "favorite" ? replacement : item))
+      .join("\n");
+  }
+  return value;
 }
 
 export class MemosPlusSettingTab extends PluginSettingTab {

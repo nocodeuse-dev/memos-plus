@@ -649,7 +649,7 @@ describe("normalizeSettings", () => {
       sendToFileDefaultTag: "病",
       sendToFileCommonTags: ["病", "插件", "医学/疾病"],
       projectSendTagTabs: ["病", "插件", "医学/疾病"],
-      projectSendTabOrder: ["search", "custom:tag-medical", "custom:group-common"],
+      projectSendTabOrder: ["search", "custom:tag-medical", "custom:group-common", "custom:group-收藏"],
       projectSendHiddenTabs: [],
       managedTemplates: [
         expect.objectContaining({
@@ -678,14 +678,15 @@ describe("normalizeSettings", () => {
         病: "我的资源/模板/疾病.md"
       },
       fileTemplateLibraryDefaultTabId: "all",
-      fileTemplateLibraryTabOrder: ["all", "custom:group-common"],
+      fileTemplateLibraryTabOrder: ["all", "custom:group-common", "custom:group-收藏"],
       fileTemplateLibraryInteraction: {
         enableDesktopTabDrag: false,
         enableMobileTabDrag: true
       },
       fileTemplateTabs: [
         { id: "tag-medical", name: "病", type: "tag-filter", tags: ["病", "医学"], templatePaths: [] },
-        { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] }
+        { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] },
+        { id: "group-收藏", name: "收藏", type: "template-group", tags: [], templatePaths: ["我的资源/模板/疾病.md"] }
       ],
       fileTemplateTabInteraction: {
         enableDesktopDrag: false,
@@ -712,6 +713,28 @@ describe("normalizeSettings", () => {
       { id: "tag-medical", name: "病历", type: "tag-filter", tags: ["病历"], templatePaths: [] },
       { id: "group-common", name: "常用模板", type: "template-group", tags: [], templatePaths: ["我的资源/模板/项目模板.md"] }
     ]);
+  });
+
+  it("migrates legacy template favorites into a normal template group", () => {
+    const settings = normalizeSettings({
+      fileTemplateLibraryFavorites: [" 我的资源//模板/病历模板.md ", "我的资源/模板/项目模板.md", "我的资源/模板/病历模板.md"],
+      fileTemplateLibraryDefaultTabId: "favorite",
+      fileTemplateLibraryTabOrder: ["favorite", "all"],
+      fileTemplateTabs: [
+        { id: "tag-medical", name: "病历", type: "tag-filter", tags: ["#病历"] },
+        { id: "group-收藏", name: "收藏", type: "template-group", templatePaths: [] }
+      ]
+    });
+
+    expect(settings.fileTemplateTabs).toContainEqual({
+      id: "group-收藏",
+      name: "收藏",
+      type: "template-group",
+      tags: [],
+      templatePaths: ["我的资源/模板/病历模板.md", "我的资源/模板/项目模板.md"]
+    });
+    expect(settings.fileTemplateLibraryDefaultTabId).toBe("custom:group-收藏");
+    expect(settings.fileTemplateLibraryTabOrder).toEqual(["all", "custom:group-收藏"]);
   });
 
   it("normalizes tab template bindings by stable tab id and removes deleted tabs", () => {

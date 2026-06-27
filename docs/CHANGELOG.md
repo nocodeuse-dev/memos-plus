@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.220 - Unreleased
+
+- 修复“新建文件模板库 > 模板分组页管理”在版本更新后旧收藏模板丢失的问题：旧配置里的 `fileTemplateLibraryFavorites` 现在会迁移为普通“收藏”模板分组页，并把旧 `favorite` 默认页/排序映射到该分组；星形收藏按钮仍保持删除，不恢复旧收藏 UI。
+
 ## 0.1.219 - Unreleased
 
 - 修复 Memos Plus 输入框工具栏“新建 Excalidraw”插入普通 wiki 链接后可能破坏后续 Markdown 结构的问题：当光标后面紧跟 `## 标题` 或正文时，插入的 `[[drawing]]` 会自动补齐块级换行，避免变成 `[[drawing]]## 标题`。
