@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.207 - Unreleased
+
+- 继续收口 Obsidian Community Promise warning：命令回调不再直接返回 async Promise，统一通过安全 helper 记录失败；主视图新增目录分组和移动端任务选项返回按钮等 UI 回调显式捕获异步错误，避免未处理 Promise 静默失败。
+
 ## 0.1.206 - Unreleased
 
 - 收口视图激活和异步错误处理：主视图、侧边栏快速输入和移动端选择面板现在会等待 Obsidian `revealLeaf` 完成后再继续后续流程；主页/侧边栏自动填入剪贴板内容的 fire-and-forget Promise 增加错误记录，避免静默未处理；Excalidraw 嵌入命令执行失败时会提示用户确认插件状态。

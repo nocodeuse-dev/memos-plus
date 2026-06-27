@@ -81,14 +81,14 @@ export default class MemosPlusPlugin extends Plugin {
     this.registerEditorSuggest(new MemosPlusLinkSuggest(this.app));
 
     this.addRibbonIcon("message-square-plus", t(this.settings.language, "command.open"), () => {
-      void this.activateView();
+      this.runAsyncOperation("activate view from ribbon", () => this.activateView());
     });
 
     this.addCommand({
       id: "open",
       name: t(this.settings.language, "command.open"),
       callback: () => {
-        void this.activateView();
+        this.runAsyncOperation("activate view", () => this.activateView());
       }
     });
 
@@ -112,7 +112,7 @@ export default class MemosPlusPlugin extends Plugin {
       id: "open-quick-input-sidebar",
       name: t(this.settings.language, "command.openQuickInputSidebar"),
       callback: () => {
-        void this.activateQuickInputView();
+        this.runAsyncOperation("activate quick input", () => this.activateQuickInputView());
       }
     });
 
@@ -120,26 +120,28 @@ export default class MemosPlusPlugin extends Plugin {
       id: "capture-clipboard-link-to-memos",
       name: t(this.settings.language, "command.linkCaptureDefault"),
       callback: () => {
-        void this.captureClipboardLinkToMemos();
+        this.runAsyncOperation("capture clipboard link", () => this.captureClipboardLinkToMemos());
       }
     });
 
     this.addCommand({
       id: "focus-composer",
       name: t(this.settings.language, "command.focusComposer"),
-      callback: async () => {
-        const leaf = await this.activateView();
-        if (leaf?.view instanceof MemosPlusView) {
-          leaf.view.focusComposer();
-        }
+      callback: () => {
+        this.runAsyncOperation("focus composer", async () => {
+          const leaf = await this.activateView();
+          if (leaf?.view instanceof MemosPlusView) {
+            leaf.view.focusComposer();
+          }
+        });
       }
     });
 
     this.addCommand({
       id: "export-diagnostic-log",
       name: t(this.settings.language, "command.exportDiagnosticLog"),
-      callback: async () => {
-        await this.exportDiagnosticLog();
+      callback: () => {
+        this.runAsyncOperation("export diagnostic log", () => this.exportDiagnosticLog());
       }
     });
 
@@ -151,7 +153,7 @@ export default class MemosPlusPlugin extends Plugin {
     this.maybeBuildTaskIndexAfterLoad();
     if (this.settings.quickInputEnabled && this.settings.quickInputAutoOpen) {
       this.app.workspace.onLayoutReady(() => {
-        void this.activateQuickInputView({ focusComposer: false, useModalFallback: false });
+        this.runAsyncOperation("auto open quick input", () => this.activateQuickInputView({ focusComposer: false, useModalFallback: false }));
       });
     }
   }
@@ -286,6 +288,12 @@ export default class MemosPlusPlugin extends Plugin {
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
   }
 
+  private runAsyncOperation(source: string, operation: () => Promise<unknown>): void {
+    void operation().catch((error) => {
+      console.warn(`[Memos Plus] ${source} failed`, error);
+    });
+  }
+
   private async savePluginData(source: string): Promise<void> {
     setMemosPlusDiagnosticState({ isSaving: true });
     logMemosPlusDiagnostic("data:save", { phase: "start", source });
@@ -312,7 +320,7 @@ export default class MemosPlusPlugin extends Plugin {
     this.clearTaskIndexRefreshTimer();
     this.taskIndexRefreshTimer = window.setTimeout(() => {
       this.taskIndexRefreshTimer = null;
-      void this.refreshViews(source);
+      this.runAsyncOperation("refresh views", () => this.refreshViews(source));
     }, delayMs);
   }
 

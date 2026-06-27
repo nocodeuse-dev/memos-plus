@@ -829,7 +829,9 @@ export class MemosPlusView extends ItemView {
       attr: { type: "button", "aria-label": t(lang, "sidebar.addTop"), title: t(lang, "sidebar.addTop") }
     });
     setIcon(add, "plus");
-    add.addEventListener("click", () => this.createGroup(""));
+    add.addEventListener("click", () => void this.createGroup("").catch((error) => {
+      console.warn("[Memos Plus] Failed to create sidebar group", error);
+    }));
 
     if (this.plugin.settings.sidebarItems.length === 0) {
       directorySection.createDiv({ cls: "memos-plus-sidebar-empty", text: t(lang, "sidebar.noItems") });

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const mainSource = readFileSync("main.ts", "utf8");
 const quickInputSource = readFileSync("src/quickInputView.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
+const mobilePanelSource = readFileSync("src/mobilePanelView.ts", "utf8");
 const excalidrawEmbedSource = readFileSync("src/excalidrawEmbed.ts", "utf8");
 
 describe("stability guardrails", () => {
@@ -20,6 +21,14 @@ describe("stability guardrails", () => {
     expect(quickInputSource).toContain('this.composerSession.applyInitialContent("auto").catch');
     expect(quickInputSource).toContain('this.composerSession.applyInitialContent("none").catch');
     expect(viewSource).toContain('this.composerSession.applyInitialContent("auto").catch');
+  });
+
+  it("wraps command callbacks and void UI callbacks without returning promises", () => {
+    expect(mainSource).not.toContain("callback: async");
+    expect(mainSource).toContain("private runAsyncOperation");
+    expect(mainSource).toContain('this.runAsyncOperation("focus composer"');
+    expect(viewSource).toContain('void this.createGroup("").catch');
+    expect(mobilePanelSource).toContain("() => void this.renderHeadingPicker(info).catch");
   });
 
   it("guards Excalidraw command execution after target selection", () => {

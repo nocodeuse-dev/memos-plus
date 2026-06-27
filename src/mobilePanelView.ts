@@ -866,7 +866,9 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (decision === "ask") {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(options.language, position === "file-start" ? "fileSend.position.fileStart" : "fileSend.position.fileEnd")}`,
-        () => this.renderHeadingPicker(info),
+        () => void this.renderHeadingPicker(info).catch((error) => {
+          console.warn("[Memos Plus] Failed to render mobile heading picker", error);
+        }),
         (task) => this.chooseFile(file, heading, position, task, createHeadingIfMissing, targetOptions),
         this.defaultTaskContentMode()
       );
