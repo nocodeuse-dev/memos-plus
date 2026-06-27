@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.219 - Unreleased
+
+- 修复 Memos Plus 输入框工具栏“新建 Excalidraw”插入普通 wiki 链接后可能破坏后续 Markdown 结构的问题：当光标后面紧跟 `## 标题` 或正文时，插入的 `[[drawing]]` 会自动补齐块级换行，避免变成 `[[drawing]]## 标题`。
+
 ## 0.1.218 - Unreleased
 
 - 调整输入框工具栏“新建 Excalidraw”的插入格式：Memos Plus 现在创建并打开 Excalidraw 绘图后，在目标 Markdown 文件中插入普通 wiki 链接 `[[drawing]]`，不再插入带预览前缀的 `![[drawing]]`；此行为只影响 Memos Plus 的 Excalidraw 新建流程，不修改 Excalidraw 插件全局设置。

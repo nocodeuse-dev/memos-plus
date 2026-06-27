@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findExcalidrawEmbedCommand } from "../src/excalidrawCommand";
-import { formatExcalidrawMarkdownLink } from "../src/excalidrawLink";
+import { formatExcalidrawMarkdownInsertion, formatExcalidrawMarkdownLink } from "../src/excalidrawLink";
 
 describe("Excalidraw embed command lookup", () => {
   it("prefers the command that creates a new drawing and embeds it into Markdown", () => {
@@ -65,5 +65,23 @@ describe("Excalidraw embed command lookup", () => {
   it("formats Memos Plus Excalidraw insertions as links instead of embeds", () => {
     expect(formatExcalidrawMarkdownLink("机器人 2026-06-27 20.55.35.excalidraw")).toBe("[[机器人 2026-06-27 20.55.35.excalidraw]]");
     expect(formatExcalidrawMarkdownLink("绘图.excalidraw.md")).not.toMatch(/^!/);
+  });
+
+  it("keeps following headings separated when inserting Excalidraw links", () => {
+    const insertion = formatExcalidrawMarkdownInsertion("机器人 2026-06-27-21-27-13.excalidraw.md", {
+      before: "",
+      after: "## 已完成"
+    });
+
+    expect(`${insertion}## 已完成`).toBe("[[机器人 2026-06-27-21-27-13.excalidraw.md]]\n\n## 已完成");
+  });
+
+  it("keeps Excalidraw links on their own block when the cursor is between text", () => {
+    const insertion = formatExcalidrawMarkdownInsertion("绘图.excalidraw.md", {
+      before: "前文",
+      after: "后文"
+    });
+
+    expect(`前文${insertion}后文`).toBe("前文\n\n[[绘图.excalidraw.md]]\n\n后文");
   });
 });

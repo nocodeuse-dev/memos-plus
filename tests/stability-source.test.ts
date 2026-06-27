@@ -51,7 +51,9 @@ describe("stability guardrails", () => {
     expect(excalidrawEmbedSource).toContain("function waitForWorkspaceFrame(app: App): Promise<void>");
     expect(excalidrawEmbedSource).toContain("leaf.view instanceof MarkdownView");
     expect(excalidrawEmbedSource).toContain("await executeExcalidrawPluginApi(host.app, choice.file);");
-    expect(excalidrawEmbedSource).toContain("view.editor.replaceSelection(formatExcalidrawMarkdownLink(linkText));");
+    expect(excalidrawEmbedSource).toContain("formatExcalidrawMarkdownInsertion(linkText");
+    expect(excalidrawEmbedSource).toContain("currentLine.slice(0, cursor.ch)");
+    expect(excalidrawEmbedSource).toContain("currentLine.slice(cursor.ch)");
     expect(excalidrawEmbedSource).toContain('api.openDrawing(drawing, "new-pane", true, undefined, true);');
     expect(excalidrawEmbedSource).not.toContain("executeRegisteredCommand");
     expect(excalidrawEmbedSource).not.toContain("api.embedDrawing");

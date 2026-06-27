@@ -1,5 +1,5 @@
 import { MarkdownView, Notice, Platform, type App, type EditorPosition, type TFile } from "obsidian";
-import { formatExcalidrawMarkdownLink } from "./excalidrawLink";
+import { formatExcalidrawMarkdownInsertion } from "./excalidrawLink";
 import { resolveFileInsertCursor, type FileSendTarget } from "./fileSend";
 import { selectProjectTarget, type ProjectDeliveryHost } from "./projectDelivery";
 import { createDefaultProjectTemplate, type ManagedTemplate } from "./templateManager";
@@ -155,7 +155,14 @@ async function executeExcalidrawPluginApi(app: App, targetFile: TFile): Promise<
       view.editor.focus();
     }
     const linkText = app.metadataCache.fileToLinktext(drawing, targetFile.path, false);
-    view.editor.replaceSelection(formatExcalidrawMarkdownLink(linkText));
+    const cursor = view.editor.getCursor();
+    const currentLine = view.editor.getLine(cursor.line) ?? "";
+    view.editor.replaceSelection(
+      formatExcalidrawMarkdownInsertion(linkText, {
+        before: currentLine.slice(0, cursor.ch),
+        after: currentLine.slice(cursor.ch)
+      })
+    );
     api.openDrawing(drawing, "new-pane", true, undefined, true);
     return true;
   } catch (error) {
