@@ -737,6 +737,30 @@ describe("normalizeSettings", () => {
     expect(settings.fileTemplateLibraryTabOrder).toEqual(["all", "custom:group-收藏"]);
   });
 
+  it("repairs an affected empty favorite group from existing tab template bindings", () => {
+    const settings = normalizeSettings({
+      fileTemplateLibraryDefaultTabId: "custom:group-收藏",
+      fileTemplateLibraryTabOrder: ["all", "custom:group-收藏"],
+      tabTemplateBindings: {
+        "custom:项目": "我的资源/模板/项目模板.md",
+        "custom:病历": "我的资源/模板/病历模板.md"
+      },
+      fileTemplateTabs: [
+        { id: "项目", name: "项目", type: "tag-filter", tags: ["项目"] },
+        { id: "病历", name: "病历", type: "tag-filter", tags: ["病历"] },
+        { id: "group-收藏", name: "收藏", type: "template-group", templatePaths: [] }
+      ]
+    });
+
+    expect(settings.fileTemplateTabs).toContainEqual({
+      id: "group-收藏",
+      name: "收藏",
+      type: "template-group",
+      tags: [],
+      templatePaths: ["我的资源/模板/项目模板.md", "我的资源/模板/病历模板.md"]
+    });
+  });
+
   it("normalizes tab template bindings by stable tab id and removes deleted tabs", () => {
     const settings = normalizeSettings({
       fileTemplateTabs: [

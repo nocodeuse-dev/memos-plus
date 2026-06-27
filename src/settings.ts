@@ -470,7 +470,10 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
   const explicitFileTemplateTabs = normalizeFileTemplateTabs(raw.fileTemplateTabs);
   const fileTemplateTabMigration = migrateLegacyFileTemplateFavorites(
     explicitFileTemplateTabs.length > 0 ? explicitFileTemplateTabs : legacyProjectSendTagsToFileTemplateTabs(projectSendTagTabs),
-    raw.fileTemplateLibraryFavorites
+    raw.fileTemplateLibraryFavorites,
+    raw.fileTemplateLibraryDefaultTabId,
+    raw.fileTemplateLibraryTabOrder,
+    raw.tabTemplateBindings
   );
   const fileTemplateTabs = fileTemplateTabMigration.tabs;
   const projectTag = normalizeProjectTag(raw.projectTag) || DEFAULT_SETTINGS.projectTag;
@@ -647,21 +650,28 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
 
 function migrateLegacyFileTemplateFavorites(
   tabs: FileTemplateTab[],
-  legacyFavorites: unknown
+  legacyFavorites: unknown,
+  defaultTabId: unknown,
+  tabOrder: unknown,
+  tabTemplateBindings: unknown
 ): { tabs: FileTemplateTab[]; favoriteGroupId?: string } {
-  const favoritePaths = normalizeFileTemplateLibraryPaths(legacyFavorites);
-  if (favoritePaths.length === 0) {
-    return { tabs: normalizeFileTemplateTabs(tabs) };
-  }
-
   const normalizedTabs = normalizeFileTemplateTabs(tabs);
   const favoriteGroup =
     normalizedTabs.find((tab) => tab.type === "template-group" && tab.id === "group-收藏") ??
     normalizedTabs.find((tab) => tab.type === "template-group" && tab.name === "收藏");
+  const favoritePaths = normalizeFileTemplateLibraryPaths(legacyFavorites);
+  const recoveredPaths =
+    favoritePaths.length > 0
+      ? favoritePaths
+      : recoverEmptyFavoriteGroupTemplatePaths(normalizedTabs, favoriteGroup, defaultTabId, tabOrder, tabTemplateBindings);
+  if (recoveredPaths.length === 0) {
+    return { tabs: normalizedTabs };
+  }
+
   const favoriteGroupId = favoriteGroup?.id ?? "group-收藏";
   const mergedPaths = (existingPaths: string[]): string[] => {
     const existing = new Set(normalizeFileTemplateLibraryPaths(existingPaths));
-    return [...normalizeFileTemplateLibraryPaths(existingPaths), ...favoritePaths.filter((path) => !existing.has(path))];
+    return [...normalizeFileTemplateLibraryPaths(existingPaths), ...recoveredPaths.filter((path) => !existing.has(path))];
   };
 
   if (favoriteGroup) {
@@ -682,10 +692,41 @@ function migrateLegacyFileTemplateFavorites(
         name: "收藏",
         type: "template-group",
         tags: [],
-        templatePaths: favoritePaths
+        templatePaths: recoveredPaths
       }
     ])
   };
+}
+
+function recoverEmptyFavoriteGroupTemplatePaths(
+  tabs: FileTemplateTab[],
+  favoriteGroup: FileTemplateTab | undefined,
+  defaultTabId: unknown,
+  tabOrder: unknown,
+  tabTemplateBindings: unknown
+): string[] {
+  if (!favoriteGroup || favoriteGroup.templatePaths.length > 0) {
+    return [];
+  }
+  const favoriteTabId = getFileTemplateLibraryTemplateGroupTabId(favoriteGroup.id);
+  if (!legacyFavoriteGroupIsConfigured(favoriteTabId, defaultTabId, tabOrder)) {
+    return [];
+  }
+  const validTabIds = new Set(tabs.map((tab) => getProjectSendCustomTabId(tab.id)));
+  const paths = isRecord(tabTemplateBindings)
+    ? Object.entries(tabTemplateBindings).flatMap(([tabId, rawPath]) => (validTabIds.has(tabId) ? [rawPath] : []))
+    : [];
+  return normalizeFileTemplateLibraryPaths(paths);
+}
+
+function legacyFavoriteGroupIsConfigured(favoriteTabId: string, defaultTabId: unknown, tabOrder: unknown): boolean {
+  if (defaultTabId === favoriteTabId) {
+    return true;
+  }
+  if (Array.isArray(tabOrder)) {
+    return tabOrder.includes(favoriteTabId);
+  }
+  return typeof tabOrder === "string" && tabOrder.split(/[\n,，]+/).some((item) => item.trim() === favoriteTabId);
 }
 
 function replaceLegacyFileTemplateFavoriteTab(value: unknown, favoriteGroupId?: string): unknown {
