@@ -532,6 +532,21 @@
     box-shadow: 0 -8px 24px rgba(0, 0, 0, .18);
   }
 
+  .memos-plus-layout-region-heatmap,
+  .memos-plus-layout-inspector,
+  .memos-plus-layout-region,
+  .memos-plus-layout-mobile-row {
+    background-image: none;
+    box-shadow: none;
+    filter: none;
+  }
+
+  .memos-plus-layout-region:hover,
+  .memos-plus-layout-region.is-selected,
+  .memos-plus-layout-mobile-row.is-selected {
+    box-shadow: none;
+  }
+
   .memos-plus-layout-preview,
   .memos-plus-layout-preview-sidebar,
   .memos-plus-layout-preview-mobile {
@@ -3151,6 +3166,31 @@
   .memos-plus-quick-directory-row.is-selected {
     box-shadow: none;
     background: var(--memos-plus-list-item-background);
+  }
+
+  .memos-plus-composer,
+  .memos-plus-fab,
+  .memos-plus-table-picker,
+  .memos-plus-saved-search-tag-suggestions,
+  .memos-plus-mobile-panel-tabs .memos-plus-project-send-tab,
+  .memos-plus-mobile-template-tabs .memos-plus-file-template-tab {
+    box-shadow: none;
+    filter: none;
+    background-image: none;
+    transition: none;
+  }
+
+  .memos-plus-mobile-panel-tabs .memos-plus-project-send-tab.is-active,
+  .memos-plus-mobile-template-tabs .memos-plus-file-template-tab.is-active {
+    border-bottom: 2px solid var(--interactive-accent);
+    box-shadow: none;
+  }
+
+  .memos-plus-shell.is-composer-focused .memos-plus-fab,
+  .memos-plus-shell.is-keyboard-open .memos-plus-fab,
+  .memos-plus-mobile-light-shell.is-composer-focused .memos-plus-fab,
+  .memos-plus-mobile-light-shell.is-keyboard-open .memos-plus-fab {
+    transform: none;
   }
 
   .memos-plus-composer .memos-plus-save-button {

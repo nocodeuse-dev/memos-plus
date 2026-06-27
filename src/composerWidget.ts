@@ -338,7 +338,7 @@ export class ComposerWidget {
       return;
     }
     const target = this.composer.element || this.element;
-    target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
     const { content } = this.getKeyboardAwareSurfaces();
     if (content) {
       const modalRect = content.getBoundingClientRect();
@@ -347,7 +347,7 @@ export class ComposerWidget {
       if (targetRect.bottom > modalRect.bottom - verticalPadding || targetRect.top < modalRect.top + verticalPadding) {
         content.scrollTo({
           top: Math.max(0, content.scrollTop + targetRect.top - modalRect.top - verticalPadding),
-          behavior: "smooth"
+          behavior: "instant"
         });
       }
     }
@@ -359,7 +359,7 @@ export class ComposerWidget {
     const targetRect = target.getBoundingClientRect();
     const visibleBottom = visualViewport.offsetTop + visualViewport.height - 28;
     if (targetRect.bottom > visibleBottom) {
-      window.scrollBy({ top: targetRect.bottom - visibleBottom, behavior: "smooth" });
+      window.scrollBy({ top: targetRect.bottom - visibleBottom, behavior: "instant" });
     }
   }
 
