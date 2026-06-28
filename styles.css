@@ -96,6 +96,27 @@
   color: var(--text-normal);
 }
 
+.memos-plus-settings-support-card {
+  margin: 14px 0 0;
+  padding: 22px 24px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+
+.memos-plus-settings-support-card .setting-item-info {
+  padding-right: 16px;
+}
+
+.memos-plus-settings-support-card .setting-item-name {
+  font-size: var(--font-ui-medium);
+  font-weight: 750;
+}
+
+.memos-plus-settings-support-card .setting-item-description {
+  margin-top: 10px;
+}
+
 .memos-plus-quick-input-startup-card {
   display: grid;
   gap: 10px;

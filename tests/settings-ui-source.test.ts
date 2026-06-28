@@ -24,4 +24,20 @@ describe("settings UI source", () => {
     expect(pageTitleSource).toContain(".setHeading()");
     expect(pageTitleSource).not.toContain('createEl("h2"');
   });
+
+  it("renders debug and maintenance as a help support card with the configured external page", () => {
+    const advancedSource = settingsSource.slice(
+      settingsSource.indexOf("private renderAdvancedSettings"),
+      settingsSource.indexOf("function normalizeDefaultPrefix")
+    );
+
+    expect(settingsSource).toContain("MEMOS_PLUS_HELP_SUPPORT_URL");
+    expect(settingsSource).toContain("https://d00d1uhgsxk.feishu.cn/wiki/EErRwsN1oibZ14kiBsdcTqq2nyd?from=from_copylink");
+    expect(advancedSource).toContain("settings.helpSupport");
+    expect(advancedSource).toContain("settings.helpSupportCard");
+    expect(advancedSource).toContain("settings.openHelpSupport");
+    expect(advancedSource).toContain("memos-plus-settings-support-card");
+    expect(advancedSource).toContain("this.containerEl.ownerDocument.defaultView?.open");
+    expect(advancedSource).not.toContain("settings.advancedPlaceholder");
+  });
 });

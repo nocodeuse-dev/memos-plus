@@ -264,6 +264,7 @@ export const DEFAULT_PROJECT_SECTIONS = ["收集箱", "待办", "资料", "想�
 export const DEFAULT_COMPOSER_BORDER_COLOR = "#8b5cf6";
 export const DEFAULT_COMPOSER_BACKGROUND_COLOR = "";
 const COMPOSER_BACKGROUND_COLOR_PICKER_FALLBACK = "#1f1f1f";
+const MEMOS_PLUS_HELP_SUPPORT_URL = "https://d00d1uhgsxk.feishu.cn/wiki/EErRwsN1oibZ14kiBsdcTqq2nyd?from=from_copylink";
 
 export type DefaultSendAction = "memo" | "project" | "ask";
 export type MobileInteractionMode = "view" | "modal";
@@ -4105,10 +4106,19 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private renderAdvancedSettings(container: HTMLElement): void {
     const lang = this.plugin.settings.language;
-    this.renderSectionHeader(container, "settings.advancedSettings", "settings.advancedSettingsDesc");
-    new Setting(container)
-      .setName(t(lang, "settings.advancedPlaceholder"))
-      .setDesc(t(lang, "settings.advancedPlaceholderDesc"));
+    this.renderSectionHeader(container, "settings.helpSupport", "settings.helpSupportDesc");
+    const supportCard = new Setting(container)
+      .setName(t(lang, "settings.helpSupportCard"))
+      .setDesc(t(lang, "settings.helpSupportCardDesc"))
+      .addButton((button) => {
+        button
+          .setButtonText(t(lang, "settings.openHelpSupport"))
+          .setCta()
+          .onClick(() => {
+            this.containerEl.ownerDocument.defaultView?.open(MEMOS_PLUS_HELP_SUPPORT_URL, "_blank", "noopener");
+          });
+      });
+    supportCard.settingEl.addClass("memos-plus-settings-support-card");
   }
 }
 
