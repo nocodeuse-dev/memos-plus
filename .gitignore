@@ -3,3 +3,7 @@ main.js
 *.map
 coverage/
 docs/TODO.md
+.DS_Store
+docs/COMMUNITY_INTRO.md
+docs/PRODUCT_INTRO_CN.md
+promo/memos-plus-video/
