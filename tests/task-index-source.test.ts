@@ -27,11 +27,13 @@ describe("TaskIndex source integration", () => {
   it("uses the task index for organizer task counts and cached vault task results", () => {
     const organizerBlock = viewSource.slice(viewSource.indexOf("private renderOrganizerDirectory"), viewSource.indexOf("private renderOrganizerTaskToggle"));
     const taskSourceGuard = viewSource.slice(viewSource.indexOf("private shouldUseTaskIndexForOrganizer"), viewSource.indexOf("private formatTaskIndexCount"));
+    const openTaskIndexItemBlock = viewSource.slice(viewSource.indexOf("private openTaskIndexItem"), viewSource.indexOf("private renderMemoMoreAction"));
     expect(viewSource).toContain("getTaskIndexOrganizerCounts");
     expect(viewSource).toContain("filterTaskIndexItems");
     expect(viewSource).toContain("renderTaskIndexResults");
     expect(viewSource).toContain("this.plugin.taskIndex.getItems()");
     expect(viewSource).toContain("this.plugin.taskIndex.getStatus()");
+    expect(openTaskIndexItemBlock).toContain("openFile(file, { state: { line: item.lineNumber - 1 } })");
     expect(taskSourceGuard).toContain("taskVaultFilterEnabled");
     expect(taskSourceGuard).toContain("taskIndexEnabled");
     expect(organizerBlock).not.toContain("vault.read");

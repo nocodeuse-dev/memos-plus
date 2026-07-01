@@ -52,7 +52,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/quickCaptureContent.ts`：快速记录初始内容来源。统一读取当前编辑器选中文字、剪贴板文字/链接/图片，处理已有草稿冲突，并提供替换/追加/忽略询问弹窗。
 - `src/quickInputView.ts`：右侧栏“ Memos Plus 快速输入”独立视图，复用 `composerSession`，并读取 `sidebarLayout` 决定是否渲染输入框、目录、数量和结果列表；桌面端走右侧栏，移动端命令回退到快速记录弹窗。
 - `src/organizerPanel.ts`：整理目录纯函数。定义整理分区、整理状态、设置归一化和基于已加载 memo 的分区计算。文件名沿用旧面板命名以兼容已有字段。
-- `src/taskIndex.ts`：全库任务行索引。分批读取 Markdown 文件、缓存任务行、按文件 mtime 跳过未变化文件，并提供整理目录任务分支的数量统计和筛选结果。
+- `src/taskIndex.ts`：全库任务行索引。分批读取 Markdown 文件、缓存任务行，按文件 mtime 跳过未变化文件；结果排序和卡片时间优先使用任务文本开头的收集时间或 Tasks 创建日期，并提供整理目录任务分支的数量统计和筛选结果。
 - `src/store.ts`：数据读写层。负责年度 memo 文件读写、memo 增删改、状态标签切换、图片附件保存、项目和文件投递调用。
 - `src/markdown.ts`：memo Markdown 协议解析与写回。定义 `MemoItem`，解析 `YYYY.md`，插入/替换/删除 memo，切换任务和标签。
 - `src/filter.ts`：memo 内部视图筛选、搜索、排序、日期工具。
@@ -107,7 +107,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 | 筛选器 / 检索式 | `src/savedSearch.ts`, `src/savedSearchModal.ts`, `src/view.ts` | `SavedSearch`, `filterMemosBySavedSearch`, `openSavedSearchModal` | 支持多条件 all/any，memo/vault 两种范围。 |
 | Vault 检索 | `src/vaultSearch.ts`, `src/view.ts`, `src/quickInputView.ts` | `VaultSavedSearchIndex.search`, `ensureVaultSearchCache` | 活跃 vault 检索式复用插件级 `VaultMetadataIndex` 处理 metadata 条件；`match: all` 的混合检索会先用 metadata 条件缩小候选，再只给候选文件读取正文/任务。快速输入预览会传入结果数和正文读取数上限。 |
 | Vault metadata 索引 | `src/vaultIndex.ts`, `main.ts`, `src/store.ts`, `src/vaultSearch.ts` | `VaultMetadataIndex`, `registerVaultIndexInvalidation`, `getTaggedFileInfos`, `getProjectInfos`, `scanFileTemplateLibrary` | 第一阶段全库统一索引；只缓存 metadata，不读正文；项目、标签文件、文件搜索、最近文件、模板库和 vault metadata 检索复用同一份文件元信息。 |
-| TaskIndex 任务索引 | `src/taskIndex.ts`, `main.ts`, `src/view.ts`, `src/settings.ts` | `TaskIndex`, `parseTaskIndexItemsFromMarkdown`, `filterTaskIndexItems`, `registerTaskIndexInvalidation`, `renderTaskIndexResults` | 缓存全库任务行、所在文件、行号、优先级、日期和 mtime；插件启动后可异步分批构建，文件变化后失效并延迟重建，整理目录任务分支从缓存读取数量和结果。 |
+| TaskIndex 任务索引 | `src/taskIndex.ts`, `main.ts`, `src/view.ts`, `src/settings.ts` | `TaskIndex`, `parseTaskIndexItemsFromMarkdown`, `filterTaskIndexItems`, `registerTaskIndexInvalidation`, `renderTaskIndexResults` | 缓存全库任务行、所在文件、行号、优先级、日期、任务收集时间和 mtime；mtime 只负责缓存失效，列表排序和卡片时间优先用任务自身时间。插件启动后可异步分批构建，文件变化后失效并延迟重建，整理目录任务分支从缓存读取数量和结果。 |
 | 项目文件识别 | `src/vaultIndex.ts`, `src/projectSend.ts`, `src/store.ts` | `VaultMetadataIndex.getProjectFiles`, `VaultMetadataIndex.getProjectInfos`, `normalizeProjectTag` | Store 层优先通过统一索引判断项目文件；`projectSend.ts` 仍保留纯函数兼容测试和旧调用。 |
 | 发送到项目 | `src/view.ts`, `src/store.ts`, `src/projectDelivery.ts`, `src/projectSend.ts`, `src/projectFileSuggestModal.ts` | `sendComposerToProject`, `sendContentToProject`, `ProjectSendModal`, `renderHeadingPicker`, `sendToFileTarget` | 弹窗按当前内部模板规则决定默认来源，再按项目/标签文件/最近/搜索/固定文件等来源选择目标文件和真实 Markdown 标题后插入。 |
 | 添加项目 | `src/projectFileSuggestModal.ts`, `src/store.ts`, `src/fileTemplateLibrary.ts` | `openFileTemplateLibraryModal("project")`, `FileTemplateLibraryModal`, `createFileFromLibraryTemplate` | 弹窗中先从新建文件模板库选择文件骨架模板和文件名，再创建项目 Markdown 文件；旧 `createProject` 兼容方法仍保留。 |
@@ -311,7 +311,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `MemosPlusView.vaultSearchCacheKeys`：当前 vault 检索缓存 key。
 - `MemosPlusView.vaultSearchResults`：当前 vault 检索结果。
 - `VaultSavedSearchIndex.contentCache`：按文件 path + mtime 缓存正文。
-- `MemosPlusPlugin.taskIndex`：插件级 `TaskIndex` 实例，按文件 path + mtime 缓存任务行，并为整理目录任务分支提供全库数量与结果。
+- `MemosPlusPlugin.taskIndex`：插件级 `TaskIndex` 实例，按文件 path + mtime 缓存任务行，并为整理目录任务分支提供按任务收集/创建时间排序的全库数量与结果。
 
 未找到单独持久化的全文索引结构；当前 `VaultMetadataIndex` 与 `TaskIndex` 都是运行时缓存。
 

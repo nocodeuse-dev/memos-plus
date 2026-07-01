@@ -88,8 +88,8 @@ describe("TaskIndex helpers", () => {
     });
 
     expect(filterTaskIndexItems(items, "tasks", "2026-06-19").map((item) => item.text)).toEqual([
-      "最高优先级 🔺 📅 2026-06-18",
       "高优先级 ⏫ 📅 2026-06-20 ⏳ 2026-06-19 🛫 2026-06-18 ➕ 2026-06-17 🔁",
+      "最高优先级 🔺 📅 2026-06-18",
       "中优先级 🔼 📅 2026-06-21",
       "低优先级 🔽",
       "最低优先级 ⏬",
@@ -101,11 +101,32 @@ describe("TaskIndex helpers", () => {
     expect(filterTaskIndexItems(items, "task-overdue", "2026-06-19").map((item) => item.text)).toEqual(["最高优先级 🔺 📅 2026-06-18"]);
     expect(filterTaskIndexItems(items, "task-due-today", "2026-06-19").map((item) => item.text)).toEqual(["无优先级 📅 2026-06-19"]);
     expect(filterTaskIndexItems(items, "task-due-this-week", "2026-06-19").map((item) => item.text)).toEqual([
-      "最高优先级 🔺 📅 2026-06-18",
       "高优先级 ⏫ 📅 2026-06-20 ⏳ 2026-06-19 🛫 2026-06-18 ➕ 2026-06-17 🔁",
+      "最高优先级 🔺 📅 2026-06-18",
       "中优先级 🔼 📅 2026-06-21",
       "无优先级 📅 2026-06-19"
     ]);
+  });
+
+  it("sorts task results by the collected task timestamp before file modified time", () => {
+    const recentlyEditedOldTask = parseTaskIndexItemsFromMarkdown("- [ ] 2026-06-09 05:16 制作一个最像 xmind 的思维导图插件 🔺", {
+      filePath: "我的资源/Memos/2026.md",
+      fileName: "2026",
+      mtime: new Date(2026, 6, 2, 6, 9).getTime()
+    });
+    const olderFileNewerTask = parseTaskIndexItemsFromMarkdown("- [ ] 2026-06-27 13:09 [自媒体矩阵运营Agent](https://b23.tv/lTma3Y3) 🔺", {
+      filePath: "我的资源/Memos/2026.md",
+      fileName: "2026",
+      mtime: new Date(2026, 5, 27, 13, 10).getTime()
+    });
+
+    const results = filterTaskIndexItems([...recentlyEditedOldTask, ...olderFileNewerTask], "task-priority-highest", "2026-07-02");
+
+    expect(results.map((item) => item.text)).toEqual([
+      "2026-06-27 13:09 [自媒体矩阵运营Agent](https://b23.tv/lTma3Y3) 🔺",
+      "2026-06-09 05:16 制作一个最像 xmind 的思维导图插件 🔺"
+    ]);
+    expect(results.map((item) => item.capturedAt)).toEqual(["2026-06-27 13:09", "2026-06-09 05:16"]);
   });
 
   it("tracks cache state and can clear cached task results without rebuilding", async () => {

@@ -1516,7 +1516,7 @@ export class MemosPlusView extends ItemView {
     });
 
     const header = card.createDiv({ cls: "memos-plus-card-header" });
-    header.createDiv({ cls: "memos-plus-card-time", text: formatDateTime(item.mtime) });
+    header.createDiv({ cls: "memos-plus-card-time", text: item.capturedAt || formatDateTime(item.mtime) });
     const body = card.createDiv({ cls: "memos-plus-card-body" });
     body.createDiv({ cls: "memos-plus-vault-result-title", text: item.text });
     body.createDiv({ cls: "memos-plus-vault-result-path", text: item.filePath });
@@ -1526,7 +1526,7 @@ export class MemosPlusView extends ItemView {
   private openTaskIndexItem(item: TaskIndexItem): void {
     const file = this.app.vault.getAbstractFileByPath(item.filePath);
     if (file instanceof TFile) {
-      void this.app.workspace.getLeaf(false).openFile(file);
+      void this.app.workspace.getLeaf(false).openFile(file, { state: { line: item.lineNumber - 1 } });
     }
   }
 

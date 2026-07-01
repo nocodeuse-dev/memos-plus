@@ -9,6 +9,8 @@ export interface TaskIndexItem {
   line: string;
   lineNumber: number;
   text: string;
+  capturedAt: string;
+  capturedAtTime: number;
   completed: boolean;
   priority: TaskPriorityFilterValue;
   dueDate: string;
@@ -236,12 +238,15 @@ export function getTaskIndexOrganizerCounts(items: TaskIndexItem[], today: strin
 }
 
 function taskIndexItemFromParsedTask(task: ParsedTaskLine, line: string, lineNumber: number, context: TaskIndexFileContext): TaskIndexItem {
+  const captured = resolveTaskCapturedAt(task.text, task.createdDate, context.mtime);
   return {
     filePath: normalizeVaultPath(context.filePath),
     fileName: context.fileName,
     line,
     lineNumber,
     text: task.text,
+    capturedAt: captured.value,
+    capturedAtTime: captured.time,
     completed: task.completed,
     priority: task.priority,
     dueDate: task.dueDate,
@@ -252,6 +257,28 @@ function taskIndexItemFromParsedTask(task: ParsedTaskLine, line: string, lineNum
     recurring: task.recurring,
     mtime: context.mtime
   };
+}
+
+function resolveTaskCapturedAt(text: string, createdDate: string, fallbackTime: number): { value: string; time: number } {
+  const leadingTimestamp = text.match(/^\s*(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?\b/);
+  if (leadingTimestamp) {
+    const value = leadingTimestamp[2] ? `${leadingTimestamp[1]} ${leadingTimestamp[2]}:${leadingTimestamp[3]}` : leadingTimestamp[1];
+    return { value, time: localDateTimeToTimestamp(leadingTimestamp[1], leadingTimestamp[2] ?? "00", leadingTimestamp[3] ?? "00") ?? fallbackTime };
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(createdDate)) {
+    return { value: createdDate, time: localDateTimeToTimestamp(createdDate, "00", "00") ?? fallbackTime };
+  }
+  return { value: "", time: fallbackTime };
+}
+
+function localDateTimeToTimestamp(dateString: string, hourString: string, minuteString: string): number | null {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const hour = Number(hourString);
+  const minute = Number(minuteString);
+  if (![year, month, day, hour, minute].every(Number.isFinite)) {
+    return null;
+  }
+  return new Date(year, month - 1, day, hour, minute).getTime();
 }
 
 function taskIndexItemMatchesBranch(item: TaskIndexItem, branchId: OrganizerTaskBranchId, today: string): boolean {
@@ -280,7 +307,10 @@ function taskIndexItemMatchesBranch(item: TaskIndexItem, branchId: OrganizerTask
 }
 
 function sortTaskIndexItems(items: TaskIndexItem[]): TaskIndexItem[] {
-  return [...items].sort((left, right) => right.mtime - left.mtime || left.filePath.localeCompare(right.filePath) || left.lineNumber - right.lineNumber);
+  return [...items].sort(
+    (left, right) =>
+      right.capturedAtTime - left.capturedAtTime || right.mtime - left.mtime || left.filePath.localeCompare(right.filePath) || left.lineNumber - right.lineNumber
+  );
 }
 
 function startOfWeek(dateString: string): string {
