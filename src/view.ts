@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, Menu, Notice, Platform, TFile, WorkspaceLeaf, getAllTags as getAllCacheTags, setIcon } from "obsidian";
+import { ItemView, MarkdownRenderer, MarkdownView, Menu, Notice, Platform, TFile, WorkspaceLeaf, getAllTags as getAllCacheTags, setIcon } from "obsidian";
 import type MemosPlusPlugin from "../main";
 import { createComposerSession, type ComposerSession } from "./composerSession";
 import type { ComposerSurface } from "./composerWidget";
@@ -1506,7 +1506,9 @@ export class MemosPlusView extends ItemView {
     card.setAttr("role", "button");
     card.setAttr("tabindex", "0");
     card.setAttr("data-line-number", String(item.lineNumber));
-    const open = () => this.openTaskIndexItem(item);
+    const open = () => {
+      void this.openTaskIndexItem(item);
+    };
     card.addEventListener("click", open);
     card.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
@@ -1523,11 +1525,39 @@ export class MemosPlusView extends ItemView {
     body.createDiv({ cls: "memos-plus-vault-result-excerpt", text: formatTaskIndexSummary(item, lang) });
   }
 
-  private openTaskIndexItem(item: TaskIndexItem): void {
+  private async openTaskIndexItem(item: TaskIndexItem): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(item.filePath);
     if (file instanceof TFile) {
-      void this.app.workspace.getLeaf(false).openFile(file, { state: { line: item.lineNumber - 1 } });
+      const leaf = this.app.workspace.getLeaf(false);
+      await leaf.openFile(file, { state: { line: item.lineNumber - 1 } });
+      await this.highlightTaskIndexLine(leaf, file, item);
     }
+  }
+
+  private async highlightTaskIndexLine(leaf: WorkspaceLeaf, file: TFile, item: TaskIndexItem): Promise<void> {
+    const line = Math.max(0, item.lineNumber - 1);
+    await this.waitForWorkspaceFrame();
+    let view = leaf.view instanceof MarkdownView ? leaf.view : this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view || view.file?.path !== file.path) {
+      await this.waitForWorkspaceFrame();
+      view = leaf.view instanceof MarkdownView ? leaf.view : this.app.workspace.getActiveViewOfType(MarkdownView);
+    }
+    if (!view || view.file?.path !== file.path) {
+      return;
+    }
+    view.editor.setSelection({ line, ch: 0 }, { line, ch: item.line.length });
+    view.editor.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: item.line.length } }, true);
+    if (!Platform.isMobile) {
+      view.editor.focus();
+    }
+  }
+
+  private waitForWorkspaceFrame(): Promise<void> {
+    const frameWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
+    if (!frameWindow) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => frameWindow.requestAnimationFrame(() => resolve()));
   }
 
   private renderMemoMoreAction(container: Element, label: string, onClick: (event: MouseEvent) => void): void {
