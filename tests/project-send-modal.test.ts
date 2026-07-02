@@ -332,6 +332,16 @@ describe("project send modal source", () => {
     expect(modalSource).not.toContain("fileTargetOptionsFromTemplate");
   });
 
+  it("does not truncate mobile heading picker results", () => {
+    const mobileHeadingPickerSource = mobilePanelSource.slice(
+      mobilePanelSource.indexOf("private async renderHeadingPicker"),
+      mobilePanelSource.indexOf("private async renderTemplatePicker")
+    );
+
+    expect(mobileHeadingPickerSource).toContain("for (const heading of headings)");
+    expect(mobileHeadingPickerSource).not.toContain("headings.slice(0, MOBILE_RESULT_LIMIT)");
+  });
+
   it("writes send modal selections through file targets without project-only mode", () => {
     expect(modalSource).not.toContain("chooseProjectFileTarget");
     expect(modalSource).not.toContain('mode: "project"');

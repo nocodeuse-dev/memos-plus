@@ -636,7 +636,7 @@ export class MemosPlusMobilePanelView extends ItemView {
     }
 
     const defaultHeading = this.defaultInsertHeading();
-    for (const heading of headings.slice(0, MOBILE_RESULT_LIMIT)) {
+    for (const heading of headings) {
       const button = list.createEl("button", {
         cls: `memos-plus-project-section${heading.heading === defaultHeading ? " is-default" : ""}`,
         attr: { type: "button" }
