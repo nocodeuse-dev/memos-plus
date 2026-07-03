@@ -1313,7 +1313,7 @@ export class ProjectSendModal extends Modal {
     }
 
     const defaultHeading = this.defaultInsertHeading();
-    for (const heading of headings.slice(0, this.modalResultLimit())) {
+    for (const heading of headings) {
       const button = list.createEl("button", {
         cls: `memos-plus-project-section${heading.heading === defaultHeading ? " is-default" : ""}`,
         attr: { type: "button" }
