@@ -285,6 +285,7 @@ class FileTemplateLibraryModal extends Modal {
   private items: FileTemplateLibraryItem[] = [];
   private selectedPath = "";
   private activeLibraryTabId = FILE_TEMPLATE_LIBRARY_TAB_ALL;
+  private draftTitle = "";
   private titleInput!: HTMLInputElement;
   private listEl!: HTMLElement;
   private closed = false;
@@ -310,6 +311,7 @@ class FileTemplateLibraryModal extends Modal {
   ) {
     super(app);
     this.selectedPath = options.preferredPath ?? "";
+    this.draftTitle = options.initialTitle.trim();
     this.activeLibraryTabId = normalizeVisibleFileTemplateLibraryDefaultTabId(options.defaultTabId, options.fileTemplateTabs);
   }
 
@@ -381,7 +383,7 @@ class FileTemplateLibraryModal extends Modal {
 
     this.renderCategoryTabs(contentEl);
     this.titleInput = createTextField(contentEl, t(lang, "fileTemplateLibrary.fileName"), t(lang, "projectSend.projectNamePlaceholder"));
-    this.titleInput.value = this.options.initialTitle;
+    this.titleInput.value = this.draftTitle;
     this.listEl = contentEl.createDiv({ cls: "memos-plus-file-template-list" });
     this.renderList();
 
@@ -398,6 +400,9 @@ class FileTemplateLibraryModal extends Modal {
         event.preventDefault();
         void withMobileClickLock(create, () => this.submit(create));
       }
+    });
+    this.titleInput.addEventListener("input", () => {
+      this.draftTitle = this.titleInput.value;
     });
     focusOnDesktopOnly(this.titleInput);
   }
@@ -593,6 +598,7 @@ class FileTemplateLibraryModal extends Modal {
 
   private async submit(button: HTMLButtonElement): Promise<void> {
     const title = this.titleInput.value.trim();
+    this.draftTitle = this.titleInput.value;
     if (!title) {
       focusOnDesktopOnly(this.titleInput);
       return;
@@ -1585,8 +1591,15 @@ export class ProjectSendModal extends Modal {
     await this.renderHeadingPicker(info, () => void this.renderCreatedFileHeadingPicker(file, tag), () => this.renderCurrentMode());
   }
 
+  private activeCreateFileQuery(): string {
+    if (this.activeTabId() === "search") {
+      return this.fileQuery.trim();
+    }
+    return this.tabSearchQueries.get(this.activeTabId())?.trim() ?? "";
+  }
+
   private templateCreateTitle(tag = ""): string {
-    return this.fileQuery.trim() || this.tagQuery.trim() || tag;
+    return this.activeCreateFileQuery() || this.tagQuery.trim() || tag;
   }
 
   private chooseFile(

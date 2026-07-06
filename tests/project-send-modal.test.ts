@@ -201,6 +201,39 @@ describe("project send modal source", () => {
     expect(i18nSource).toContain('"settings.tabTemplateBindings"');
   });
 
+  it("uses the active search text as the initial new-file title before tab labels", () => {
+    const createTitleSource = modalSource.slice(
+      modalSource.indexOf("private activeCreateFileQuery"),
+      modalSource.indexOf("private chooseFile")
+    );
+    const openTemplateSource = modalSource.slice(
+      modalSource.indexOf("private openFileTemplateLibraryModal("),
+      modalSource.indexOf("private async renderCreatedFileHeadingPicker")
+    );
+    const mobileQuickCreateSource = mobilePanelSource.slice(
+      mobilePanelSource.indexOf("private async openQuickCreateForActiveTab"),
+      mobilePanelSource.indexOf("private preferredTemplatePathForActiveTab")
+    );
+
+    expect(createTitleSource).toContain('if (this.activeTabId() === "search")');
+    expect(createTitleSource).toContain("return this.fileQuery.trim()");
+    expect(createTitleSource).toContain("this.tabSearchQueries.get(this.activeTabId())?.trim()");
+    expect(createTitleSource).toContain("this.activeCreateFileQuery() || this.tagQuery.trim() || tag");
+    expect(openTemplateSource).toContain("initialTitle: this.templateCreateTitle(tag)");
+    expect(mobileQuickCreateSource).toContain("this.fileQuery.trim()");
+    expect(mobileQuickCreateSource).toContain("this.tabSearchQueries.get(this.activeTabId)?.trim()");
+  });
+
+  it("keeps the template library filename draft while switching template tabs", () => {
+    const libraryModalSource = modalSource.slice(modalSource.indexOf("class FileTemplateLibraryModal"), modalSource.indexOf("export class ProjectSendModal"));
+
+    expect(libraryModalSource).toContain("private draftTitle");
+    expect(libraryModalSource).toContain("this.draftTitle = options.initialTitle.trim()");
+    expect(libraryModalSource).toContain("this.titleInput.value = this.draftTitle");
+    expect(libraryModalSource).toContain("this.draftTitle = this.titleInput.value");
+    expect(libraryModalSource).not.toContain("this.titleInput.value = this.options.initialTitle");
+  });
+
   it("shows recent Memos Plus file targets for empty mobile search without scanning all files", () => {
     const fileSearchContentSource = modalSource.slice(
       modalSource.indexOf("private async renderFileSearchContent"),

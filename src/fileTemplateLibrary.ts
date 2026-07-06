@@ -370,7 +370,7 @@ export async function scanFileTemplateLibrary(app: App, settings: FileTemplateLi
 
 export function buildFileTemplateTargetPath(folder: string, title: string): string {
   const normalizedFolder = normalizeFileTemplateLibraryDefaultFolder(folder);
-  const filename = sanitizeFileName(title) || "未命名";
+  const filename = stripMarkdownExtension(sanitizeFileName(title)) || "未命名";
   return normalizePath(`${normalizedFolder}/${filename}.md`);
 }
 
@@ -539,6 +539,10 @@ function sanitizeFileName(value: string): string {
     .replace(/[\\/:*?"<>|#^[\]]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function stripMarkdownExtension(value: string): string {
+  return value.replace(/\.md$/i, "").trim();
 }
 
 function ensureTrailingNewline(value: string): string {

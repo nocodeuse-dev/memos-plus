@@ -224,5 +224,6 @@ describe("file template library", () => {
 
   it("builds a unique markdown target path from the selected save folder and search title", () => {
     expect(buildFileTemplateTargetPath("我的资源/疾病", "肩袖/损伤")).toBe("我的资源/疾病/肩袖 损伤.md");
+    expect(buildFileTemplateTargetPath("我的资源/项目", "Obsidian-视频播放器.md")).toBe("我的资源/项目/Obsidian-视频播放器.md");
   });
 });
