@@ -119,7 +119,7 @@ describe("VaultMetadataIndex", () => {
     expect(index.getAllTagOptions()).toEqual(["保留", "新"]);
   });
 
-  it("keeps send-target scans out of the reusable full-vault cache", () => {
+  it("reuses cached metadata for send-target scans until an invalidation event arrives", () => {
     const { app } = createApp({
       "项目.md": { frontmatter: { tags: ["项目"] } },
       "资料.md": { frontmatter: { tags: ["旧"] } }
@@ -134,6 +134,9 @@ describe("VaultMetadataIndex", () => {
       return { frontmatter: { tags: ["项目"] } };
     });
 
+    expect(index.getTaggedFileInfos("新").map((info) => info.path)).toEqual([]);
+    index.invalidate("资料.md");
     expect(index.getTaggedFileInfos("新").map((info) => info.path)).toEqual(["资料.md"]);
+    expect(app.vault.getMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 });

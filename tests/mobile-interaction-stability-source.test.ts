@@ -133,12 +133,15 @@ describe("mobile interaction stability source", () => {
     expect(diagnosticsSource).toContain("input:blur");
     expect(diagnosticsSource).toContain("window:error");
     expect(diagnosticsSource).toContain("window:unhandledrejection");
+    expect(diagnosticsSource).toContain("scheduleDiagnosticPersistence");
+    expect(diagnosticsSource).toContain("file-template:create-start");
+    expect(diagnosticsSource).toContain("file-template:create-end");
     expect(mainSource).toContain("registerMemosPlusDiagnostics");
     expect(mainSource).toContain("exportMemosPlusDiagnosticLog");
     expect(mainSource).toContain('id: "export-diagnostic-log"');
     expect(mainSource).toContain("async exportDiagnosticLog()");
     expect(mainSource).toContain("taskIndexRefreshTimer");
-    expect(mainSource).toContain("this.taskIndex.onChange(() => this.scheduleRefreshViews");
+    expect(mainSource).toContain("this.taskIndex.onChange(() => {");
     expect(mainSource).toContain('this.scheduleRefreshViews("task-index-change"');
     expect(mainSource).toContain("private scheduleRefreshViews");
     expect(mainSource).toContain("window.clearTimeout(this.taskIndexRefreshTimer)");

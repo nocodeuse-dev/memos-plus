@@ -72,7 +72,18 @@ export default class MemosPlusPlugin extends Plugin {
     registerMemosPlusDiagnostics(this, this.app);
     this.registerVaultIndexInvalidation();
     this.registerTaskIndexInvalidation();
-    this.register(this.taskIndex.onChange(() => this.scheduleRefreshViews("task-index-change", Platform.isMobile ? 750 : 200)));
+    this.register(
+      this.taskIndex.onChange(() => {
+        if (
+          Platform.isMobile &&
+          this.settings.taskIndexDelayOnMobile &&
+          this.taskIndex.getStatus().cacheState === "needs-update"
+        ) {
+          return;
+        }
+        this.scheduleRefreshViews("task-index-change", Platform.isMobile ? 750 : 200);
+      })
+    );
 
     this.registerView(MEMOS_PLUS_VIEW_TYPE, (leaf: WorkspaceLeaf) => new MemosPlusView(leaf, this));
     this.registerView(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new MemosPlusQuickInputView(leaf, this));
@@ -454,6 +465,9 @@ export default class MemosPlusPlugin extends Plugin {
         this.taskIndex.invalidate(file.path);
       } else {
         this.taskIndex.invalidate();
+      }
+      if (Platform.isMobile && this.settings.taskIndexDelayOnMobile) {
+        return;
       }
       if (this.shouldBuildTaskIndexForLayouts()) {
         this.taskIndex.scheduleBuild();

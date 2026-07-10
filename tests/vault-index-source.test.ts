@@ -27,4 +27,13 @@ describe("VaultIndex integration source constraints", () => {
     expect(viewSource).toContain("new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex)");
     expect(quickInputSource).toContain("new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex)");
   });
+
+  it("reuses the shared entry map instead of rebuilding every file for each picker query", () => {
+    const indexSource = readFileSync(new URL("../src/vaultIndex.ts", import.meta.url), "utf8");
+    const scanBlock = indexSource.match(/private \*scanEntries\(\)[\s\S]*?\n {2}\}/)?.[0] ?? "";
+
+    expect(scanBlock).toContain("this.entries().values()");
+    expect(scanBlock).not.toContain("getMarkdownFiles()");
+    expect(scanBlock).not.toContain("this.buildEntry(file)");
+  });
 });

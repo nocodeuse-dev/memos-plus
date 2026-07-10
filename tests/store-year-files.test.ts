@@ -205,6 +205,39 @@ describe("MemosPlusStore year files", () => {
     expect(files.get("我的资源/Memos/回退测试.md")?.content).toBe("# 回退测试\n\n正文\n");
   });
 
+  it("serializes template file creation so concurrent requests cannot claim the same path", async () => {
+    const { store, files, app } = createStore({
+      "我的资源/模板/普通.md": "# {{title}}\n"
+    });
+    const originalCreate = app.vault.create;
+    let releaseFirstCreate!: () => void;
+    const firstCreateBlocked = new Promise<void>((resolve) => {
+      releaseFirstCreate = resolve;
+    });
+    let markdownCreateCount = 0;
+    app.vault.create = vi.fn(async (path: string, content: string) => {
+      if (path.endsWith(".md")) {
+        markdownCreateCount += 1;
+        if (markdownCreateCount === 1) {
+          await firstCreateBlocked;
+        }
+      }
+      return originalCreate(path, content);
+    });
+
+    const first = store.createFileFromLibraryTemplate("我的资源/模板/普通.md", "并发新建");
+    const second = store.createFileFromLibraryTemplate("我的资源/模板/普通.md", "并发新建");
+    await Promise.resolve();
+    releaseFirstCreate();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.objectContaining({ path: "我的资源/Memos/并发新建.md" }),
+      expect.objectContaining({ path: "我的资源/Memos/并发新建 2.md" })
+    ]);
+    expect(files.has("我的资源/Memos/并发新建.md")).toBe(true);
+    expect(files.has("我的资源/Memos/并发新建 2.md")).toBe(true);
+  });
+
   it("writes new memos to a configured project file using the Memos block format", async () => {
     const { store, files } = createStore({});
 

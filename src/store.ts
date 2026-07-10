@@ -43,6 +43,7 @@ import { findTemplaterPlugin, renderWithTemplater } from "./templaterAdapter";
 import { normalizeTaskProjectTag, type ProjectTaskOptions } from "./tasksFormat";
 import { buildTemplateFileContent, buildTemplateFilePath, renderTemplateVariables, type ManagedTemplate } from "./templateManager";
 import { VaultMetadataIndex } from "./vaultIndex";
+import { logMemosPlusDiagnostic } from "./diagnostics";
 
 export interface AddMemoOptions {
   preformatted?: boolean;
@@ -54,6 +55,8 @@ export interface ProjectSendOptions {
 }
 
 export class MemosPlusStore {
+  private fileCreationQueue: Promise<void> = Promise.resolve();
+
   constructor(
     private readonly app: App,
     private readonly getSettings: () => MemosPlusSettings,
@@ -184,32 +187,55 @@ export class MemosPlusStore {
   }
 
   async createFileFromLibraryTemplate(templatePath: string, title: string, options: { tag?: string; content?: string } = {}): Promise<TFile> {
+    return this.enqueueFileCreation(() => this.createFileFromLibraryTemplateNow(templatePath, title, options));
+  }
+
+  private async createFileFromLibraryTemplateNow(
+    templatePath: string,
+    title: string,
+    options: { tag?: string; content?: string } = {}
+  ): Promise<TFile> {
     const settings = this.getSettings();
     const now = new Date();
     const basePath = buildFileTemplateTargetPath(settings.fileTemplateLibraryDefaultFolder, title);
     const path = this.uniqueMarkdownPath(basePath);
-    await this.ensureFolder(parentFolder(path));
-    const templateFile = this.getTemplateFile(templatePath);
-    const templateSource = templateFile ? await this.app.vault.read(templateFile) : "";
-    const context = {
-      title: title.trim() || "未命名",
-      content: options.content ?? "",
-      tag: options.tag,
-      folder: parentFolder(path),
-      now
-    };
-    const fallbackContent = renderFileTemplateContent(templateSource, context);
-    if (!findTemplaterPlugin(this.app)) {
-      return this.app.vault.create(path, fallbackContent);
+    const diagnosticDetail = { path, templatePath, templater: Boolean(findTemplaterPlugin(this.app)) };
+    logMemosPlusDiagnostic("file-template:create-start", diagnosticDetail);
+    try {
+      await this.ensureFolder(parentFolder(path));
+      const templateFile = this.getTemplateFile(templatePath);
+      const templateSource = templateFile ? await this.app.vault.read(templateFile) : "";
+      const context = {
+        title: title.trim() || "未命名",
+        content: options.content ?? "",
+        tag: options.tag,
+        folder: parentFolder(path),
+        now
+      };
+      const fallbackContent = renderFileTemplateContent(templateSource, context);
+      if (!findTemplaterPlugin(this.app)) {
+        const file = await this.app.vault.create(path, fallbackContent);
+        logMemosPlusDiagnostic("file-template:create-end", { ...diagnosticDetail, phase: "plain" });
+        return file;
+      }
+      const file = await this.app.vault.create(path, "");
+      logMemosPlusDiagnostic("file-template:templater-start", diagnosticDetail);
+      const templaterContent = await renderWithTemplater(this.app, {
+        templateFile,
+        targetFile: file,
+        templateSource: fallbackContent
+      });
+      logMemosPlusDiagnostic("file-template:templater-end", {
+        ...diagnosticDetail,
+        fallback: templaterContent === null
+      });
+      await this.app.vault.modify(file, templaterContent === null ? fallbackContent : finalizeFileTemplateContent(templaterContent, options.tag));
+      logMemosPlusDiagnostic("file-template:create-end", { ...diagnosticDetail, phase: "templater" });
+      return file;
+    } catch (error) {
+      logMemosPlusDiagnostic("file-template:create-error", { ...diagnosticDetail, error });
+      throw error;
     }
-    const file = await this.app.vault.create(path, "");
-    const templaterContent = await renderWithTemplater(this.app, {
-      templateFile,
-      targetFile: file,
-      templateSource: fallbackContent
-    });
-    await this.app.vault.modify(file, templaterContent === null ? fallbackContent : finalizeFileTemplateContent(templaterContent, options.tag));
-    return file;
   }
 
   async deleteFileTemplate(templatePath: string): Promise<void> {
@@ -416,6 +442,20 @@ export class MemosPlusStore {
         continue;
       }
       await this.app.vault.createFolder(current);
+    }
+  }
+
+  private async enqueueFileCreation<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.fileCreationQueue;
+    let release!: () => void;
+    this.fileCreationQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous.catch(() => undefined);
+    try {
+      return await operation();
+    } finally {
+      release();
     }
   }
 }

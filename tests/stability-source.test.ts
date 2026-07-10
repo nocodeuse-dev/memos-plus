@@ -59,4 +59,9 @@ describe("stability guardrails", () => {
     expect(excalidrawEmbedSource).not.toContain("api.embedDrawing");
     expect(excalidrawEmbedSource).toContain('new Notice("无法创建 Excalidraw 链接，请确认 Excalidraw 插件已启用")');
   });
+
+  it("honors delayed mobile task indexing during vault change events", () => {
+    expect(mainSource).toContain("Platform.isMobile && this.settings.taskIndexDelayOnMobile");
+    expect(mainSource).toContain('this.taskIndex.getStatus().cacheState === "needs-update"');
+  });
 });

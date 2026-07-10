@@ -174,8 +174,8 @@ export class VaultMetadataIndex {
   }
 
   private *scanEntries(): Iterable<VaultIndexFile> {
-    for (const file of this.app.vault.getMarkdownFiles()) {
-      yield this.buildEntry(file);
+    for (const entry of this.entries().values()) {
+      yield entry;
     }
   }
 

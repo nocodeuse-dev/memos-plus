@@ -36,7 +36,10 @@ let diagnosticsSeq = 0;
 let diagnosticsStorageLoaded = false;
 let viewportLogTimer: number | null = null;
 let windowResizeLogTimer: number | null = null;
+let diagnosticPersistTimer: number | null = null;
 let diagnosticEntries: MemosPlusDiagnosticEntry[] = [];
+
+const DIAGNOSTIC_PERSIST_DELAY_MS = 300;
 
 const diagnosticState: MemosPlusDiagnosticState = {
   currentPage: "",
@@ -77,7 +80,12 @@ export const DIAGNOSTIC_EVENT_NAMES = [
   "input:focus",
   "input:blur",
   "window:error",
-  "window:unhandledrejection"
+  "window:unhandledrejection",
+  "file-template:create-start",
+  "file-template:templater-start",
+  "file-template:templater-end",
+  "file-template:create-end",
+  "file-template:create-error"
 ] as const;
 
 export type MemosPlusDiagnosticEvent = (typeof DIAGNOSTIC_EVENT_NAMES)[number] | (string & {});
@@ -191,6 +199,7 @@ export function registerMemosPlusDiagnostics(plugin: Plugin, app: App): void {
     activeDocument.removeEventListener("focusout", handleBlur, true);
     clearViewportLogTimer();
     clearWindowResizeLogTimer();
+    flushDiagnosticEntries();
   });
 
   const visualViewport = window.visualViewport;
@@ -225,7 +234,7 @@ function appendDiagnosticEntry(entry: MemosPlusDiagnosticEntry): void {
   if (diagnosticEntries.length > MAX_DIAGNOSTIC_ENTRIES) {
     diagnosticEntries = diagnosticEntries.slice(-MAX_DIAGNOSTIC_ENTRIES);
   }
-  persistDiagnosticEntries();
+  scheduleDiagnosticPersistence();
 }
 
 function loadPersistedDiagnosticEntries(): void {
@@ -254,6 +263,24 @@ function persistDiagnosticEntries(): void {
   } catch {
     // Ignore storage quota and private-mode failures; console diagnostics still work.
   }
+}
+
+function scheduleDiagnosticPersistence(): void {
+  if (diagnosticPersistTimer !== null) {
+    return;
+  }
+  diagnosticPersistTimer = window.setTimeout(() => {
+    diagnosticPersistTimer = null;
+    persistDiagnosticEntries();
+  }, DIAGNOSTIC_PERSIST_DELAY_MS);
+}
+
+function flushDiagnosticEntries(): void {
+  if (diagnosticPersistTimer !== null) {
+    window.clearTimeout(diagnosticPersistTimer);
+    diagnosticPersistTimer = null;
+  }
+  persistDiagnosticEntries();
 }
 
 function isDiagnosticEntry(value: unknown): value is MemosPlusDiagnosticEntry {
