@@ -6,6 +6,7 @@ const quickInputSource = readFileSync("src/quickInputView.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
 const mobilePanelSource = readFileSync("src/mobilePanelView.ts", "utf8");
 const excalidrawEmbedSource = readFileSync("src/excalidrawEmbed.ts", "utf8");
+const storeSource = readFileSync("src/store.ts", "utf8");
 
 describe("stability guardrails", () => {
   it("awaits workspace reveal calls inside async view activation flows", () => {
@@ -63,5 +64,12 @@ describe("stability guardrails", () => {
   it("honors delayed mobile task indexing during vault change events", () => {
     expect(mainSource).toContain("Platform.isMobile && this.settings.taskIndexDelayOnMobile");
     expect(mainSource).toContain('this.taskIndex.getStatus().cacheState === "needs-update"');
+  });
+
+  it("records the final send-to-file write boundary without logging note content", () => {
+    expect(storeSource).toContain('logMemosPlusDiagnostic("file-target:write-start"');
+    expect(storeSource).toContain('logMemosPlusDiagnostic("file-target:write-end"');
+    expect(storeSource).toContain('logMemosPlusDiagnostic("file-target:write-error"');
+    expect(storeSource).toContain("hasHeading: Boolean(target.heading?.trim())");
   });
 });

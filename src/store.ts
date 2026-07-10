@@ -267,7 +267,15 @@ export class MemosPlusStore {
   ): Promise<void> {
     const settings = this.getSettings();
     const rendered = renderDeliveryContent(settings, file, content, taskOptions, options);
-    await insertContentAtFileTarget(this.app, file, target, rendered);
+    const diagnosticDetail = { path: file.path, position: target.position, hasHeading: Boolean(target.heading?.trim()) };
+    logMemosPlusDiagnostic("file-target:write-start", diagnosticDetail);
+    try {
+      await insertContentAtFileTarget(this.app, file, target, rendered);
+      logMemosPlusDiagnostic("file-target:write-end", diagnosticDetail);
+    } catch (error) {
+      logMemosPlusDiagnostic("file-target:write-error", { ...diagnosticDetail, error });
+      throw error;
+    }
   }
 
   async updateMemo(memo: MemoItem, content: string): Promise<void> {

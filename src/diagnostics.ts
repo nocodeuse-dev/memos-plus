@@ -85,7 +85,10 @@ export const DIAGNOSTIC_EVENT_NAMES = [
   "file-template:templater-start",
   "file-template:templater-end",
   "file-template:create-end",
-  "file-template:create-error"
+  "file-template:create-error",
+  "file-target:write-start",
+  "file-target:write-end",
+  "file-target:write-error"
 ] as const;
 
 export type MemosPlusDiagnosticEvent = (typeof DIAGNOSTIC_EVENT_NAMES)[number] | (string & {});

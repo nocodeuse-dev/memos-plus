@@ -136,6 +136,8 @@ describe("mobile interaction stability source", () => {
     expect(diagnosticsSource).toContain("scheduleDiagnosticPersistence");
     expect(diagnosticsSource).toContain("file-template:create-start");
     expect(diagnosticsSource).toContain("file-template:create-end");
+    expect(diagnosticsSource).toContain("file-target:write-start");
+    expect(diagnosticsSource).toContain("file-target:write-end");
     expect(mainSource).toContain("registerMemosPlusDiagnostics");
     expect(mainSource).toContain("exportMemosPlusDiagnosticLog");
     expect(mainSource).toContain('id: "export-diagnostic-log"');
