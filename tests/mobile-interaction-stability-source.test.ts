@@ -93,6 +93,15 @@ describe("mobile interaction stability source", () => {
     expect(saveFailureDraftBlock).not.toContain("composer.focus();");
   });
 
+  it("suspends the whole quick-capture modal container so its transparent backdrop cannot swallow the first panel tap", () => {
+    expect(quickCaptureSource).toContain("this.suspendForMobilePanel()");
+    expect(quickCaptureSource).toContain("this.resumeFromMobilePanel()");
+    expect(quickCaptureSource).toContain('this.containerEl.addClass("memos-plus-modal-suspended")');
+    expect(quickCaptureSource).toContain("this.containerEl.inert = true");
+    expect(quickCaptureSource).not.toContain('this.modalEl.addClass("memos-plus-modal-suspended")');
+    expect(stylesSource).toContain(".modal-container.memos-plus-modal-suspended");
+  });
+
   it("records diagnostic evidence that distinguishes plugin reloads from view recreation and WebView restarts", () => {
     expect(diagnosticsSource).toContain("MAX_DIAGNOSTIC_ENTRIES = 200");
     expect(diagnosticsSource).toContain("memos-plus-diagnostic-log-v1");

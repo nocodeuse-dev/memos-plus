@@ -52,11 +52,11 @@ export class QuickCaptureModal extends Modal {
         if (!selectProjectTargetOnMobile) {
           return null;
         }
-        this.modalEl.addClass("memos-plus-modal-suspended");
+        this.suspendForMobilePanel();
         try {
           return await selectProjectTargetOnMobile(options);
         } finally {
-          this.modalEl.removeClass("memos-plus-modal-suspended");
+          this.resumeFromMobilePanel();
         }
       }
     }, {
@@ -83,6 +83,22 @@ export class QuickCaptureModal extends Modal {
     this.composerSession = null;
     this.modalEl.removeClass("memos-plus-quick-capture-keyboard-shell", "is-keyboard-open");
     this.contentEl.empty();
+  }
+
+  private suspendForMobilePanel(): void {
+    const activeElement = this.containerEl.ownerDocument.activeElement;
+    if (activeElement instanceof HTMLElement && this.containerEl.contains(activeElement)) {
+      activeElement.blur();
+    }
+    this.containerEl.addClass("memos-plus-modal-suspended");
+    this.containerEl.setAttr("aria-hidden", "true");
+    this.containerEl.inert = true;
+  }
+
+  private resumeFromMobilePanel(): void {
+    this.containerEl.removeClass("memos-plus-modal-suspended");
+    this.containerEl.removeAttribute("aria-hidden");
+    this.containerEl.inert = false;
   }
 
 }

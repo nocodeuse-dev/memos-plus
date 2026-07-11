@@ -1644,7 +1644,7 @@
   --memos-plus-mobile-viewport-top: 0px;
 }
 
-.memos-plus-modal-suspended {
+.modal-container.memos-plus-modal-suspended {
   visibility: hidden;
   pointer-events: none;
 }
