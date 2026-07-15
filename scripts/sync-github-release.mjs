@@ -138,12 +138,19 @@ async function main() {
   ensureGitHubAccount();
   ensureRemote();
 
-  const version = await bumpVersion();
-  const tag = version;
+  const manifest = await readJson("manifest.json");
+  const tag = bumpPatch(manifest.version);
   ensureTagAvailable(tag);
 
+  run("git", ["diff", "--check"]);
   run("npm", ["test"]);
+  run("npm", ["run", "lint"]);
   run("npm", ["run", "build"]);
+
+  const version = await bumpVersion();
+  if (version !== tag) {
+    throw new Error(`Expected release version ${tag}, got ${version}`);
+  }
   run("npm", ["run", "check:release-version", "--", tag]);
 
   run("git", ["add", "-A"]);

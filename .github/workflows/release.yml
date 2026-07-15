@@ -32,6 +32,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Lint
+        run: npm run lint
+
       - name: Check release version
         run: npm run check:release-version -- "$GITHUB_REF_NAME"
 

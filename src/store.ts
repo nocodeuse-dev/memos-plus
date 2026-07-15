@@ -44,6 +44,7 @@ import { normalizeTaskProjectTag, type ProjectTaskOptions } from "./tasksFormat"
 import { buildTemplateFileContent, buildTemplateFilePath, renderTemplateVariables, type ManagedTemplate } from "./templateManager";
 import { VaultMetadataIndex } from "./vaultIndex";
 import { logMemosPlusDiagnostic } from "./diagnostics";
+import { SerialTaskQueue } from "./serialTaskQueue";
 
 export interface AddMemoOptions {
   preformatted?: boolean;
@@ -55,7 +56,7 @@ export interface ProjectSendOptions {
 }
 
 export class MemosPlusStore {
-  private fileCreationQueue: Promise<void> = Promise.resolve();
+  private readonly fileCreationQueue = new SerialTaskQueue();
 
   constructor(
     private readonly app: App,
@@ -152,34 +153,38 @@ export class MemosPlusStore {
   }
 
   async createProject(name: string): Promise<TFile> {
-    const settings = this.getSettings();
-    const existingPaths = new Set(this.app.vault.getFiles().map((file) => file.path));
-    const path = projectPathForName(settings.projectFolderPath, name, existingPaths);
-    await this.ensureFolder(parentFolder(path));
-    const basename = path.split("/").pop()?.replace(/\.md$/i, "") ?? name;
-    return this.app.vault.create(path, buildProjectFileContent(basename, settings.projectTag, settings.projectSections));
+    return this.enqueueFileCreation(async () => {
+      const settings = this.getSettings();
+      const existingPaths = new Set(this.app.vault.getFiles().map((file) => file.path));
+      const path = projectPathForName(settings.projectFolderPath, name, existingPaths);
+      await this.ensureFolder(parentFolder(path));
+      const basename = path.split("/").pop()?.replace(/\.md$/i, "") ?? name;
+      return this.app.vault.create(path, buildProjectFileContent(basename, settings.projectTag, settings.projectSections));
+    });
   }
 
   async createFileFromTemplate(template: ManagedTemplate, title: string, options: { tag?: string; content?: string } = {}): Promise<TFile> {
-    const now = new Date();
-    const basePath = buildTemplateFilePath(template, title, now);
-    const path = this.uniqueMarkdownPath(basePath);
-    await this.ensureFolder(parentFolder(path));
-    const templateSource = await this.readTemplateSource(template.templateFilePath);
-    return this.app.vault.create(
-      path,
-      buildTemplateFileContent(
-        template,
-        {
-          title: title.trim() || "未命名",
-          content: options.content ?? "",
-          tag: options.tag,
-          folder: parentFolder(path),
-          now
-        },
-        templateSource
-      )
-    );
+    return this.enqueueFileCreation(async () => {
+      const now = new Date();
+      const basePath = buildTemplateFilePath(template, title, now);
+      const path = this.uniqueMarkdownPath(basePath);
+      await this.ensureFolder(parentFolder(path));
+      const templateSource = await this.readTemplateSource(template.templateFilePath);
+      return this.app.vault.create(
+        path,
+        buildTemplateFileContent(
+          template,
+          {
+            title: title.trim() || "未命名",
+            content: options.content ?? "",
+            tag: options.tag,
+            folder: parentFolder(path),
+            now
+          },
+          templateSource
+        )
+      );
+    });
   }
 
   async getFileTemplateLibraryItems(): Promise<FileTemplateLibraryItem[]> {
@@ -390,13 +395,19 @@ export class MemosPlusStore {
   }
 
   private async ensureMemoFileByPath(path: string): Promise<TFile> {
-    const normalized = normalizePath(path);
-    const existing = this.app.vault.getAbstractFileByPath(normalized);
-    if (existing instanceof TFile) {
-      return existing;
-    }
-    await this.ensureFolder(parentFolder(normalized));
-    return this.app.vault.create(normalized, "");
+    return this.enqueueFileCreation(async () => {
+      const normalized = normalizePath(path);
+      const existing = this.app.vault.getAbstractFileByPath(normalized);
+      if (existing instanceof TFile) {
+        return existing;
+      }
+      await this.ensureFolder(parentFolder(normalized));
+      const createdByAnotherOperation = this.app.vault.getAbstractFileByPath(normalized);
+      if (createdByAnotherOperation instanceof TFile) {
+        return createdByAnotherOperation;
+      }
+      return this.app.vault.create(normalized, "");
+    });
   }
 
   private async readTemplateSource(path: string): Promise<string> {
@@ -449,22 +460,18 @@ export class MemosPlusStore {
       if (existing instanceof TFolder) {
         continue;
       }
-      await this.app.vault.createFolder(current);
+      try {
+        await this.app.vault.createFolder(current);
+      } catch (error) {
+        if (!(this.app.vault.getAbstractFileByPath(current) instanceof TFolder)) {
+          throw error;
+        }
+      }
     }
   }
 
   private async enqueueFileCreation<T>(operation: () => Promise<T>): Promise<T> {
-    const previous = this.fileCreationQueue;
-    let release!: () => void;
-    this.fileCreationQueue = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await previous.catch(() => undefined);
-    try {
-      return await operation();
-    } finally {
-      release();
-    }
+    return this.fileCreationQueue.run(operation);
   }
 }
 

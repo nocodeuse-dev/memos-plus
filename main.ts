@@ -22,6 +22,9 @@ import {
   registerMemosPlusDiagnostics,
   setMemosPlusDiagnosticState
 } from "./src/diagnostics";
+import { SerialTaskQueue } from "./src/serialTaskQueue";
+
+const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
 export default class MemosPlusPlugin extends Plugin {
   settings: MemosPlusSettings = normalizeSettings({});
@@ -30,6 +33,7 @@ export default class MemosPlusPlugin extends Plugin {
   taskIndex!: TaskIndex;
   private diagnosticSessionId = "";
   private taskIndexRefreshTimer: number | null = null;
+  private readonly settingsSaveQueue = new SerialTaskQueue();
   private readonly linkAnalysisTitleCache = new Map<string, Promise<string>>();
 
   async onload(): Promise<void> {
@@ -289,7 +293,6 @@ export default class MemosPlusPlugin extends Plugin {
       refreshViews: true
     });
     await this.savePluginData("saveSettings");
-    this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
     this.maybeScheduleTaskIndexBuild(0);
     await this.refreshViews("saveSettings");
   }
@@ -299,7 +302,6 @@ export default class MemosPlusPlugin extends Plugin {
       refreshViews: false
     });
     await this.savePluginData("persistSettings");
-    this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
   }
 
   private runAsyncOperation(source: string, operation: () => Promise<unknown>): void {
@@ -309,21 +311,23 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   private async savePluginData(source: string): Promise<void> {
-    setMemosPlusDiagnosticState({ isSaving: true });
-    logMemosPlusDiagnostic("data:save", { phase: "start", source });
-    try {
-      await this.saveData(this.settings);
-      logMemosPlusDiagnostic("data:save", { phase: "end", source });
-    } catch (error) {
-      logMemosPlusDiagnostic("data:save", {
-        phase: "error",
-        source,
-        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
-      });
-      throw error;
-    } finally {
-      setMemosPlusDiagnosticState({ isSaving: false });
-    }
+    return this.settingsSaveQueue.run(async () => {
+      setMemosPlusDiagnosticState({ isSaving: true });
+      logMemosPlusDiagnostic("data:save", { phase: "start", source });
+      try {
+        await this.saveData(this.settings);
+        logMemosPlusDiagnostic("data:save", { phase: "end", source });
+      } catch (error) {
+        logMemosPlusDiagnostic("data:save", {
+          phase: "error",
+          source,
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+        });
+        throw error;
+      } finally {
+        setMemosPlusDiagnosticState({ isSaving: false });
+      }
+    });
   }
 
   private scheduleRefreshViews(source: string, delayMs = 200): void {
@@ -414,9 +418,11 @@ export default class MemosPlusPlugin extends Plugin {
   private fetchCachedLinkTitle(url: string): Promise<string> {
     const cached = this.linkAnalysisTitleCache.get(url);
     if (cached) {
+      this.linkAnalysisTitleCache.delete(url);
+      this.linkAnalysisTitleCache.set(url, cached);
       return cached;
     }
-    const pending = fetchPageTitle(url, async (requestUrlValue) => {
+    const pending: Promise<string> = fetchPageTitle(url, async (requestUrlValue) => {
       const response = await requestUrl({
         url: requestUrlValue,
         method: "GET",
@@ -429,10 +435,20 @@ export default class MemosPlusPlugin extends Plugin {
         headers: response.headers
       };
     }).catch((error) => {
+      if (this.linkAnalysisTitleCache.get(url) === pending) {
+        this.linkAnalysisTitleCache.delete(url);
+      }
       console.warn("[Memos Plus] Link title request failed", error);
       return "";
     });
     this.linkAnalysisTitleCache.set(url, pending);
+    while (this.linkAnalysisTitleCache.size > LINK_ANALYSIS_TITLE_CACHE_LIMIT) {
+      const oldestUrl = this.linkAnalysisTitleCache.keys().next().value as string | undefined;
+      if (!oldestUrl) {
+        break;
+      }
+      this.linkAnalysisTitleCache.delete(oldestUrl);
+    }
     return pending;
   }
 

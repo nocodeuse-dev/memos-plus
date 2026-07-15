@@ -72,4 +72,16 @@ describe("stability guardrails", () => {
     expect(storeSource).toContain('logMemosPlusDiagnostic("file-target:write-error"');
     expect(storeSource).toContain("hasHeading: Boolean(target.heading?.trim())");
   });
+
+  it("keeps one plugin-lifetime store and serializes settings writes", () => {
+    expect(mainSource.match(/new MemosPlusStore/g)).toHaveLength(1);
+    expect(mainSource).toContain("private readonly settingsSaveQueue = new SerialTaskQueue();");
+    expect(mainSource).toContain("return this.settingsSaveQueue.run(async () => {");
+  });
+
+  it("bounds link-title caching and allows failed requests to retry", () => {
+    expect(mainSource).toContain("const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;");
+    expect(mainSource).toContain("while (this.linkAnalysisTitleCache.size > LINK_ANALYSIS_TITLE_CACHE_LIMIT)");
+    expect(mainSource).toContain("this.linkAnalysisTitleCache.delete(url);");
+  });
 });

@@ -20,6 +20,12 @@ export interface VaultSearchOptions {
   signal?: AbortSignal;
 }
 
+export interface VaultSearchCacheOptions {
+  maxCachedCharacters?: number;
+}
+
+const DEFAULT_MAX_CACHED_CHARACTERS = 2_000_000;
+
 interface CachedFileContent {
   mtime: number;
   text: string;
@@ -43,11 +49,25 @@ interface VaultSearchDocument {
 
 export class VaultSavedSearchIndex {
   private readonly contentCache = new Map<string, CachedFileContent>();
+  private cachedCharacters = 0;
+  private readonly maxCachedCharacters: number;
 
   constructor(
     private readonly app: App,
-    private readonly metadataIndex = new VaultMetadataIndex(app)
-  ) {}
+    private readonly metadataIndex = new VaultMetadataIndex(app),
+    options: VaultSearchCacheOptions = {}
+  ) {
+    this.maxCachedCharacters = normalizeCacheCharacterLimit(options.maxCachedCharacters);
+  }
+
+  clearContentCache(path?: string): void {
+    if (!path) {
+      this.contentCache.clear();
+      this.cachedCharacters = 0;
+      return;
+    }
+    this.deleteCachedContent(path);
+  }
 
   async search(search: SavedSearch, context: SavedSearchEvalContext = {}, options: VaultSearchOptions = {}): Promise<VaultSearchResult[]> {
     const conditions = search.conditions.filter(isValidCondition);
@@ -115,11 +135,41 @@ export class VaultSavedSearchIndex {
     const mtime = file.stat?.mtime ?? 0;
     const cached = this.contentCache.get(file.path);
     if (cached && cached.mtime === mtime) {
+      this.contentCache.delete(file.path);
+      this.contentCache.set(file.path, cached);
       return cached.text;
     }
+    if (cached) {
+      this.deleteCachedContent(file.path);
+    }
     const text = await this.app.vault.read(file);
-    this.contentCache.set(file.path, { mtime, text });
+    this.cacheContent(file.path, { mtime, text });
     return text;
+  }
+
+  private cacheContent(path: string, content: CachedFileContent): void {
+    if (this.maxCachedCharacters === 0 || content.text.length > this.maxCachedCharacters) {
+      return;
+    }
+    this.deleteCachedContent(path);
+    this.contentCache.set(path, content);
+    this.cachedCharacters += content.text.length;
+    while (this.cachedCharacters > this.maxCachedCharacters && this.contentCache.size > 0) {
+      const oldestPath = this.contentCache.keys().next().value as string | undefined;
+      if (!oldestPath) {
+        break;
+      }
+      this.deleteCachedContent(oldestPath);
+    }
+  }
+
+  private deleteCachedContent(path: string): void {
+    const cached = this.contentCache.get(path);
+    if (!cached) {
+      return;
+    }
+    this.cachedCharacters = Math.max(0, this.cachedCharacters - cached.text.length);
+    this.contentCache.delete(path);
   }
 }
 
@@ -217,6 +267,13 @@ function normalizePositiveLimit(value: number | undefined): number | undefined {
   }
   if (!Number.isFinite(value)) {
     return undefined;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
+function normalizeCacheCharacterLimit(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    return DEFAULT_MAX_CACHED_CHARACTERS;
   }
   return Math.max(0, Math.floor(value));
 }

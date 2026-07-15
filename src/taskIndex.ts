@@ -53,6 +53,10 @@ export class TaskIndex {
   private updatedAt = "";
   private failedFiles: string[] = [];
   private buildTimer: number | null = null;
+  private rebuildRequested = false;
+  private cancelCurrentBuild = false;
+  private invalidateAllAfterBuild = false;
+  private readonly invalidatedPathsAfterBuild = new Set<string>();
 
   constructor(private readonly app: App, private readonly options: { isMobile?: () => boolean } = {}) {}
 
@@ -77,6 +81,15 @@ export class TaskIndex {
   }
 
   invalidate(path?: string): void {
+    if (this.updating) {
+      this.rebuildRequested = true;
+      if (!path) {
+        this.invalidateAllAfterBuild = true;
+        this.invalidatedPathsAfterBuild.clear();
+      } else if (!this.invalidateAllAfterBuild) {
+        this.invalidatedPathsAfterBuild.add(normalizeVaultPath(path));
+      }
+    }
     if (!path) {
       this.fileCache.clear();
       this.items = [];
@@ -96,6 +109,12 @@ export class TaskIndex {
       window.clearTimeout(this.buildTimer);
       this.buildTimer = null;
     }
+    if (this.updating) {
+      this.cancelCurrentBuild = true;
+      this.rebuildRequested = false;
+      this.invalidateAllAfterBuild = false;
+      this.invalidatedPathsAfterBuild.clear();
+    }
     this.fileCache.clear();
     this.items = [];
     this.updatedAt = "";
@@ -110,57 +129,83 @@ export class TaskIndex {
     }
     this.buildTimer = window.setTimeout(() => {
       this.buildTimer = null;
-      void this.rebuild();
+      void this.rebuild().catch((error) => {
+        console.error("[Memos Plus] Task index rebuild failed", error);
+      });
     }, delayMs);
   }
 
   async rebuild(options: { force?: boolean; batchSize?: number } = {}): Promise<void> {
     if (this.updating) {
+      this.rebuildRequested = true;
+      this.needsUpdate = true;
       return;
     }
     this.updating = true;
+    this.rebuildRequested = false;
+    this.cancelCurrentBuild = false;
+    this.invalidateAllAfterBuild = false;
+    this.invalidatedPathsAfterBuild.clear();
     this.needsUpdate = true;
     this.failedFiles = [];
     this.emitChange();
-    const force = options.force === true;
-    const batchSize = Math.max(1, options.batchSize ?? (this.options.isMobile?.() ? 10 : 40));
-    const nextCache = new Map<string, TaskIndexFileCache>();
-    const files = this.app.vault.getMarkdownFiles();
-    for (let index = 0; index < files.length; index += batchSize) {
-      const batch = files.slice(index, index + batchSize);
-      for (const file of batch) {
-        const path = normalizeVaultPath(file.path);
-        const mtime = file.stat?.mtime ?? 0;
-        const cached = this.fileCache.get(path);
-        if (!force && cached && cached.mtime === mtime) {
-          nextCache.set(path, cached);
-          continue;
+    let completed = false;
+    try {
+      const force = options.force === true;
+      const batchSize = Math.max(1, options.batchSize ?? (this.options.isMobile?.() ? 10 : 40));
+      const nextCache = new Map<string, TaskIndexFileCache>();
+      const files = this.app.vault.getMarkdownFiles();
+      for (let index = 0; index < files.length; index += batchSize) {
+        const batch = files.slice(index, index + batchSize);
+        for (const file of batch) {
+          const path = normalizeVaultPath(file.path);
+          const mtime = file.stat?.mtime ?? 0;
+          const cached = this.fileCache.get(path);
+          if (!force && cached && cached.mtime === mtime) {
+            nextCache.set(path, cached);
+            continue;
+          }
+          try {
+            const source = await this.app.vault.cachedRead(file);
+            nextCache.set(path, {
+              mtime,
+              tasks: parseTaskIndexItemsFromMarkdown(source, {
+                filePath: path,
+                fileName: file.basename || file.name.replace(/\.md$/i, ""),
+                mtime
+              })
+            });
+          } catch {
+            this.failedFiles.push(path);
+          }
         }
-        try {
-          const source = await this.app.vault.cachedRead(file);
-          nextCache.set(path, {
-            mtime,
-            tasks: parseTaskIndexItemsFromMarkdown(source, {
-              filePath: path,
-              fileName: file.basename || file.name.replace(/\.md$/i, ""),
-              mtime
-            })
-          });
-        } catch {
-          this.failedFiles.push(path);
-        }
+        await yieldToUi();
       }
-      await yieldToUi();
+      if (!this.cancelCurrentBuild) {
+        this.fileCache.clear();
+        for (const [path, cache] of nextCache) {
+          this.fileCache.set(path, cache);
+        }
+        if (this.invalidateAllAfterBuild) {
+          this.fileCache.clear();
+        } else {
+          for (const path of this.invalidatedPathsAfterBuild) {
+            this.fileCache.delete(path);
+          }
+        }
+        this.items = Array.from(this.fileCache.values()).flatMap((entry) => entry.tasks);
+        this.updatedAt = new Date().toISOString();
+      }
+      completed = true;
+    } finally {
+      const shouldRebuild = completed && this.rebuildRequested;
+      this.updating = false;
+      this.needsUpdate = this.cancelCurrentBuild || !completed || shouldRebuild;
+      this.emitChange();
+      if (shouldRebuild) {
+        this.scheduleBuild(0);
+      }
     }
-    this.fileCache.clear();
-    for (const [path, cache] of nextCache) {
-      this.fileCache.set(path, cache);
-    }
-    this.items = Array.from(this.fileCache.values()).flatMap((entry) => entry.tasks);
-    this.updatedAt = new Date().toISOString();
-    this.updating = false;
-    this.needsUpdate = false;
-    this.emitChange();
   }
 
   async updateFile(file: TFile): Promise<void> {

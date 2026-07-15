@@ -49,7 +49,9 @@ export class MemosPlusQuickInputView extends ItemView {
   ) {
     super(leaf);
     logMemosPlusDiagnostic("view:constructor", { type: MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE });
-    this.vaultSearchIndex = new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex);
+    this.vaultSearchIndex = new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex, {
+      maxCachedCharacters: Platform.isMobile ? 500_000 : 2_000_000
+    });
   }
 
   getViewType(): string {
@@ -77,6 +79,7 @@ export class MemosPlusQuickInputView extends ItemView {
     await this.persistDraft();
     this.clearPreviewTimers();
     this.clearDirectoryRefreshTimer();
+    this.vaultSearchIndex.clearContentCache();
     this.composerSession?.destroy();
     this.composerSession = null;
     this.containerEl.children[1]?.empty();

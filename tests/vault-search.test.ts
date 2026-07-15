@@ -149,6 +149,41 @@ describe("VaultSavedSearchIndex", () => {
     expect(app.vault.read).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retain a file body that exceeds the cache character limit", async () => {
+    const { app } = createApp(
+      {
+        "项目/A.md": "# A\n这是一段超过缓存上限的全文内容\n"
+      },
+      {
+        "项目/A.md": { frontmatter: { tags: ["项目"] }, tags: [{ tag: "#项目" }] }
+      }
+    );
+    const index = new VaultSavedSearchIndex(app as never, undefined, { maxCachedCharacters: 5 });
+
+    await index.search(search([{ field: "text", operator: "contains", value: "全文内容" }]));
+    await index.search(search([{ field: "text", operator: "contains", value: "全文内容" }]));
+
+    expect(app.vault.read).toHaveBeenCalledTimes(2);
+  });
+
+  it("can release cached file bodies when a view closes", async () => {
+    const { app } = createApp(
+      {
+        "项目/A.md": "# A\n全库搜索\n"
+      },
+      {
+        "项目/A.md": { frontmatter: { tags: ["项目"] }, tags: [{ tag: "#项目" }] }
+      }
+    );
+    const index = new VaultSavedSearchIndex(app as never);
+
+    await index.search(search([{ field: "text", operator: "contains", value: "全库搜索" }]));
+    index.clearContentCache();
+    await index.search(search([{ field: "text", operator: "contains", value: "全库搜索" }]));
+
+    expect(app.vault.read).toHaveBeenCalledTimes(2);
+  });
+
   it("stops reading pure text search content after the requested result limit", async () => {
     const { app } = createApp(
       {

@@ -121,7 +121,9 @@ export class MemosPlusView extends ItemView {
   ) {
     super(leaf);
     logMemosPlusDiagnostic("view:constructor", { type: MEMOS_PLUS_VIEW_TYPE });
-    this.vaultSearchIndex = new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex);
+    this.vaultSearchIndex = new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex, {
+      maxCachedCharacters: Platform.isMobile ? 500_000 : 2_000_000
+    });
     this.organizerTasksExpanded = this.plugin.settings.organizerTasksDefaultExpanded;
   }
 
@@ -146,6 +148,7 @@ export class MemosPlusView extends ItemView {
   async onClose(): Promise<void> {
     logMemosPlusDiagnostic("view:onClose", { type: MEMOS_PLUS_VIEW_TYPE });
     this.cancelScheduledTimelineRender();
+    this.vaultSearchIndex.clearContentCache();
     this.composerSession?.destroy();
     this.composerSession = null;
     this.timelineEl = null;

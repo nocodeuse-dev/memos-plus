@@ -238,6 +238,37 @@ describe("MemosPlusStore year files", () => {
     expect(files.has("我的资源/Memos/并发新建 2.md")).toBe(true);
   });
 
+  it("serializes project creation so concurrent requests receive distinct files", async () => {
+    const { store, files, app } = createStore({});
+    const originalCreate = app.vault.create;
+    let releaseFirstCreate!: () => void;
+    const firstCreateBlocked = new Promise<void>((resolve) => {
+      releaseFirstCreate = resolve;
+    });
+    let markdownCreateCount = 0;
+    app.vault.create = vi.fn(async (path: string, content: string) => {
+      if (path.endsWith(".md")) {
+        markdownCreateCount += 1;
+        if (markdownCreateCount === 1) {
+          await firstCreateBlocked;
+        }
+      }
+      return originalCreate(path, content);
+    });
+
+    const first = store.createProject("并发项目");
+    const second = store.createProject("并发项目");
+    await Promise.resolve();
+    releaseFirstCreate();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.objectContaining({ path: "项目/并发项目.md" }),
+      expect.objectContaining({ path: "项目/并发项目 2.md" })
+    ]);
+    expect(files.has("项目/并发项目.md")).toBe(true);
+    expect(files.has("项目/并发项目 2.md")).toBe(true);
+  });
+
   it("writes new memos to a configured project file using the Memos block format", async () => {
     const { store, files } = createStore({});
 

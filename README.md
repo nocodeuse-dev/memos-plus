@@ -46,7 +46,11 @@ By default, Memos Plus writes yearly files under `我的资源/Memos`, such as `
 
 ## Privacy and security
 
-Memos Plus does not use accounts, telemetry, ads, or network requests. It only reads and writes yearly Markdown files in the folder configured in settings, plus attachments saved through the plugin.
+Memos Plus does not use accounts, telemetry, or ads. Memo, project, template,
+task, and saved-search features read or write Markdown data locally inside your
+vault. When link title analysis is enabled, only URLs you choose to analyze are
+requested to retrieve their page titles; note content is not uploaded by Memos
+Plus.
 
 ## Development
 
@@ -59,10 +63,10 @@ npm run sync
 
 Release artifacts are `main.js`, `manifest.json`, and `styles.css`.
 
-`npm run sync` is the default release loop. It bumps the patch version, runs
-tests and build, commits the release, pushes `main`, creates a GitHub tag, waits
-for the GitHub Release workflow, installs the release into the `Steamboy` vault
-from GitHub, then reloads only the `memos-plus` plugin.
+`npm run sync` is the default release loop. It runs tests, lint, and build
+before bumping the patch version, commits the release, pushes `main`, creates a
+GitHub tag, waits for the GitHub Release workflow, installs the release into the
+`Steamboy` vault from GitHub, then reloads only the `memos-plus` plugin.
 
 For emergency local-only testing, `npm run sync:local` keeps the old direct
 build-and-copy behavior.
@@ -121,7 +125,7 @@ git tag 0.1.123
 git push origin main 0.1.123
 ```
 
-The GitHub Actions release workflow runs tests, checks the release version,
+The GitHub Actions release workflow runs tests and lint, checks the release version,
 builds `main.js`, and publishes the three Obsidian release assets:
 `main.js`, `manifest.json`, and `styles.css`.
 

@@ -24,8 +24,10 @@ describe("VaultIndex integration source constraints", () => {
   });
 
   it("passes the shared metadata index into vault saved search consumers", () => {
-    expect(viewSource).toContain("new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex)");
-    expect(quickInputSource).toContain("new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex)");
+    expect(viewSource).toContain("new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex, {");
+    expect(quickInputSource).toContain("new VaultSavedSearchIndex(this.app, this.plugin.vaultIndex, {");
+    expect(viewSource).toContain("maxCachedCharacters: Platform.isMobile ? 500_000 : 2_000_000");
+    expect(quickInputSource).toContain("maxCachedCharacters: Platform.isMobile ? 500_000 : 2_000_000");
   });
 
   it("reuses the shared entry map instead of rebuilding every file for each picker query", () => {

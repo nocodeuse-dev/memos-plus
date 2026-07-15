@@ -171,4 +171,106 @@ describe("TaskIndex helpers", () => {
       })
     );
   });
+
+  it("rebuilds again when a file changes during an active rebuild", async () => {
+    vi.stubGlobal("window", { setTimeout, clearTimeout });
+    const file = {
+      path: "我的资源/Memos/memos plus.md",
+      name: "memos plus.md",
+      basename: "memos plus",
+      extension: "md",
+      stat: { mtime: 1 }
+    };
+    let source = "- [ ] 旧任务";
+    let reads = 0;
+    let releaseFirstRead!: () => void;
+    let markFirstReadStarted!: () => void;
+    const firstReadBlocked = new Promise<void>((resolve) => {
+      releaseFirstRead = resolve;
+    });
+    const firstReadStarted = new Promise<void>((resolve) => {
+      markFirstReadStarted = resolve;
+    });
+    const index = new TaskIndex({
+      vault: {
+        getMarkdownFiles: () => [file],
+        cachedRead: async () => {
+          reads += 1;
+          const captured = source;
+          if (reads === 1) {
+            markFirstReadStarted();
+            await firstReadBlocked;
+          }
+          return captured;
+        }
+      }
+    } as never);
+
+    const firstRebuild = index.rebuild({ batchSize: 1 });
+    await firstReadStarted;
+    source = "- [ ] 新任务";
+    file.stat.mtime = 2;
+    index.invalidate(file.path);
+    releaseFirstRead();
+    await firstRebuild;
+
+    expect(index.getStatus().cacheState).toBe("needs-update");
+    await waitForTaskIndex(index, "normal");
+    expect(index.getItems().map((item) => item.text)).toEqual(["新任务"]);
+    expect(reads).toBe(2);
+  });
+
+  it("honors a manual clear-and-rebuild request made during an active rebuild", async () => {
+    vi.stubGlobal("window", { setTimeout, clearTimeout });
+    const file = {
+      path: "项目/任务.md",
+      name: "任务.md",
+      basename: "任务",
+      extension: "md",
+      stat: { mtime: 1 }
+    };
+    let reads = 0;
+    let releaseFirstRead!: () => void;
+    let markFirstReadStarted!: () => void;
+    const firstReadBlocked = new Promise<void>((resolve) => {
+      releaseFirstRead = resolve;
+    });
+    const firstReadStarted = new Promise<void>((resolve) => {
+      markFirstReadStarted = resolve;
+    });
+    const index = new TaskIndex({
+      vault: {
+        getMarkdownFiles: () => [file],
+        cachedRead: async () => {
+          reads += 1;
+          if (reads === 1) {
+            markFirstReadStarted();
+            await firstReadBlocked;
+          }
+          return "- [ ] 手动重建任务";
+        }
+      }
+    } as never);
+
+    const firstRebuild = index.rebuild({ batchSize: 1 });
+    await firstReadStarted;
+    index.clearCache();
+    const requestedRebuild = index.rebuild({ force: true, batchSize: 1 });
+    releaseFirstRead();
+    await Promise.all([firstRebuild, requestedRebuild]);
+
+    await waitForTaskIndex(index, "normal");
+    expect(index.getItems().map((item) => item.text)).toEqual(["手动重建任务"]);
+    expect(reads).toBe(2);
+  });
 });
+
+async function waitForTaskIndex(index: TaskIndex, expected: "normal" | "needs-update", timeoutMs = 200): Promise<void> {
+  const startedAt = Date.now();
+  while (index.getStatus().cacheState !== expected) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error(`Timed out waiting for task index state ${expected}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
