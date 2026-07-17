@@ -86,6 +86,10 @@ export const DIAGNOSTIC_EVENT_NAMES = [
   "file-template:templater-end",
   "file-template:create-end",
   "file-template:create-error",
+  "mobile-template-picker:open",
+  "mobile-template-picker:load-start",
+  "mobile-template-picker:load-end",
+  "mobile-template-picker:load-error",
   "file-target:write-start",
   "file-target:write-end",
   "file-target:write-error"

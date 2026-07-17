@@ -2,6 +2,8 @@ import { Notice, type App, type TFile } from "obsidian";
 
 const TEMPLATER_PLUGIN_ID = "templater-obsidian";
 const TEMPLATER_RUN_MODE_CREATE_NEW_FROM_TEMPLATE = 0;
+const DEFAULT_TEMPLATER_TIMEOUT_MS = 30_000;
+const INTERACTIVE_TEMPLATER_TIMEOUT_MS = 120_000;
 
 interface ObsidianPluginRegistry {
   enabledPlugins?: Set<string> | string[];
@@ -28,6 +30,7 @@ export interface TemplaterRenderOptions {
   templateFile: TFile | null;
   targetFile: TFile;
   templateSource: string;
+  timeoutMs?: number;
 }
 
 export function findTemplaterPlugin(app: App): TemplaterPlugin | null {
@@ -51,26 +54,53 @@ export async function renderWithTemplater(app: App, options: TemplaterRenderOpti
   try {
     const config = createTemplaterRunningConfig(app, templater, options);
     const targetPath = options.targetFile.path;
+    const timeoutMs = resolveTemplaterTimeout(options);
     let taskStarted = false;
     if (targetPath && typeof templater.start_templater_task === "function") {
       templater.start_templater_task(targetPath);
       taskStarted = true;
     }
     try {
-      const rendered =
+      const renderPromise =
         typeof templater.parse_template === "function"
-          ? await templater.parse_template(config, options.templateSource)
-          : await templater.read_and_parse_template?.(config);
+          ? templater.parse_template(config, options.templateSource)
+          : templater.read_and_parse_template?.(config) ?? Promise.resolve(null);
+      const rendered = await withTimeout(renderPromise, timeoutMs);
       return typeof rendered === "string" ? rendered : null;
     } finally {
       if (taskStarted && typeof templater.end_templater_task === "function") {
-        await templater.end_templater_task(targetPath);
+        await withTimeout(Promise.resolve(templater.end_templater_task(targetPath)), Math.min(timeoutMs, 5_000));
       }
     }
   } catch (error) {
     console.warn("[Memos Plus] Templater render failed, falling back to Memos Plus template variables", error);
     new Notice("Templater 渲染失败，已使用 Memos Plus 模板变量回退");
     return null;
+  }
+}
+
+function resolveTemplaterTimeout(options: TemplaterRenderOptions): number {
+  if (typeof options.timeoutMs === "number" && Number.isFinite(options.timeoutMs)) {
+    return Math.max(1, Math.floor(options.timeoutMs));
+  }
+  return /tp\.system\.(?:prompt|suggester|multi_suggester)\s*\(/.test(options.templateSource)
+    ? INTERACTIVE_TEMPLATER_TIMEOUT_MS
+    : DEFAULT_TEMPLATER_TIMEOUT_MS;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`Templater rendering timed out after ${timeoutMs}ms`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
   }
 }
 

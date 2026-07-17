@@ -84,4 +84,11 @@ describe("stability guardrails", () => {
     expect(mainSource).toContain("while (this.linkAnalysisTitleCache.size > LINK_ANALYSIS_TITLE_CACHE_LIMIT)");
     expect(mainSource).toContain("this.linkAnalysisTitleCache.delete(url);");
   });
+
+  it("isolates slow Templater creation from ordinary file creation", () => {
+    expect(storeSource).toContain("private readonly fileCreationQueue = new SerialTaskQueue();");
+    expect(storeSource).toContain("private readonly templateFileCreationQueue = new SerialTaskQueue();");
+    expect(storeSource).toContain("return this.templateFileCreationQueue.run");
+    expect(storeSource).toContain("return scanFileTemplateLibrary(this.app, this.getSettings());");
+  });
 });

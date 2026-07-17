@@ -1,4 +1,4 @@
-import { App, TFile, normalizePath } from "obsidian";
+import { App, TFile, TFolder, normalizePath } from "obsidian";
 import { normalizeFileTag } from "./fileSend";
 import { renderTemplateVariables, type TemplateVariableContext } from "./templateManager";
 
@@ -344,15 +344,8 @@ export function addTemplatePathToFileTemplateTab(tabs: FileTemplateTab[], tabId:
 
 export async function scanFileTemplateLibrary(app: App, settings: FileTemplateLibrarySettings): Promise<FileTemplateLibraryItem[]> {
   const folder = normalizeFileTemplateLibraryFolder(settings.fileTemplateLibraryFolder);
-  const prefix = folder ? `${folder}/` : "";
   const recent = new Set(normalizeFileTemplateLibraryPaths(settings.fileTemplateLibraryRecent));
-  const files = app.vault
-    .getMarkdownFiles()
-    .filter((file) => {
-      const path = normalizePath(file.path);
-      return path === `${folder}.md` || (prefix ? path.startsWith(prefix) : true);
-    })
-    .sort((left, right) => left.path.localeCompare(right.path));
+  const files = templateFilesInFolder(app, folder).sort((left, right) => left.path.localeCompare(right.path));
 
   return files.map((file) => {
     const path = normalizePath(file.path);
@@ -366,6 +359,28 @@ export async function scanFileTemplateLibrary(app: App, settings: FileTemplateLi
       file
     };
   });
+}
+
+function templateFilesInFolder(app: App, folderPath: string): TFile[] {
+  const folder = app.vault.getAbstractFileByPath(folderPath);
+  const files: TFile[] = [];
+  const standalone = app.vault.getAbstractFileByPath(`${folderPath}.md`);
+  if (standalone instanceof TFile && standalone.extension === "md") {
+    files.push(standalone);
+  }
+  if (!(folder instanceof TFolder)) {
+    return files;
+  }
+  const pending = [...folder.children];
+  while (pending.length > 0) {
+    const entry = pending.pop();
+    if (entry instanceof TFolder) {
+      pending.push(...entry.children);
+    } else if (entry instanceof TFile && entry.extension === "md") {
+      files.push(entry);
+    }
+  }
+  return files;
 }
 
 export function buildFileTemplateTargetPath(folder: string, title: string): string {

@@ -11,6 +11,7 @@ import {
   buildFileTemplateTargetPath,
   finalizeFileTemplateContent,
   renderFileTemplateContent,
+  scanFileTemplateLibrary,
   type FileTemplateLibraryItem
 } from "./fileTemplateLibrary";
 import {
@@ -57,6 +58,7 @@ export interface ProjectSendOptions {
 
 export class MemosPlusStore {
   private readonly fileCreationQueue = new SerialTaskQueue();
+  private readonly templateFileCreationQueue = new SerialTaskQueue();
 
   constructor(
     private readonly app: App,
@@ -188,11 +190,11 @@ export class MemosPlusStore {
   }
 
   async getFileTemplateLibraryItems(): Promise<FileTemplateLibraryItem[]> {
-    return this.vaultIndex.scanFileTemplateLibrary(this.getSettings());
+    return scanFileTemplateLibrary(this.app, this.getSettings());
   }
 
   async createFileFromLibraryTemplate(templatePath: string, title: string, options: { tag?: string; content?: string } = {}): Promise<TFile> {
-    return this.enqueueFileCreation(() => this.createFileFromLibraryTemplateNow(templatePath, title, options));
+    return this.templateFileCreationQueue.run(() => this.createFileFromLibraryTemplateNow(templatePath, title, options));
   }
 
   private async createFileFromLibraryTemplateNow(

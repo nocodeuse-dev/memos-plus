@@ -25,6 +25,7 @@ import { createTaskOptionsForm } from "./taskOptionsForm";
 import { findManagedTemplateForHeading, resolveTemplateTaskDecision, shouldPromptForHeadingBoundTask, type ManagedTemplate } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode } from "./tasksFormat";
 import type MemosPlusPlugin from "../main";
+import { logMemosPlusDiagnostic } from "./diagnostics";
 
 export const MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE = "memos-plus-mobile-panel";
 
@@ -495,42 +496,15 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (!options) {
       return;
     }
-    if (this.activeTabId === "search") {
-      await this.renderTemplatePicker(this.fileQuery.trim(), options.defaultFileTag);
-      return;
-    }
-    const preferredPath = this.preferredTemplatePathForActiveTab();
-    if (!preferredPath) {
-      this.noticeMissingTabTemplate();
-      return;
-    }
-    let templates: FileTemplateLibraryItem[] = [];
-    try {
-      templates = this.fileTemplatesCache ?? (await options.onLoadFileTemplates());
-      this.fileTemplatesCache = templates;
-    } catch (error) {
-      console.error("[Memos Plus] Failed to validate mobile tab quick-create template", error);
-    }
-    if (!templates.some((item) => item.path === preferredPath)) {
-      this.noticeMissingTabTemplate();
-      return;
-    }
-    const tab = this.fileTemplateTabs.find((item) => customTabId(item.id) === this.activeTabId);
-    const tag = tab?.type === "tag-filter" ? tab.tags[0] ?? "" : "";
-    await this.renderTemplatePicker(this.tabSearchQueries.get(this.activeTabId)?.trim() ?? "", tag, preferredPath);
+    const isSearch = this.activeTabId === "search";
+    const tab = isSearch ? undefined : this.fileTemplateTabs.find((item) => customTabId(item.id) === this.activeTabId);
+    const initialTitle = isSearch ? this.fileQuery.trim() : this.tabSearchQueries.get(this.activeTabId)?.trim() ?? "";
+    const tag = tab?.type === "tag-filter" ? tab.tags[0] ?? "" : options.defaultFileTag;
+    await this.renderTemplatePicker(initialTitle, tag, isSearch ? "" : this.preferredTemplatePathForActiveTab());
   }
 
   private preferredTemplatePathForActiveTab(): string {
     return this.options?.tabTemplateBindings?.[this.activeTabId] ?? "";
-  }
-
-  private noticeMissingTabTemplate(): void {
-    const options = this.options;
-    if (!options) {
-      return;
-    }
-    new Notice(t(options.language, "projectSend.tabTemplateMissing"));
-    options.onOpenTabTemplateBindings?.(this.activeTabId);
   }
 
   private async saveDefault(button: HTMLButtonElement): Promise<void> {
@@ -666,6 +640,10 @@ export class MemosPlusMobilePanelView extends ItemView {
     }
     this.step = "chooseTemplate";
     this.contentEl.empty();
+    logMemosPlusDiagnostic("mobile-template-picker:open", {
+      activeTabId: this.activeTabId,
+      hasPreferredTemplate: Boolean(preferredPath)
+    });
     this.renderTopBar(t(options.language, "fileTemplateLibrary.useTemplateCreate"), () => this.renderTargetPicker());
     const content = this.contentEl.createDiv({ cls: "memos-plus-mobile-panel-content" });
     const titleInput = createTextField(content, t(options.language, "fileTemplateLibrary.fileName"), initialTitle || "未命名");
@@ -677,12 +655,23 @@ export class MemosPlusMobilePanelView extends ItemView {
     const list = content.createDiv({ cls: "memos-plus-file-template-list memos-plus-mobile-template-list" });
     list.createDiv({ cls: "memos-plus-project-empty", text: t(options.language, "common.loading") });
     const token = this.nextRenderToken();
+    await this.waitForPanelFrame();
+    if (!this.isRenderCurrent(token, list) || this.step !== "chooseTemplate") {
+      return;
+    }
     let templates: FileTemplateLibraryItem[] = [];
+    const loadStartedAt = Date.now();
+    logMemosPlusDiagnostic("mobile-template-picker:load-start");
     try {
       templates = this.fileTemplatesCache ?? (await options.onLoadFileTemplates());
       this.fileTemplatesCache = templates;
+      logMemosPlusDiagnostic("mobile-template-picker:load-end", {
+        count: templates.length,
+        elapsedMs: Date.now() - loadStartedAt
+      });
     } catch (error) {
       console.error("[Memos Plus] Failed to load mobile file templates", error);
+      logMemosPlusDiagnostic("mobile-template-picker:load-error", { error });
     }
     if (!this.isRenderCurrent(token, list) || this.step !== "chooseTemplate") {
       return;
@@ -707,6 +696,10 @@ export class MemosPlusMobilePanelView extends ItemView {
         tabs.scrollLeft = this.mobileTemplateTabsScrollLeft;
       });
     });
+  }
+
+  private waitForPanelFrame(): Promise<void> {
+    return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
   }
 
   private renderMobileTemplateTabs(container: HTMLElement): HTMLElement {

@@ -201,6 +201,31 @@ describe("project send modal source", () => {
     expect(i18nSource).toContain('"settings.tabTemplateBindings"');
   });
 
+  it("opens the template picker immediately from every desktop and mobile file tab", () => {
+    const desktopQuickCreateSource = modalSource.slice(
+      modalSource.indexOf("private openQuickCreateForActiveTab"),
+      modalSource.indexOf("private preferredTemplatePathForActiveTab")
+    );
+    const mobileQuickCreateSource = mobilePanelSource.slice(
+      mobilePanelSource.indexOf("private async openQuickCreateForActiveTab"),
+      mobilePanelSource.indexOf("private preferredTemplatePathForActiveTab")
+    );
+    const mobileTemplateSource = mobilePanelSource.slice(
+      mobilePanelSource.indexOf("private async renderTemplatePicker"),
+      mobilePanelSource.indexOf("private renderMobileTemplateTabs")
+    );
+
+    expect(desktopQuickCreateSource).toContain("this.openFileTemplateLibraryModal(tag, preferredPath)");
+    expect(desktopQuickCreateSource).not.toContain("onLoadFileTemplates");
+    expect(desktopQuickCreateSource).not.toContain("noticeMissingTabTemplate");
+    expect(mobileQuickCreateSource).toContain("await this.renderTemplatePicker");
+    expect(mobileQuickCreateSource).not.toContain("onLoadFileTemplates");
+    expect(mobileQuickCreateSource).not.toContain("noticeMissingTabTemplate");
+    expect(mobileTemplateSource.indexOf("await this.waitForPanelFrame()")).toBeLessThan(
+      mobileTemplateSource.indexOf("await options.onLoadFileTemplates()")
+    );
+  });
+
   it("uses the active search text as the initial new-file title before tab labels", () => {
     const createTitleSource = modalSource.slice(
       modalSource.indexOf("private activeCreateFileQuery"),

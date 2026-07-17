@@ -7,13 +7,14 @@ const viewSource = readFileSync(new URL("../src/view.ts", import.meta.url), "utf
 const quickInputSource = readFileSync(new URL("../src/quickInputView.ts", import.meta.url), "utf8");
 
 describe("VaultIndex integration source constraints", () => {
-  it("routes store metadata lookups through the shared VaultMetadataIndex", () => {
+  it("routes broad metadata lookups through the shared index and keeps template loading folder-scoped", () => {
     expect(storeSource).toContain('from "./vaultIndex"');
     expect(storeSource).toContain("private readonly vaultIndex");
     expect(storeSource).toContain("this.vaultIndex.getProjectInfos");
     expect(storeSource).toContain("this.vaultIndex.getTaggedFileInfos");
     expect(storeSource).toContain("this.vaultIndex.searchMarkdownFileInfos");
-    expect(storeSource).toContain("this.vaultIndex.scanFileTemplateLibrary");
+    expect(storeSource).toContain("scanFileTemplateLibrary(this.app, this.getSettings())");
+    expect(storeSource).not.toContain("this.vaultIndex.scanFileTemplateLibrary");
   });
 
   it("invalidates the shared vault index from plugin vault and metadata events", () => {

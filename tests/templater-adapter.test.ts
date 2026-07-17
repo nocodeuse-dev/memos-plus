@@ -98,4 +98,36 @@ describe("templater adapter", () => {
     ).resolves.toBeNull();
     expect(notices.at(-1)).toContain("Templater");
   });
+
+  it("falls back instead of waiting forever when Templater stalls", async () => {
+    vi.useFakeTimers();
+    notices.length = 0;
+    try {
+      const app = {
+        plugins: {
+          enabledPlugins: new Set(["templater-obsidian"]),
+          plugins: {
+            "templater-obsidian": {
+              templater: {
+                parse_template: vi.fn(() => new Promise(() => undefined))
+              }
+            }
+          }
+        }
+      };
+      const render = renderWithTemplater(app as never, {
+        templateFile: null,
+        targetFile: { path: "笔记/超时.md", basename: "超时" } as never,
+        templateSource: "# 超时回退",
+        timeoutMs: 20
+      });
+
+      await vi.advanceTimersByTimeAsync(21);
+
+      await expect(render).resolves.toBeNull();
+      expect(notices.at(-1)).toContain("Templater");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

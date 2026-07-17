@@ -1492,38 +1492,16 @@ export class ProjectSendModal extends Modal {
     }
   }
 
-  private async openQuickCreateForActiveTab(): Promise<void> {
-    if (this.activeTabId() === "search") {
-      this.openFileTemplateLibraryModal();
-      return;
-    }
-    const preferredPath = this.preferredTemplatePathForActiveTab();
-    if (!preferredPath) {
-      this.noticeMissingTabTemplate();
-      return;
-    }
-    let templates: FileTemplateLibraryItem[] = [];
-    try {
-      templates = await this.options.onLoadFileTemplates();
-    } catch (error) {
-      console.error("[Memos Plus] Failed to validate tab quick-create template", error);
-    }
-    if (!templates.some((item) => item.path === preferredPath)) {
-      this.noticeMissingTabTemplate();
-      return;
-    }
-    const tab = getCustomTabFromTabId(this.activeTabId(), this.fileTemplateTabs);
+  private openQuickCreateForActiveTab(): void {
+    const activeTabId = this.activeTabId();
+    const tab = activeTabId === "search" ? undefined : getCustomTabFromTabId(activeTabId, this.fileTemplateTabs);
     const tag = tab?.type === "tag-filter" ? tab.tags[0] ?? "" : "";
+    const preferredPath = activeTabId === "search" ? "" : this.preferredTemplatePathForActiveTab();
     this.openFileTemplateLibraryModal(tag, preferredPath);
   }
 
   private preferredTemplatePathForActiveTab(): string {
     return this.options.tabTemplateBindings?.[this.activeTabId()] ?? "";
-  }
-
-  private noticeMissingTabTemplate(): void {
-    new Notice(t(this.options.language, "projectSend.tabTemplateMissing"));
-    this.options.onOpenTabTemplateBindings?.(this.activeTabId());
   }
 
   private updateFileSearchCreateButton(button: HTMLButtonElement): void {

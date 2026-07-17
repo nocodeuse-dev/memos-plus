@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { TFile, TFolder } from "obsidian";
 import {
   DEFAULT_FILE_TEMPLATE_LIBRARY_INTERACTION,
   FILE_TEMPLATE_LIBRARY_TAB_ALL,
@@ -21,12 +22,33 @@ import {
   normalizeFileTemplateTabs,
   normalizeFileTemplateLibraryPaths,
   renderFileTemplateContent,
+  scanFileTemplateLibrary,
   type FileTemplateLibraryItem
 } from "../src/fileTemplateLibrary";
 
-vi.mock("obsidian", () => ({
-  normalizePath: (value: string) => value.replace(/\/+/g, "/").replace(/\/$/, "")
-}));
+vi.mock("obsidian", () => {
+  class TFile {
+    name: string;
+    basename: string;
+    extension: string;
+    stat = { mtime: 0 };
+
+    constructor(readonly path: string) {
+      this.name = path.split("/").pop() ?? path;
+      this.basename = this.name.replace(/\.md$/i, "");
+      this.extension = this.name.split(".").pop() ?? "";
+    }
+  }
+  class TFolder {
+    constructor(readonly path: string, readonly children: Array<TFile | TFolder> = []) {}
+  }
+  return {
+    App: class {},
+    TFile,
+    TFolder,
+    normalizePath: (value: string) => value.replace(/\/+/g, "/").replace(/\/$/, "")
+  };
+});
 
 const items: FileTemplateLibraryItem[] = [
   {
@@ -48,6 +70,36 @@ const items: FileTemplateLibraryItem[] = [
 ];
 
 describe("file template library", () => {
+  it("scans only the configured template folder tree", async () => {
+    const template = makeTemplateFile("我的资源/模板/项目模板.md");
+    const nestedTemplate = makeTemplateFile("我的资源/模板/疾病/病历.md");
+    const nestedFolder = makeTemplateFolder("我的资源/模板/疾病", [nestedTemplate]);
+    const templateFolder = makeTemplateFolder("我的资源/模板", [template, nestedFolder]);
+    const getMarkdownFiles = vi.fn(() => {
+      throw new Error("full-vault scan should not run");
+    });
+    const app = {
+      vault: {
+        getAbstractFileByPath: vi.fn((path: string) => (path === "我的资源/模板" ? templateFolder : null)),
+        getMarkdownFiles
+      },
+      metadataCache: {
+        getFileCache: vi.fn(() => null)
+      }
+    };
+
+    const result = await scanFileTemplateLibrary(app as never, {
+      fileTemplateLibraryFolder: "我的资源/模板",
+      fileTemplateLibraryDefaultFolder: "我的资源/笔记库",
+      fileTemplateLibraryRecent: [],
+      fileTemplateLibraryDefaults: {}
+    });
+
+    expect(result.map((item) => item.path)).toEqual(["我的资源/模板/疾病/病历.md", "我的资源/模板/项目模板.md"]);
+    expect(getMarkdownFiles).not.toHaveBeenCalled();
+    expect(app.metadataCache.getFileCache).toHaveBeenCalledTimes(2);
+  });
+
   it("normalizes template library paths", () => {
     expect(normalizeFileTemplateLibraryPaths([" 我的资源//模板/疾病.md ", "", "我的资源/模板/疾病.md"])).toEqual([
       "我的资源/模板/疾病.md"
@@ -227,3 +279,13 @@ describe("file template library", () => {
     expect(buildFileTemplateTargetPath("我的资源/项目", "Obsidian-视频播放器.md")).toBe("我的资源/项目/Obsidian-视频播放器.md");
   });
 });
+
+function makeTemplateFile(path: string): TFile {
+  const FileCtor = TFile as unknown as new (path: string) => TFile;
+  return new FileCtor(path);
+}
+
+function makeTemplateFolder(path: string, children: Array<TFile | TFolder>): TFolder {
+  const FolderCtor = TFolder as unknown as new (path: string, children: Array<TFile | TFolder>) => TFolder;
+  return new FolderCtor(path, children);
+}
