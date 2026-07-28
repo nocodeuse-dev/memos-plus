@@ -84,7 +84,7 @@ export class VaultSavedSearchIndex {
     const metadataConditions = conditions.filter((condition) => !conditionNeedsContent(condition));
     const canPrefilterByMetadata = search.match === "all" && needsContent && metadataConditions.length > 0;
     let contentReads = 0;
-    for (const entry of orderEntriesForSearch(this.metadataIndex.getEntries(), Boolean(maxResults || maxContentReads))) {
+    for (const entry of orderEntriesForSearch(await this.metadataIndex.getEntriesAsync(), Boolean(maxResults || maxContentReads))) {
       if (options.signal?.aborted) {
         break;
       }

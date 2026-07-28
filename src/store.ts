@@ -119,27 +119,27 @@ export class MemosPlusStore {
   }
 
   async getProjectFiles(): Promise<TFile[]> {
-    return this.vaultIndex.getProjectFiles(this.getSettings().projectTag);
+    return this.vaultIndex.getProjectFilesAsync(this.getSettings().projectTag);
   }
 
   async getProjects(): Promise<ProjectInfo[]> {
     const settings = this.getSettings();
-    return this.vaultIndex.getProjectInfos(settings.projectTag, {
+    return this.vaultIndex.getProjectInfosAsync(settings.projectTag, {
       recentProjectPaths: settings.recentProjectPaths,
       showArchivedProjects: settings.showArchivedProjects
     });
   }
 
   async getAllFileSendTags(): Promise<string[]> {
-    return this.vaultIndex.getAllTagOptions();
+    return this.vaultIndex.getAllTagOptionsAsync();
   }
 
   async getTaggedFileTargets(tagQuery: string): Promise<TaggedFileInfo[]> {
-    return this.vaultIndex.getTaggedFileInfos(tagQuery);
+    return this.vaultIndex.getTaggedFileInfosAsync(tagQuery);
   }
 
   async searchFileTargets(query: string): Promise<TaggedFileInfo[]> {
-    return this.vaultIndex.searchMarkdownFileInfos(query);
+    return this.vaultIndex.searchMarkdownFileInfosAsync(query);
   }
 
   async getRecentFileTargets(): Promise<TaggedFileInfo[]> {

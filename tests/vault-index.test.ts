@@ -47,6 +47,46 @@ function createApp(caches: Record<string, unknown>, mtimes: Record<string, numbe
 }
 
 describe("VaultMetadataIndex", () => {
+  it("builds the first full index cooperatively and applies invalidations received while warming", async () => {
+    const { app } = createApp({
+      "A.md": { frontmatter: { tags: ["旧"] } },
+      "B.md": { frontmatter: { tags: ["保留"] } },
+      "C.md": { frontmatter: { tags: ["第三"] } }
+    });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("window", {
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return frames.length;
+      })
+    });
+    try {
+      const index = new VaultMetadataIndex(app as never);
+      const warming = index.getEntriesAsync(1);
+      await Promise.resolve();
+
+      expect(frames.length).toBeGreaterThan(0);
+      (app.metadataCache.getFileCache as ReturnType<typeof vi.fn>).mockImplementation((file: TFile) => {
+        if (file.path === "A.md") {
+          return { frontmatter: { tags: ["新"] } };
+        }
+        return file.path === "B.md" ? { frontmatter: { tags: ["保留"] } } : { frontmatter: { tags: ["第三"] } };
+      });
+      index.invalidate("A.md");
+
+      while (frames.length > 0) {
+        frames.shift()?.(performance.now());
+        await Promise.resolve();
+      }
+      await warming;
+
+      expect(await index.getAllTagOptionsAsync()).toEqual(expect.arrayContaining(["保留", "新", "第三"]));
+      expect(app.vault.getMarkdownFiles).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("builds metadata results for files, tags, projects, headings, and template library items", () => {
     const { app } = createApp(
       {

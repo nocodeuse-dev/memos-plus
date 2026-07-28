@@ -2,6 +2,7 @@ import { Platform, TFile, normalizePath, type App, type Plugin } from "obsidian"
 
 interface DiagnosticsConfig {
   enabled: boolean;
+  persistent?: boolean;
   sessionId: string;
   version?: string;
 }
@@ -30,6 +31,7 @@ const DIAGNOSTIC_STORAGE_KEY = "memos-plus-diagnostic-log-v1";
 const DIAGNOSTIC_EXPORT_PATH = "Memos Plus Debug Log.md";
 
 let diagnosticsEnabled = false;
+let diagnosticsPersistent = false;
 let diagnosticsSessionId = "";
 let diagnosticsVersion = "";
 let diagnosticsSeq = 0;
@@ -37,6 +39,7 @@ let diagnosticsStorageLoaded = false;
 let viewportLogTimer: number | null = null;
 let windowResizeLogTimer: number | null = null;
 let diagnosticPersistTimer: number | null = null;
+let diagnosticPersistRequested = false;
 let diagnosticEntries: MemosPlusDiagnosticEntry[] = [];
 
 const DIAGNOSTIC_PERSIST_DELAY_MS = 300;
@@ -104,6 +107,7 @@ export function createMemosPlusSessionId(): string {
 export function configureMemosPlusDiagnostics(config: DiagnosticsConfig): void {
   loadPersistedDiagnosticEntries();
   diagnosticsEnabled = config.enabled;
+  diagnosticsPersistent = config.persistent ?? config.enabled;
   if (diagnosticsSessionId !== config.sessionId) {
     diagnosticsSeq = 0;
   }
@@ -130,8 +134,11 @@ export function logMemosPlusDiagnostic(event: MemosPlusDiagnosticEvent, detail: 
     ...diagnosticState,
     detail: sanitizeRecord(detail)
   };
-  appendDiagnosticEntry(entry);
-  console.warn("[Memos Plus diag]", entry);
+  const persist = diagnosticsPersistent || shouldPersistDiagnosticEvent(event);
+  appendDiagnosticEntry(entry, persist);
+  if (persist) {
+    console.warn("[Memos Plus diag]", entry);
+  }
 }
 
 export function getMemosPlusDiagnosticEntries(limit = MAX_DIAGNOSTIC_ENTRIES): MemosPlusDiagnosticEntry[] {
@@ -235,13 +242,28 @@ export function registerMemosPlusDiagnostics(plugin: Plugin, app: App): void {
   });
 }
 
-function appendDiagnosticEntry(entry: MemosPlusDiagnosticEntry): void {
+function appendDiagnosticEntry(entry: MemosPlusDiagnosticEntry, persist: boolean): void {
   loadPersistedDiagnosticEntries();
   diagnosticEntries.push(entry);
   if (diagnosticEntries.length > MAX_DIAGNOSTIC_ENTRIES) {
     diagnosticEntries = diagnosticEntries.slice(-MAX_DIAGNOSTIC_ENTRIES);
   }
-  scheduleDiagnosticPersistence();
+  if (persist) {
+    scheduleDiagnosticPersistence();
+  }
+}
+
+function shouldPersistDiagnosticEvent(event: MemosPlusDiagnosticEvent): boolean {
+  return (
+    event === "memos-plus:onload" ||
+    event === "memos-plus:onunload" ||
+    event === "window:error" ||
+    event === "window:unhandledrejection" ||
+    event === "modal:async-error" ||
+    event === "file-template:create-error" ||
+    event === "mobile-template-picker:load-error" ||
+    event === "file-target:write-error"
+  );
 }
 
 function loadPersistedDiagnosticEntries(): void {
@@ -273,21 +295,27 @@ function persistDiagnosticEntries(): void {
 }
 
 function scheduleDiagnosticPersistence(): void {
+  diagnosticPersistRequested = true;
   if (diagnosticPersistTimer !== null) {
     return;
   }
   diagnosticPersistTimer = window.setTimeout(() => {
     diagnosticPersistTimer = null;
+    diagnosticPersistRequested = false;
     persistDiagnosticEntries();
   }, DIAGNOSTIC_PERSIST_DELAY_MS);
 }
 
 function flushDiagnosticEntries(): void {
+  const shouldPersist = diagnosticsPersistent || diagnosticPersistRequested;
   if (diagnosticPersistTimer !== null) {
     window.clearTimeout(diagnosticPersistTimer);
     diagnosticPersistTimer = null;
   }
-  persistDiagnosticEntries();
+  diagnosticPersistRequested = false;
+  if (shouldPersist) {
+    persistDiagnosticEntries();
+  }
 }
 
 function isDiagnosticEntry(value: unknown): value is MemosPlusDiagnosticEntry {

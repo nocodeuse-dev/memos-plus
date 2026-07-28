@@ -63,7 +63,7 @@ describe("stability guardrails", () => {
 
   it("honors delayed mobile task indexing during vault change events", () => {
     expect(mainSource).toContain("Platform.isMobile && this.settings.taskIndexDelayOnMobile");
-    expect(mainSource).toContain('this.taskIndex.getStatus().cacheState === "needs-update"');
+    expect(mainSource).toContain('status.cacheState !== "normal"');
   });
 
   it("records the final send-to-file write boundary without logging note content", () => {

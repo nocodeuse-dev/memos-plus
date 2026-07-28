@@ -2,6 +2,7 @@ import { getAllTags, normalizePath, TFile } from "obsidian";
 import type { App, CachedMetadata } from "obsidian";
 import type { FileHeadingInfo, TaggedFileInfo } from "./fileSend";
 import type { FileTemplateLibraryItem, FileTemplateLibrarySettings } from "./fileTemplateLibrary";
+import { yieldToUi } from "./performance";
 import type { ProjectInfo, ProjectInfoOptions, ProjectStatus } from "./projectSend";
 
 export interface VaultIndexFile {
@@ -20,15 +21,25 @@ export interface VaultIndexFile {
 
 export class VaultMetadataIndex {
   private entriesByPath: Map<string, VaultIndexFile> | null = null;
+  private entriesBuildPromise: Promise<Map<string, VaultIndexFile>> | null = null;
+  private invalidateAllDuringBuild = false;
+  private readonly invalidatedPathsDuringBuild = new Set<string>();
 
   constructor(private readonly app: App) {}
 
   invalidate(path?: string): void {
     if (!path) {
+      if (this.entriesBuildPromise) {
+        this.invalidateAllDuringBuild = true;
+        this.invalidatedPathsDuringBuild.clear();
+      }
       this.entriesByPath = null;
       return;
     }
     const normalized = normalizePath(path);
+    if (this.entriesBuildPromise && !this.invalidateAllDuringBuild) {
+      this.invalidatedPathsDuringBuild.add(normalized);
+    }
     if (!this.entriesByPath) {
       return;
     }
@@ -44,9 +55,17 @@ export class VaultMetadataIndex {
     return Array.from(this.entries().values());
   }
 
+  async getEntriesAsync(batchSize = 200): Promise<VaultIndexFile[]> {
+    return Array.from((await this.ensureEntriesAsync(batchSize)).values());
+  }
+
+  async warm(batchSize = 200): Promise<void> {
+    await this.ensureEntriesAsync(batchSize);
+  }
+
   getEntry(fileOrPath: TFile | string): VaultIndexFile | undefined {
     const path = typeof fileOrPath === "string" ? normalizePath(fileOrPath) : normalizePath(fileOrPath.path);
-    return this.entries().get(path);
+    return this.entriesByPath?.get(path) ?? this.buildEntryForPath(fileOrPath);
   }
 
   getAllTagOptions(): string[] {
@@ -57,6 +76,11 @@ export class VaultMetadataIndex {
       }
     }
     return Array.from(tags).sort(compareTagNames);
+  }
+
+  async getAllTagOptionsAsync(): Promise<string[]> {
+    await this.ensureEntriesAsync();
+    return this.getAllTagOptions();
   }
 
   getTaggedFileInfos(tagQuery: string): TaggedFileInfo[] {
@@ -78,6 +102,11 @@ export class VaultMetadataIndex {
     });
   }
 
+  async getTaggedFileInfosAsync(tagQuery: string): Promise<TaggedFileInfo[]> {
+    await this.ensureEntriesAsync();
+    return this.getTaggedFileInfos(tagQuery);
+  }
+
   searchMarkdownFileInfos(query: string): TaggedFileInfo[] {
     const normalizedQuery = query.trim().toLowerCase();
     const result: TaggedFileInfo[] = [];
@@ -87,6 +116,11 @@ export class VaultMetadataIndex {
       }
     }
     return result.sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name) || left.path.localeCompare(right.path));
+  }
+
+  async searchMarkdownFileInfosAsync(query: string): Promise<TaggedFileInfo[]> {
+    await this.ensureEntriesAsync();
+    return this.searchMarkdownFileInfos(query);
   }
 
   getRecentFileInfos(paths: string[]): TaggedFileInfo[] {
@@ -112,6 +146,11 @@ export class VaultMetadataIndex {
       }
     }
     return result.sort((left, right) => left.basename.localeCompare(right.basename) || left.path.localeCompare(right.path));
+  }
+
+  async getProjectFilesAsync(projectTag: string): Promise<TFile[]> {
+    await this.ensureEntriesAsync();
+    return this.getProjectFiles(projectTag);
   }
 
   getProjectInfos(projectTag: string, options: ProjectInfoOptions): ProjectInfo[] {
@@ -144,6 +183,11 @@ export class VaultMetadataIndex {
         }
         return right.updatedAt - left.updatedAt || left.name.localeCompare(right.name) || left.file.path.localeCompare(right.file.path);
       });
+  }
+
+  async getProjectInfosAsync(projectTag: string, options: ProjectInfoOptions): Promise<ProjectInfo[]> {
+    await this.ensureEntriesAsync();
+    return this.getProjectInfos(projectTag, options);
   }
 
   getFileHeadings(fileOrPath: TFile | string): FileHeadingInfo[] {
@@ -192,6 +236,57 @@ export class VaultMetadataIndex {
       this.entriesByPath = new Map(this.app.vault.getMarkdownFiles().map((file) => [normalizePath(file.path), this.buildEntry(file)]));
     }
     return this.entriesByPath;
+  }
+
+  private async ensureEntriesAsync(batchSize = 200): Promise<Map<string, VaultIndexFile>> {
+    if (this.entriesByPath) {
+      return this.entriesByPath;
+    }
+    if (!this.entriesBuildPromise) {
+      const pending = this.buildEntriesCooperatively(batchSize).finally(() => {
+        if (this.entriesBuildPromise === pending) {
+          this.entriesBuildPromise = null;
+        }
+      });
+      this.entriesBuildPromise = pending;
+    }
+    return this.entriesBuildPromise;
+  }
+
+  private async buildEntriesCooperatively(batchSize: number): Promise<Map<string, VaultIndexFile>> {
+    const normalizedBatchSize = Math.max(1, Math.floor(batchSize));
+    while (true) {
+      this.invalidateAllDuringBuild = false;
+      this.invalidatedPathsDuringBuild.clear();
+      const files = this.app.vault.getMarkdownFiles();
+      const nextEntries = new Map<string, VaultIndexFile>();
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        nextEntries.set(normalizePath(file.path), this.buildEntry(file));
+        if ((index + 1) % normalizedBatchSize === 0 && index + 1 < files.length) {
+          await yieldToUi();
+          if (this.entriesByPath) {
+            return this.entriesByPath;
+          }
+        }
+      }
+      if (this.invalidateAllDuringBuild) {
+        continue;
+      }
+      for (const path of this.invalidatedPathsDuringBuild) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof TFile && file.extension === "md") {
+          nextEntries.set(path, this.buildEntry(file));
+        } else {
+          nextEntries.delete(path);
+        }
+      }
+      if (this.entriesByPath) {
+        return this.entriesByPath;
+      }
+      this.entriesByPath = nextEntries;
+      return nextEntries;
+    }
   }
 
   private buildEntry(file: TFile): VaultIndexFile {

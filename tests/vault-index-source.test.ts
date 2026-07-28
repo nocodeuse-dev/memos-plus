@@ -10,9 +10,9 @@ describe("VaultIndex integration source constraints", () => {
   it("routes broad metadata lookups through the shared index and keeps template loading folder-scoped", () => {
     expect(storeSource).toContain('from "./vaultIndex"');
     expect(storeSource).toContain("private readonly vaultIndex");
-    expect(storeSource).toContain("this.vaultIndex.getProjectInfos");
-    expect(storeSource).toContain("this.vaultIndex.getTaggedFileInfos");
-    expect(storeSource).toContain("this.vaultIndex.searchMarkdownFileInfos");
+    expect(storeSource).toContain("this.vaultIndex.getProjectInfosAsync");
+    expect(storeSource).toContain("this.vaultIndex.getTaggedFileInfosAsync");
+    expect(storeSource).toContain("this.vaultIndex.searchMarkdownFileInfosAsync");
     expect(storeSource).toContain("scanFileTemplateLibrary(this.app, this.getSettings())");
     expect(storeSource).not.toContain("this.vaultIndex.scanFileTemplateLibrary");
   });
@@ -38,5 +38,14 @@ describe("VaultIndex integration source constraints", () => {
     expect(scanBlock).toContain("this.entries().values()");
     expect(scanBlock).not.toContain("getMarkdownFiles()");
     expect(scanBlock).not.toContain("this.buildEntry(file)");
+  });
+
+  it("warms the first broad metadata map without monopolizing the mobile main thread", () => {
+    const indexSource = readFileSync(new URL("../src/vaultIndex.ts", import.meta.url), "utf8");
+
+    expect(indexSource).toContain("async getEntriesAsync");
+    expect(indexSource).toContain("private async ensureEntriesAsync");
+    expect(indexSource).toContain("await yieldToUi()");
+    expect(mainSource).toContain("maybeWarmVaultIndexAfterLoad");
   });
 });

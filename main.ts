@@ -33,6 +33,7 @@ export default class MemosPlusPlugin extends Plugin {
   taskIndex!: TaskIndex;
   private diagnosticSessionId = "";
   private taskIndexRefreshTimer: number | null = null;
+  private vaultIndexWarmTimer: number | null = null;
   private readonly settingsSaveQueue = new SerialTaskQueue();
   private readonly linkAnalysisTitleCache = new Map<string, Promise<string>>();
 
@@ -40,6 +41,7 @@ export default class MemosPlusPlugin extends Plugin {
     this.diagnosticSessionId = createMemosPlusSessionId();
     configureMemosPlusDiagnostics({
       enabled: Platform.isMobile,
+      persistent: false,
       sessionId: this.diagnosticSessionId,
       version: this.manifest.version
     });
@@ -62,6 +64,7 @@ export default class MemosPlusPlugin extends Plugin {
     this.settings = normalizeSettings(savedSettings);
     configureMemosPlusDiagnostics({
       enabled: Platform.isMobile || this.settings.performanceDebugMode,
+      persistent: this.settings.performanceDebugMode,
       sessionId: this.diagnosticSessionId,
       version: this.manifest.version
     });
@@ -78,10 +81,11 @@ export default class MemosPlusPlugin extends Plugin {
     this.registerTaskIndexInvalidation();
     this.register(
       this.taskIndex.onChange(() => {
+        const status = this.taskIndex.getStatus();
         if (
           Platform.isMobile &&
           this.settings.taskIndexDelayOnMobile &&
-          this.taskIndex.getStatus().cacheState === "needs-update"
+          status.cacheState !== "normal"
         ) {
           return;
         }
@@ -166,6 +170,7 @@ export default class MemosPlusPlugin extends Plugin {
 
     this.addSettingTab(new MemosPlusSettingTab(this.app, this));
     this.maybeBuildTaskIndexAfterLoad();
+    this.maybeWarmVaultIndexAfterLoad();
     if (this.settings.quickInputEnabled && this.settings.quickInputAutoOpen) {
       this.app.workspace.onLayoutReady(() => {
         this.runAsyncOperation("auto open quick input", () => this.activateQuickInputView({ focusComposer: false, useModalFallback: false }));
@@ -175,6 +180,7 @@ export default class MemosPlusPlugin extends Plugin {
 
   onunload(): void {
     this.clearTaskIndexRefreshTimer();
+    this.clearVaultIndexWarmTimer();
     logMemosPlusDiagnostic("memos-plus:onunload", {
       memosLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE).length,
       quickInputLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE).length
@@ -510,6 +516,27 @@ export default class MemosPlusPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.taskIndex.scheduleBuild(1200);
     });
+  }
+
+  private maybeWarmVaultIndexAfterLoad(): void {
+    if (!viewLayoutsNeedData(this.currentViewLayouts(), "vaultIndex")) {
+      return;
+    }
+    this.app.workspace.onLayoutReady(() => {
+      this.clearVaultIndexWarmTimer();
+      this.vaultIndexWarmTimer = window.setTimeout(() => {
+        this.vaultIndexWarmTimer = null;
+        this.runAsyncOperation("warm vault metadata index", () => this.vaultIndex.warm());
+      }, Platform.isMobile ? 2_500 : 800);
+    });
+  }
+
+  private clearVaultIndexWarmTimer(): void {
+    if (this.vaultIndexWarmTimer === null) {
+      return;
+    }
+    window.clearTimeout(this.vaultIndexWarmTimer);
+    this.vaultIndexWarmTimer = null;
   }
 
   private maybeScheduleTaskIndexBuild(delayMs = 800): void {

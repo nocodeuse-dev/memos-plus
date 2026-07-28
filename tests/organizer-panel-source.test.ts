@@ -48,9 +48,10 @@ describe("organizer panel source integration", () => {
   });
 
   it("passes task management visible items into the real sidebar rendering path", () => {
-    const organizerBlock = viewSource.slice(viewSource.indexOf("private renderOrganizerDirectory"), viewSource.indexOf("private renderOrganizerTaskToggle"));
+    const organizerSectionsBlock = viewSource.slice(viewSource.indexOf("private organizerSections"), viewSource.indexOf("private organizerTaskBranches"));
+    const organizerBranchesBlock = viewSource.slice(viewSource.indexOf("private organizerTaskBranches"), viewSource.indexOf("private shouldShowArchivedForSavedSearch"));
 
-    expect(organizerBlock).toContain("taskManagementVisibleItems: settings.taskManagementVisibleItems");
-    expect(organizerBlock).toContain("visibleItems: settings.taskManagementVisibleItems");
+    expect(organizerSectionsBlock).toContain("taskManagementVisibleItems: settings.taskManagementVisibleItems");
+    expect(organizerBranchesBlock).toContain("visibleItems: settings.taskManagementVisibleItems");
   });
 });

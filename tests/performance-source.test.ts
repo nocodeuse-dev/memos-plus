@@ -6,6 +6,11 @@ const projectModalSource = readFileSync("src/projectFileSuggestModal.ts", "utf8"
 const projectSendSource = readFileSync("src/projectSend.ts", "utf8");
 const iconPickerSource = readFileSync("src/iconPicker.ts", "utf8");
 const settingsSource = readFileSync("src/settings.ts", "utf8");
+const storeSource = readFileSync("src/store.ts", "utf8");
+const vaultIndexSource = readFileSync("src/vaultIndex.ts", "utf8");
+const vaultSearchSource = readFileSync("src/vaultSearch.ts", "utf8");
+const diagnosticsSource = readFileSync("src/diagnostics.ts", "utf8");
+const mainSource = readFileSync("main.ts", "utf8");
 
 describe("performance source safeguards", () => {
   it("does not warm full-vault saved-search cache during the initial full render", () => {
@@ -42,6 +47,47 @@ describe("performance source safeguards", () => {
     expect(viewSource).toContain("private memoTagOptions(): string[]");
     expect(renderTimelineBody).toContain("this.memoTagOptions()");
     expect(renderTimelineBody).not.toContain("getAllTags(this.memos)");
+  });
+
+  it("updates active mobile results without rebuilding the composer and sidebar", () => {
+    for (const method of ["selectView", "selectSavedSearch", "selectOrganizerSection"]) {
+      const start = viewSource.indexOf(`private ${method}`);
+      const nextMethod = viewSource.indexOf("\n  private ", start + 10);
+      const body = viewSource.slice(start, nextMethod);
+      expect(body).toContain("refreshActiveResults");
+      expect(body).not.toContain("void this.render()");
+    }
+    expect(viewSource).toContain("updateSidebarSelectionState");
+  });
+
+  it("renders Markdown cards cooperatively and cancels stale timeline work", () => {
+    expect(viewSource).toContain("timelineRenderToken");
+    expect(viewSource).toContain("yieldToUi");
+    expect(viewSource).toContain("isTimelineRenderCurrent");
+    expect(viewSource).toContain("MOBILE_MARKDOWN_RENDER_BATCH_SIZE");
+  });
+
+  it("caches stats and organizer projections for repeated renders", () => {
+    expect(viewSource).toContain("memoStatsCache");
+    expect(viewSource).toContain("organizerSectionsCache");
+    expect(viewSource).toContain("organizerTaskBranchesCache");
+    expect(viewSource).toContain("clearDerivedViewCaches");
+  });
+
+  it("builds broad vault metadata cooperatively before search and tag queries", () => {
+    expect(vaultIndexSource).toContain("getEntriesAsync");
+    expect(vaultIndexSource).toContain("ensureEntriesAsync");
+    expect(vaultIndexSource).toContain("yieldToUi");
+    expect(storeSource).toContain("getTaggedFileInfosAsync");
+    expect(storeSource).toContain("searchMarkdownFileInfosAsync");
+    expect(vaultSearchSource).toContain("await this.metadataIndex.getEntriesAsync()");
+    expect(mainSource).toContain("maybeWarmVaultIndexAfterLoad");
+  });
+
+  it("keeps routine mobile diagnostics in memory without console and localStorage churn", () => {
+    expect(diagnosticsSource).toContain("diagnosticsPersistent");
+    expect(diagnosticsSource).toContain("shouldPersistDiagnosticEvent");
+    expect(diagnosticsSource).toContain("const persist = diagnosticsPersistent || shouldPersistDiagnosticEvent(event)");
   });
 
   it("keeps fixed project and tag loaders out of the send modal open path", () => {

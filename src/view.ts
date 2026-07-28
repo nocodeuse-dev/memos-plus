@@ -18,9 +18,10 @@ import {
   filterMemosForOrganizerFilter,
   isOrganizerTaskBranchId,
   organizerFilterLabelKey,
-  type OrganizerFilterId
+  type OrganizerFilterId,
+  type OrganizerPanelSectionData
 } from "./organizerPanel";
-import { debounceDelay, effectivePageSize, PerformanceProfiler, shouldUseLightweightMode } from "./performance";
+import { debounceDelay, effectivePageSize, PerformanceProfiler, shouldUseLightweightMode, yieldToUi } from "./performance";
 import { maybeOpenTargetFileAfterSend, sendContentToProject, type ProjectDeliveryResult } from "./projectDelivery";
 import {
   createSavedSearchId,
@@ -38,7 +39,7 @@ import {
   type SidebarItem,
   type SidebarSearchItem
 } from "./sidebar";
-import { computeMemoStats } from "./stats";
+import { computeMemoStats, type MemoStats } from "./stats";
 import { filterTaskIndexItems, getTaskIndexOrganizerCounts, type TaskIndexItem, type TaskIndexStatus } from "./taskIndex";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
 import { VaultSavedSearchIndex, type VaultSearchResult } from "./vaultSearch";
@@ -93,6 +94,8 @@ const DEFAULT_SIDEBAR_MODULE_ORDER: readonly DisplayModuleId[] = [
   "projectFilters",
   "tagFilters"
 ];
+const MOBILE_MARKDOWN_RENDER_BATCH_SIZE = 3;
+const DESKTOP_MARKDOWN_RENDER_BATCH_SIZE = 8;
 
 export class MemosPlusView extends ItemView {
   private memos: MemoItem[] = [];
@@ -108,12 +111,18 @@ export class MemosPlusView extends ItemView {
   private composerSession: ComposerSession | null = null;
   private timelineEl: HTMLElement | null = null;
   private timelineRenderTimer: number | null = null;
+  private timelineRenderToken = 0;
+  private memoDataRevision = 0;
   private readonly vaultSearchIndex: VaultSavedSearchIndex;
   private vaultSearchCacheKeys = new Map<string, string>();
   private vaultSearchResults = new Map<string, VaultSearchResult[]>();
   private readonly memoSearchCountCache = new Map<string, number>();
   private readonly memoSearchBaseCache = new Map<string, MemoItem[]>();
   private memoTagOptionsCache: string[] | null = null;
+  private memoStatsCache: { key: string; value: MemoStats } | null = null;
+  private readonly organizerSectionsCache = new Map<string, OrganizerPanelSectionData[]>();
+  private readonly organizerTaskBranchesCache = new Map<string, OrganizerPanelSectionData[]>();
+  private taskIndexOrganizerCountsCache: { key: string; value: ReturnType<typeof getTaskIndexOrganizerCounts> } | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -152,6 +161,8 @@ export class MemosPlusView extends ItemView {
     this.composerSession?.destroy();
     this.composerSession = null;
     this.timelineEl = null;
+    this.timelineRenderToken += 1;
+    this.clearDerivedViewCaches();
   }
 
   async reload(options: { preserveScroll?: boolean } = {}): Promise<void> {
@@ -165,6 +176,8 @@ export class MemosPlusView extends ItemView {
     if (dataNeeds.has("memos")) {
       const doc = await profiler.measure("load memos time", () => this.plugin.store.readDocument());
       this.memos = doc.memos;
+      this.memoDataRevision += 1;
+      this.clearDerivedViewCaches();
     }
     await this.render();
     this.restoreMainScrollPosition(scrollPosition);
@@ -177,6 +190,7 @@ export class MemosPlusView extends ItemView {
     try {
       await this.profiler().measure("render view time", async () => {
         this.cancelScheduledTimelineRender();
+        this.timelineRenderToken += 1;
         this.clearMemoSearchCaches();
         const container = this.containerEl.children[1];
         this.composerSession?.destroy();
@@ -224,7 +238,7 @@ export class MemosPlusView extends ItemView {
     const rendered = new Set<string>();
 
     const renderStats = () => {
-      const stats = this.profiler().measureSync("calculate stats time", () => computeMemoStats(this.memos, today));
+      const stats = this.profiler().measureSync("calculate stats time", () => this.memoStats(today));
       const statGrid = sidebar.createDiv({ cls: "memos-plus-stat-grid" });
       this.renderStat(statGrid, stats.total, t(lang, "meta.memos"));
       this.renderStat(statGrid, stats.tags, t(lang, "meta.tags"));
@@ -242,6 +256,7 @@ export class MemosPlusView extends ItemView {
         iconOverrideId: "all-notes",
         count: this.countForView("all"),
         active: !this.activeSavedSearchId && !this.activeOrganizerSection() && this.mode === "all" && !this.year,
+        selectionKey: "view:all",
         onClick: () => this.selectView("all")
       });
       this.renderSidebarMoreAction(allRow, t(lang, "sidebar.more"), (event) => this.openAllMemosMenu(event));
@@ -614,6 +629,7 @@ export class MemosPlusView extends ItemView {
 
   private async renderTimeline(main: Element): Promise<void> {
     await this.profiler().measure("render memo list time", async () => {
+      const renderToken = ++this.timelineRenderToken;
       main.empty();
       const lang = this.plugin.settings.language;
       const savedSearch = this.activeSavedSearch();
@@ -664,8 +680,25 @@ export class MemosPlusView extends ItemView {
         return;
       }
 
-      for (const memo of shown) {
+      const loading = list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "common.loading") });
+      await yieldToUi();
+      if (!this.isTimelineRenderCurrent(renderToken, list)) {
+        return;
+      }
+      loading.remove();
+      const batchSize = Platform.isMobile ? MOBILE_MARKDOWN_RENDER_BATCH_SIZE : DESKTOP_MARKDOWN_RENDER_BATCH_SIZE;
+      for (let index = 0; index < shown.length; index += 1) {
+        const memo = shown[index];
         await this.renderCard(list, memo);
+        if (!this.isTimelineRenderCurrent(renderToken, list)) {
+          return;
+        }
+        if ((index + 1) % batchSize === 0 && index + 1 < shown.length) {
+          await yieldToUi();
+          if (!this.isTimelineRenderCurrent(renderToken, list)) {
+            return;
+          }
+        }
       }
 
       if (shown.length < filtered.length) {
@@ -676,6 +709,10 @@ export class MemosPlusView extends ItemView {
         });
       }
     });
+  }
+
+  private isTimelineRenderCurrent(token: number, element: Element): boolean {
+    return token === this.timelineRenderToken && element.isConnected;
   }
 
   private async renderCard(list: Element, memo: MemoItem): Promise<void> {
@@ -697,7 +734,7 @@ export class MemosPlusView extends ItemView {
         chip.addEventListener("click", () => {
           this.tag = tag;
           this.activeOrganizerSectionId = "";
-          void this.render();
+          this.refreshActiveResults();
         });
       }
     }
@@ -715,24 +752,10 @@ export class MemosPlusView extends ItemView {
     }
     const lang = settings.language;
     const today = todayString();
-    const sections = buildOrganizerPanelSections(this.memos, {
-      today,
-      states: settings.organizerMemoStates,
-      sectionSettings: settings.organizerPanelSections,
-      taskManagementVisibleItems: settings.taskManagementVisibleItems,
-      limit: 0
-    }).filter((section) => (section.id === "tasks" ? showTasks : showSections));
-    const taskBranches = showTasks
-      ? buildOrganizerTaskBranchSections(this.memos, {
-          today,
-          showPriorityBranches: settings.organizerTaskPriorityBranchesEnabled,
-          showDateBranches: settings.organizerTaskDateBranchesEnabled,
-          visibleItems: settings.taskManagementVisibleItems,
-          limit: 0
-        })
-      : [];
+    const sections = this.organizerSections(today).filter((section) => (section.id === "tasks" ? showTasks : showSections));
+    const taskBranches = showTasks ? this.organizerTaskBranches(today) : [];
     const useTaskIndex = showTasks && settings.taskVaultFilterEnabled && settings.taskIndexEnabled;
-    const taskIndexCounts = useTaskIndex ? getTaskIndexOrganizerCounts(this.plugin.taskIndex.getItems(), today) : null;
+    const taskIndexCounts = useTaskIndex ? this.taskIndexOrganizerCounts(today) : null;
     const taskIndexStatus = useTaskIndex ? this.plugin.taskIndex.getStatus() : null;
     if (sections.length === 0) {
       return;
@@ -751,6 +774,7 @@ export class MemosPlusView extends ItemView {
         iconOverrideId: iconOverrideIdForOrganizerFilter(section.id),
         count: section.id === "tasks" && taskIndexCounts ? this.formatTaskIndexCount(taskIndexCounts.tasks, taskIndexStatus) : section.total,
         active: this.activeOrganizerSection() === section.id,
+        selectionKey: `organizer:${section.id}`,
         onClick: () => this.selectOrganizerSection(section.id)
       });
       if (section.id === "tasks" && this.organizerTasksExpanded) {
@@ -767,6 +791,7 @@ export class MemosPlusView extends ItemView {
                 ? this.formatTaskIndexCount(taskIndexCounts[branch.id], taskIndexStatus)
                 : branch.total,
             active: this.activeOrganizerSection() === branch.id,
+            selectionKey: `organizer:${branch.id}`,
             depth: 1,
             onClick: () => this.selectOrganizerSection(branch.id)
           });
@@ -888,6 +913,7 @@ export class MemosPlusView extends ItemView {
       iconOverrideId: sidebarItemIconOverrideId(item.id),
       count: search ? this.countForSavedSearch(search) : 0,
       active: this.activeSavedSearchId === item.searchId,
+      selectionKey: `saved:${item.searchId}`,
       depth,
       onClick: () => this.selectSavedSearch(item.searchId)
     });
@@ -896,9 +922,21 @@ export class MemosPlusView extends ItemView {
 
   private renderSidebarItem(
     container: Element,
-    item: { label: string; icon: string; count: number | string; active: boolean; onClick: () => void; depth?: number; iconOverrideId?: string }
+    item: {
+      label: string;
+      icon: string;
+      count: number | string;
+      active: boolean;
+      onClick: () => void;
+      depth?: number;
+      iconOverrideId?: string;
+      selectionKey?: string;
+    }
   ): void {
     container.addClass(item.active ? "is-active" : "is-inactive");
+    if (item.selectionKey) {
+      container.setAttr("data-memos-plus-selection-key", item.selectionKey);
+    }
     const button = container.createEl("button", { cls: "memos-plus-side-item" });
     if (item.depth) {
       button.style.setProperty("--memos-plus-depth", String(item.depth));
@@ -929,7 +967,7 @@ export class MemosPlusView extends ItemView {
     this.activeSavedSearchId = "";
     this.activeOrganizerSectionId = "";
     this.visibleCount = this.pageSize();
-    void this.render();
+    this.refreshActiveResults();
   }
 
   private selectSavedSearch(id: string): void {
@@ -938,7 +976,7 @@ export class MemosPlusView extends ItemView {
     this.activeSavedSearchId = id;
     this.activeOrganizerSectionId = "";
     this.visibleCount = this.pageSize();
-    void this.render();
+    this.refreshActiveResults();
   }
 
   private selectOrganizerSection(id: OrganizerFilterId): void {
@@ -951,7 +989,32 @@ export class MemosPlusView extends ItemView {
       this.organizerTasksExpanded = true;
     }
     this.visibleCount = this.pageSize();
-    void this.render();
+    this.refreshActiveResults();
+  }
+
+  private refreshActiveResults(): void {
+    this.updateSidebarSelectionState();
+    void this.renderTimelineOnly();
+  }
+
+  private updateSidebarSelectionState(): void {
+    const activeKey = this.currentSidebarSelectionKey();
+    this.containerEl.querySelectorAll<HTMLElement>("[data-memos-plus-selection-key]").forEach((row) => {
+      const active = row.dataset.memosPlusSelectionKey === activeKey;
+      row.toggleClass("is-active", active);
+      row.toggleClass("is-inactive", !active);
+    });
+  }
+
+  private currentSidebarSelectionKey(): string {
+    const organizerSection = this.activeOrganizerSection();
+    if (organizerSection) {
+      return `organizer:${organizerSection}`;
+    }
+    if (this.activeSavedSearchId) {
+      return `saved:${this.activeSavedSearchId}`;
+    }
+    return this.mode === "all" && !this.year ? "view:all" : "";
   }
 
   private openSidebarGroupMenu(event: MouseEvent, group: SidebarGroupItem): void {
@@ -1303,6 +1366,85 @@ export class MemosPlusView extends ItemView {
     this.memoSearchCountCache.clear();
     this.memoSearchBaseCache.clear();
     this.memoTagOptionsCache = null;
+  }
+
+  private clearDerivedViewCaches(): void {
+    this.memoStatsCache = null;
+    this.organizerSectionsCache.clear();
+    this.organizerTaskBranchesCache.clear();
+    this.taskIndexOrganizerCountsCache = null;
+    this.clearMemoSearchCaches();
+  }
+
+  private memoStats(today: string): MemoStats {
+    const key = `${this.memoDataRevision}:${today}`;
+    if (this.memoStatsCache?.key === key) {
+      return this.memoStatsCache.value;
+    }
+    const value = computeMemoStats(this.memos, today);
+    this.memoStatsCache = { key, value };
+    return value;
+  }
+
+  private organizerSections(today: string): OrganizerPanelSectionData[] {
+    const settings = this.plugin.settings;
+    const key = JSON.stringify({
+      revision: this.memoDataRevision,
+      today,
+      states: settings.organizerMemoStates,
+      sections: settings.organizerPanelSections,
+      visibleItems: settings.taskManagementVisibleItems
+    });
+    const cached = this.organizerSectionsCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    const sections = buildOrganizerPanelSections(this.memos, {
+      today,
+      states: settings.organizerMemoStates,
+      sectionSettings: settings.organizerPanelSections,
+      taskManagementVisibleItems: settings.taskManagementVisibleItems,
+      limit: 0
+    });
+    this.organizerSectionsCache.clear();
+    this.organizerSectionsCache.set(key, sections);
+    return sections;
+  }
+
+  private organizerTaskBranches(today: string): OrganizerPanelSectionData[] {
+    const settings = this.plugin.settings;
+    const key = JSON.stringify({
+      revision: this.memoDataRevision,
+      today,
+      priority: settings.organizerTaskPriorityBranchesEnabled,
+      dates: settings.organizerTaskDateBranchesEnabled,
+      visibleItems: settings.taskManagementVisibleItems
+    });
+    const cached = this.organizerTaskBranchesCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    const branches = buildOrganizerTaskBranchSections(this.memos, {
+      today,
+      showPriorityBranches: settings.organizerTaskPriorityBranchesEnabled,
+      showDateBranches: settings.organizerTaskDateBranchesEnabled,
+      visibleItems: settings.taskManagementVisibleItems,
+      limit: 0
+    });
+    this.organizerTaskBranchesCache.clear();
+    this.organizerTaskBranchesCache.set(key, branches);
+    return branches;
+  }
+
+  private taskIndexOrganizerCounts(today: string): ReturnType<typeof getTaskIndexOrganizerCounts> {
+    const status = this.plugin.taskIndex.getStatus();
+    const key = `${today}:${status.updatedAt}:${status.indexedTasks}`;
+    if (this.taskIndexOrganizerCountsCache?.key === key) {
+      return this.taskIndexOrganizerCountsCache.value;
+    }
+    const value = getTaskIndexOrganizerCounts(this.plugin.taskIndex.getItems(), today);
+    this.taskIndexOrganizerCountsCache = { key, value };
+    return value;
   }
 
   private shouldShowArchivedForSavedSearch(search: SavedSearch): boolean {

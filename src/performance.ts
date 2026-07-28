@@ -66,6 +66,16 @@ export function debounce<T extends (...args: never[]) => void>(fn: T, delayMs: n
   return debounced;
 }
 
+export function yieldToUi(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => resolve());
+      return;
+    }
+    setTimeout(resolve, 0);
+  });
+}
+
 export function vaultSearchNeedsContent(condition: SavedSearchCondition): boolean {
   return condition.field === "text" || condition.field === "task" || isTaskSearchField(condition.field);
 }

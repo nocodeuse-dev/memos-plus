@@ -1,6 +1,7 @@
 import type { App, TFile } from "obsidian";
 import type { OrganizerFilterId, OrganizerTaskBranchId } from "./organizerPanel";
 import { isOrganizerTaskBranchId } from "./organizerPanel";
+import { yieldToUi } from "./performance";
 import { parseTaskLines, type ParsedTaskLine, type TaskPriorityFilterValue } from "./taskSearch";
 
 export interface TaskIndexItem {
@@ -379,10 +380,6 @@ function formatDate(date: Date): string {
 
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
-}
-
-function yieldToUi(): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
 function normalizeVaultPath(path: string): string {
