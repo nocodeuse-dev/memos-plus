@@ -1,19 +1,20 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+const mainSource = readFileSync("main.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
 const modalSource = readFileSync("src/taskManagementModal.ts", "utf8");
 const actionsSource = readFileSync("src/taskActions.ts", "utf8");
 const stylesSource = readFileSync("styles.css", "utf8");
 
 describe("task management floating entry source integration", () => {
-  it("renders a bottom-right task manager entry on both desktop and mobile layouts", () => {
-    expect(viewSource).toContain("renderFloatingActions(shell)");
-    expect(viewSource).toContain('"memos-plus-task-manager-fab"');
-    expect(viewSource).toContain('"list-todo"');
-    expect(stylesSource).toContain(".memos-plus-floating-actions {");
-    expect(stylesSource).toContain("right: 20px;");
-    expect(stylesSource).toContain("bottom: 20px;");
+  it("renders the task manager entry in Obsidian's bottom status bar", () => {
+    expect(mainSource).toContain("this.addStatusBarItem()");
+    expect(mainSource).toContain('"memos-plus-task-status-item"');
+    expect(mainSource).toContain('setIcon(item, "list-todo")');
+    expect(stylesSource).toContain(".status-bar-item.memos-plus-task-status-item");
+    expect(viewSource).not.toContain("memos-plus-task-manager-fab");
+    expect(viewSource).not.toContain("renderFloatingActions");
   });
 
   it("uses the existing task index with bounded rendering and mobile modal cleanup", () => {

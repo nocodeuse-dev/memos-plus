@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const mainSource = readFileSync("main.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
+const taskNavigationSource = readFileSync("src/taskNavigation.ts", "utf8");
 const settingsSource = readFileSync("src/settings.ts", "utf8");
 
 describe("TaskIndex source integration", () => {
@@ -33,11 +34,10 @@ describe("TaskIndex source integration", () => {
     expect(viewSource).toContain("renderTaskIndexResults");
     expect(viewSource).toContain("this.plugin.taskIndex.getItems()");
     expect(viewSource).toContain("this.plugin.taskIndex.getStatus()");
-    expect(openTaskIndexItemBlock).toContain("openFile(file, { state: { line: item.lineNumber - 1 } })");
-    expect(openTaskIndexItemBlock).toContain("await this.highlightTaskIndexLine(leaf, file, item)");
-    expect(viewSource).toContain("private async highlightTaskIndexLine");
-    expect(viewSource).toContain("view.editor.setSelection({ line, ch: 0 }, { line, ch: item.line.length })");
-    expect(viewSource).toContain("view.editor.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: item.line.length } }, true)");
+    expect(openTaskIndexItemBlock).toContain("openIndexedTask(this.app, item)");
+    expect(taskNavigationSource).toContain("openFile(file, { state: { line: item.lineNumber - 1 } })");
+    expect(taskNavigationSource).toContain("view.editor.setSelection({ line, ch: 0 }, { line, ch: item.line.length })");
+    expect(taskNavigationSource).toContain("view.editor.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: item.line.length } }, true)");
     expect(taskSourceGuard).toContain("taskVaultFilterEnabled");
     expect(taskSourceGuard).toContain("taskIndexEnabled");
     expect(organizerBlock).not.toContain("vault.read");

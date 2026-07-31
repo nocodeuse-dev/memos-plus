@@ -673,7 +673,6 @@
   --memos-plus-list-item-background-strong: var(--background-primary);
   height: 100%;
   overflow: hidden;
-  position: relative;
 }
 
 .memos-plus-shell {
@@ -2161,20 +2160,10 @@
   font-size: 12px;
 }
 
-.memos-plus-floating-actions {
-  position: absolute;
-  right: 20px;
-  bottom: 20px;
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  pointer-events: none;
-}
-
 .memos-plus-fab {
-  margin: 0;
+  position: sticky;
+  bottom: 18px;
+  margin: 0 18px 18px auto;
   width: 44px;
   height: 44px;
   display: flex;
@@ -2185,35 +2174,26 @@
   background: var(--memos-plus-accent);
   color: var(--text-on-accent);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  pointer-events: auto;
+  z-index: 8;
   transition: opacity 120ms ease, transform 120ms ease;
 }
 
-.memos-plus-task-manager-fab {
-  min-width: 44px;
-  height: 44px;
+.status-bar-item.memos-plus-task-status-item {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  border: 1px solid color-mix(in srgb, var(--interactive-accent) 55%, var(--background-modifier-border));
-  border-radius: 22px;
-  padding: 0 15px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  pointer-events: auto;
+  min-width: 24px;
+  padding-inline: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
-.memos-plus-task-manager-fab:hover {
-  background: var(--interactive-accent-hover);
-  color: var(--text-on-accent);
+.status-bar-item.memos-plus-task-status-item:hover,
+.status-bar-item.memos-plus-task-status-item:focus-visible {
+  color: var(--interactive-accent);
 }
 
-.memos-plus-task-manager-fab-icon,
-.memos-plus-task-manager-fab-icon svg {
+.status-bar-item.memos-plus-task-status-item svg {
   width: 18px;
   height: 18px;
 }
@@ -2222,15 +2202,6 @@
 .memos-plus-shell.is-keyboard-open .memos-plus-fab,
 .memos-plus-mobile-light-shell.is-composer-focused .memos-plus-fab,
 .memos-plus-mobile-light-shell.is-keyboard-open .memos-plus-fab {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(8px);
-}
-
-.memos-plus-shell.is-composer-focused .memos-plus-floating-actions,
-.memos-plus-shell.is-keyboard-open .memos-plus-floating-actions,
-.memos-plus-mobile-light-shell.is-composer-focused .memos-plus-floating-actions,
-.memos-plus-mobile-light-shell.is-keyboard-open .memos-plus-floating-actions {
   opacity: 0;
   pointer-events: none;
   transform: translateY(8px);
@@ -3275,23 +3246,6 @@
     padding: 12px;
   }
 
-  .memos-plus-floating-actions {
-    position: fixed;
-    right: 14px;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
-    gap: 8px;
-  }
-
-  .memos-plus-task-manager-fab {
-    width: 44px;
-    padding: 0;
-    border-radius: 50%;
-  }
-
-  .memos-plus-task-manager-fab-label {
-    display: none;
-  }
-
   .memos-plus-task-manager-modal-shell {
     width: calc(100vw - 16px);
     max-width: calc(100vw - 16px);
@@ -3458,7 +3412,6 @@
     transition: none;
   }
 
-  .memos-plus-task-manager-fab,
   .memos-plus-task-manager-row,
   .memos-plus-task-manager-filter {
     box-shadow: none;

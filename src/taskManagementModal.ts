@@ -6,7 +6,7 @@ import { filterTaskManagementItems, taskManagementCounts, type TaskManagementFil
 import { type TaskIndex, type TaskIndexItem } from "./taskIndex";
 import type { TaskPriorityFilterValue } from "./taskSearch";
 
-interface TaskManagementModalOptions {
+export interface TaskManagementModalOptions {
   language: Language;
   taskIndex: TaskIndex;
   canEditWithTasksApi: boolean;

@@ -1,4 +1,4 @@
-import { Notice, Platform, Plugin, TFile, WorkspaceLeaf, requestUrl, type ObsidianProtocolData } from "obsidian";
+import { Notice, Platform, Plugin, TFile, WorkspaceLeaf, requestUrl, setIcon, type ObsidianProtocolData } from "obsidian";
 import { MemosPlusSettingTab, MemosPlusSettings, normalizeSettings } from "./src/settings";
 import { MemosPlusStore } from "./src/store";
 import { QuickCaptureModal } from "./src/modal";
@@ -11,6 +11,10 @@ import { captureClipboardLinkToMemos } from "./src/linkCaptureActions";
 import { fetchPageTitle, resolveClipboardMarkdownLink } from "./src/linkCapture";
 import type { QuickCaptureInitialContentMode } from "./src/quickCaptureContent";
 import { TaskIndex } from "./src/taskIndex";
+import type { TaskIndexItem } from "./src/taskIndex";
+import { editIndexedTaskWithTasksApi, getTasksApi, toggleIndexedTask } from "./src/taskActions";
+import { showTaskMutationFailure, TaskManagementModal } from "./src/taskManagementModal";
+import { openIndexedTask } from "./src/taskNavigation";
 import { VaultMetadataIndex } from "./src/vaultIndex";
 import { viewLayoutsNeedData, type ViewLayoutsSettings } from "./src/displayModules";
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./src/projectFileSuggestModal";
@@ -102,6 +106,7 @@ export default class MemosPlusPlugin extends Plugin {
     this.addRibbonIcon("message-square-plus", t(this.settings.language, "command.open"), () => {
       this.runAsyncOperation("activate view from ribbon", () => this.activateView());
     });
+    this.registerTaskManagerStatusBarItem();
 
     this.addCommand({
       id: "open",
@@ -117,6 +122,12 @@ export default class MemosPlusPlugin extends Plugin {
       callback: () => {
         this.openQuickCaptureWithContentSource("auto");
       }
+    });
+
+    this.addCommand({
+      id: "open-task-manager",
+      name: t(this.settings.language, "taskManager.open"),
+      callback: () => this.openTaskManagement()
     });
 
     this.addCommand({
@@ -292,6 +303,72 @@ export default class MemosPlusPlugin extends Plugin {
   async exportDiagnosticLog(): Promise<void> {
     const path = await exportMemosPlusDiagnosticLog(this.app);
     new Notice(t(this.settings.language, "notice.diagnosticLogExported") + path);
+  }
+
+  private registerTaskManagerStatusBarItem(): void {
+    const item = this.addStatusBarItem();
+    item.addClass("memos-plus-task-status-item");
+    item.setAttrs({
+      role: "button",
+      tabindex: "0",
+      title: t(this.settings.language, "taskManager.open"),
+      "aria-label": t(this.settings.language, "taskManager.open")
+    });
+    setIcon(item, "list-todo");
+    const open = () => this.openTaskManagement();
+    item.addEventListener("click", open);
+    item.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        open();
+      }
+    });
+  }
+
+  private openTaskManagement(): void {
+    new TaskManagementModal(this.app, {
+      language: this.settings.language,
+      taskIndex: this.taskIndex,
+      canEditWithTasksApi: Boolean(getTasksApi(this.app)?.editTaskLineModal),
+      onOpenTask: (item) => openIndexedTask(this.app, item),
+      onToggleTask: (item) => this.toggleTaskIndexItem(item),
+      onEditTask: (item) => this.editTaskIndexItem(item)
+    }).open();
+  }
+
+  private async toggleTaskIndexItem(item: TaskIndexItem): Promise<boolean> {
+    try {
+      const result = await toggleIndexedTask(this.app, item);
+      if (!result.updated || !result.file) {
+        showTaskMutationFailure(this.settings.language);
+        return false;
+      }
+      await this.taskIndex.updateFile(result.file);
+      return true;
+    } catch (error) {
+      console.error("Memos Plus: failed to toggle indexed task", error);
+      showTaskMutationFailure(this.settings.language);
+      return false;
+    }
+  }
+
+  private async editTaskIndexItem(item: TaskIndexItem): Promise<boolean> {
+    try {
+      const result = await editIndexedTaskWithTasksApi(this.app, item);
+      if (result.failure === "cancelled") {
+        return false;
+      }
+      if (!result.updated || !result.file) {
+        showTaskMutationFailure(this.settings.language);
+        return false;
+      }
+      await this.taskIndex.updateFile(result.file);
+      return true;
+    } catch (error) {
+      console.error("Memos Plus: failed to edit indexed task", error);
+      showTaskMutationFailure(this.settings.language);
+      return false;
+    }
   }
 
   async saveSettings(): Promise<void> {
