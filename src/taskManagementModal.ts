@@ -65,7 +65,8 @@ export class TaskManagementModal extends Modal {
       });
     });
 
-    const controls = contentEl.createDiv({ cls: "memos-plus-task-manager-controls" });
+    const toolbar = contentEl.createDiv({ cls: "memos-plus-task-manager-toolbar" });
+    const controls = toolbar.createDiv({ cls: "memos-plus-task-manager-controls" });
     const search = controls.createEl("input", {
       cls: "memos-plus-task-manager-search",
       attr: {
@@ -102,7 +103,7 @@ export class TaskManagementModal extends Modal {
       this.renderResults();
     });
 
-    const filters = contentEl.createDiv({ cls: "memos-plus-task-manager-filters", attr: { role: "tablist" } });
+    const filters = toolbar.createDiv({ cls: "memos-plus-task-manager-filters", attr: { role: "tablist" } });
     for (const filter of FILTERS) {
       const button = filters.createEl("button", {
         cls: `memos-plus-task-manager-filter${filter.id === this.activeFilter ? " is-active" : ""}`,
@@ -238,7 +239,10 @@ export class TaskManagementModal extends Modal {
     });
 
     const open = row.createEl("button", { cls: "memos-plus-task-manager-task", attr: { type: "button" } });
-    open.createDiv({ cls: "memos-plus-task-manager-task-title", text: item.text });
+    open.createDiv({
+      cls: `memos-plus-task-manager-task-title${item.text.trim() ? "" : " is-empty"}`,
+      text: item.text.trim() || t(lang, "taskManager.untitled")
+    });
     const meta = open.createDiv({ cls: "memos-plus-task-manager-task-meta" });
     meta.createSpan({ text: item.filePath });
     meta.createSpan({ text: t(lang, "taskIndex.lineNumber").replace("{line}", String(item.lineNumber)) });

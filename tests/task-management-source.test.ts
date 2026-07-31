@@ -26,6 +26,16 @@ describe("task management floating entry source integration", () => {
     expect(modalSource).toContain("this.unsubscribe?.()");
   });
 
+  it("keeps the toolbar visible and task content vertical across Obsidian themes", () => {
+    expect(modalSource).toContain('contentEl.createDiv({ cls: "memos-plus-task-manager-toolbar" })');
+    expect(modalSource).toContain('toolbar.createDiv({ cls: "memos-plus-task-manager-controls" })');
+    expect(modalSource).toContain('toolbar.createDiv({ cls: "memos-plus-task-manager-filters"');
+    expect(stylesSource).toContain(".memos-plus-task-manager-toolbar {");
+    expect(stylesSource).toContain("grid-template-columns: 18px minmax(0, 1fr) auto;");
+    expect(stylesSource).toContain("flex-direction: column;");
+    expect(stylesSource).toContain("background: transparent !important;");
+  });
+
   it("delegates recurrence-aware toggles and edits to the official Tasks API when available", () => {
     expect(actionsSource).toContain('plugins?.["obsidian-tasks-plugin"]?.apiV1');
     expect(actionsSource).toContain("executeToggleTaskDoneCommand(task.line, task.filePath)");

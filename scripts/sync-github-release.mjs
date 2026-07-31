@@ -135,6 +135,7 @@ function verifyReleaseAssets(tag) {
 }
 
 async function main() {
+  const noReload = process.argv.includes("--no-reload");
   ensureGitHubAccount();
   ensureRemote();
 
@@ -170,9 +171,17 @@ async function main() {
   const runId = findReleaseRun(tag);
   run("gh", ["run", "watch", runId, "--repo", REPOSITORY, "--exit-status"]);
   verifyReleaseAssets(tag);
-  run("npm", ["run", "install:github", "--", "--tag", tag]);
+  const installArgs = ["run", "install:github", "--", "--tag", tag];
+  if (noReload) {
+    installArgs.push("--no-reload");
+  }
+  run("npm", installArgs);
 
-  console.log(`Published ${tag}, installed it from GitHub, and reloaded memos-plus.`);
+  console.log(
+    noReload
+      ? `Published ${tag} and installed it from GitHub without reloading Obsidian.`
+      : `Published ${tag}, installed it from GitHub, and reloaded memos-plus.`
+  );
 }
 
 main().catch((error) => {

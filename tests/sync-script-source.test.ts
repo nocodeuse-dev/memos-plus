@@ -25,4 +25,9 @@ describe("sync script", () => {
   it("keeps lint in the GitHub release gate", () => {
     expect(releaseWorkflowSource).toContain("- name: Lint\n        run: npm run lint");
   });
+
+  it("can publish and install without operating the Obsidian interface", () => {
+    expect(githubReleaseSyncSource).toContain('process.argv.includes("--no-reload")');
+    expect(githubReleaseSyncSource).toContain('installArgs.push("--no-reload")');
+  });
 });
