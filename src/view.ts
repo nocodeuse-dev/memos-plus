@@ -40,7 +40,9 @@ import {
   type SidebarSearchItem
 } from "./sidebar";
 import { computeMemoStats, type MemoStats } from "./stats";
+import { editIndexedTaskWithTasksApi, getTasksApi, toggleIndexedTask } from "./taskActions";
 import { filterTaskIndexItems, getTaskIndexOrganizerCounts, type TaskIndexItem, type TaskIndexStatus } from "./taskIndex";
+import { showTaskMutationFailure, TaskManagementModal } from "./taskManagementModal";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
 import { VaultSavedSearchIndex, type VaultSearchResult } from "./vaultSearch";
 import {
@@ -202,6 +204,7 @@ export class MemosPlusView extends ItemView {
         const shell = container.createDiv({ cls: this.shouldRenderMobileLightHome() ? "memos-plus-mobile-light-shell" : "memos-plus-shell" });
         if (this.shouldRenderMobileLightHome()) {
           await this.renderMobileLightHome(shell);
+          this.renderFloatingActions(shell);
           return;
         }
         const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home";
@@ -212,7 +215,7 @@ export class MemosPlusView extends ItemView {
           this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules));
         }
         await this.renderMain(shell, activeSurface, activeLayout);
-        this.renderMobileFab(shell);
+        this.renderFloatingActions(shell);
       });
     } finally {
       logMemosPlusDiagnostic("view:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
@@ -1908,11 +1911,35 @@ export class MemosPlusView extends ItemView {
     });
   }
 
+  private renderFloatingActions(shell: Element): void {
+    const showTaskManager = this.plugin.settings.taskVaultFilterEnabled && this.plugin.settings.taskIndexEnabled;
+    const showQuickCapture = this.plugin.settings.mobileFab && Platform.isMobile;
+    if (!showTaskManager && !showQuickCapture) {
+      return;
+    }
+    const actions = shell.createDiv({ cls: "memos-plus-floating-actions" });
+    if (showTaskManager) {
+      const taskManager = actions.createEl("button", {
+        cls: "memos-plus-task-manager-fab",
+        attr: {
+          type: "button",
+          title: t(this.plugin.settings.language, "taskManager.open"),
+          "aria-label": t(this.plugin.settings.language, "taskManager.open")
+        }
+      });
+      setIcon(taskManager.createSpan({ cls: "memos-plus-task-manager-fab-icon" }), "list-todo");
+      taskManager.createSpan({ cls: "memos-plus-task-manager-fab-label", text: t(this.plugin.settings.language, "taskManager.open") });
+      taskManager.addEventListener("click", () => this.openTaskManagement());
+    }
+    this.renderMobileFab(shell);
+  }
+
   private renderMobileFab(shell: Element): void {
     if (!this.plugin.settings.mobileFab || !Platform.isMobile) {
       return;
     }
-    const button = shell.createEl("button", { cls: "memos-plus-fab", attr: { "aria-label": t(this.plugin.settings.language, "command.quickCapture") } });
+    const container = shell.querySelector(".memos-plus-floating-actions") ?? shell;
+    const button = container.createEl("button", { cls: "memos-plus-fab", attr: { "aria-label": t(this.plugin.settings.language, "command.quickCapture") } });
     setIcon(button, "plus");
     button.addEventListener("click", () => {
       new QuickCaptureModal(this.app, {
@@ -1924,6 +1951,52 @@ export class MemosPlusView extends ItemView {
           selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
         }).open();
     });
+  }
+
+  private openTaskManagement(): void {
+    new TaskManagementModal(this.app, {
+      language: this.plugin.settings.language,
+      taskIndex: this.plugin.taskIndex,
+      canEditWithTasksApi: Boolean(getTasksApi(this.app)?.editTaskLineModal),
+      onOpenTask: (item) => this.openTaskIndexItem(item),
+      onToggleTask: (item) => this.toggleTaskIndexItem(item),
+      onEditTask: (item) => this.editTaskIndexItem(item)
+    }).open();
+  }
+
+  private async toggleTaskIndexItem(item: TaskIndexItem): Promise<boolean> {
+    try {
+      const result = await toggleIndexedTask(this.app, item);
+      if (!result.updated || !result.file) {
+        showTaskMutationFailure(this.plugin.settings.language);
+        return false;
+      }
+      await this.plugin.taskIndex.updateFile(result.file);
+      return true;
+    } catch (error) {
+      console.error("Memos Plus: failed to toggle indexed task", error);
+      showTaskMutationFailure(this.plugin.settings.language);
+      return false;
+    }
+  }
+
+  private async editTaskIndexItem(item: TaskIndexItem): Promise<boolean> {
+    try {
+      const result = await editIndexedTaskWithTasksApi(this.app, item);
+      if (result.failure === "cancelled") {
+        return false;
+      }
+      if (!result.updated || !result.file) {
+        showTaskMutationFailure(this.plugin.settings.language);
+        return false;
+      }
+      await this.plugin.taskIndex.updateFile(result.file);
+      return true;
+    } catch (error) {
+      console.error("Memos Plus: failed to edit indexed task", error);
+      showTaskMutationFailure(this.plugin.settings.language);
+      return false;
+    }
   }
 
   private async handleComposerSend(): Promise<void> {

@@ -35,7 +35,9 @@ export const TASK_DATE_FIELDS: TaskDateField[] = ["taskDueDate", "taskScheduledD
 export const TASK_STATUS_VALUES: TaskStatusFilterValue[] = ["open", "completed", "all"];
 export const TASK_PRIORITY_VALUES: TaskPriorityFilterValue[] = ["highest", "high", "medium", "low", "lowest", "none"];
 
-const TASK_LINE_RE = /^\s*[-*+]\s+\[([^\]])]\s+(.*)$/gm;
+// Match the checklist markers documented by Obsidian Tasks, including ordered
+// list tasks such as `1. [ ]` and `1) [ ]`.
+const TASK_LINE_RE = /^\s*(?:[-*+]|\d+[.)])\s+\[([^\]])]\s+(.*)$/gm;
 const DATE_MARKERS: Record<TaskDateField, string> = {
   taskDueDate: "📅",
   taskScheduledDate: "⏳",

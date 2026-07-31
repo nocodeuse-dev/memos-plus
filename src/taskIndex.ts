@@ -352,7 +352,7 @@ function taskIndexItemMatchesBranch(item: TaskIndexItem, branchId: OrganizerTask
   }
 }
 
-function sortTaskIndexItems(items: TaskIndexItem[]): TaskIndexItem[] {
+export function sortTaskIndexItems(items: TaskIndexItem[]): TaskIndexItem[] {
   return [...items].sort(
     (left, right) =>
       right.capturedAtTime - left.capturedAtTime || right.mtime - left.mtime || left.filePath.localeCompare(right.filePath) || left.lineNumber - right.lineNumber

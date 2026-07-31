@@ -34,6 +34,15 @@ describe("task search parsing", () => {
     ]);
   });
 
+  it("recognizes ordered-list task markers supported by Obsidian Tasks", () => {
+    const tasks = parseTaskLines(["1. [ ] 第一项", "2) [x] 第二项 ✅ 2026-08-01"].join("\n"));
+
+    expect(tasks.map((task) => ({ text: task.text, completed: task.completed }))).toEqual([
+      { text: "第一项", completed: false },
+      { text: "第二项 ✅ 2026-08-01", completed: true }
+    ]);
+  });
+
   it("matches multiple task conditions against the same task line", () => {
     const tasks = parseTaskLines(
       [
