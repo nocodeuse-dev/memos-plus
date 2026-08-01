@@ -5,6 +5,7 @@ const mainSource = readFileSync("main.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
 const taskNavigationSource = readFileSync("src/taskNavigation.ts", "utf8");
 const settingsSource = readFileSync("src/settings.ts", "utf8");
+const stylesSource = readFileSync("styles.css", "utf8");
 
 describe("TaskIndex source integration", () => {
   it("owns a plugin-level task index that updates on markdown file changes", () => {
@@ -53,5 +54,11 @@ describe("TaskIndex source integration", () => {
     expect(settingsSource).toContain("settings.taskIndexClearCache");
     expect(settingsSource).toContain("this.plugin.taskIndex.clearCache()");
     expect(settingsSource).toContain("this.plugin.taskIndex.rebuild({ force: true");
+  });
+
+  it("assigns stable palette colors to tags in result cards", () => {
+    expect(viewSource).toContain('chip.setAttr("data-tag-color", String(tagColorSlot(tag)))');
+    expect(stylesSource).toContain('.memos-plus-tag-chip[data-tag-color="0"]');
+    expect(stylesSource).toContain('.theme-dark .memos-plus-tag-chip[data-tag-color="7"]');
   });
 });

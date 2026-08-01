@@ -1724,13 +1724,32 @@
 }
 
 .memos-plus-tag-chip {
+  --memos-plus-tag-tone: var(--text-accent);
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--memos-plus-accent) 18%, transparent);
-  color: var(--text-accent);
+  background: color-mix(in srgb, var(--memos-plus-tag-tone) 14%, transparent);
+  color: var(--memos-plus-tag-tone);
   padding: 2px 8px;
   font-size: 11px;
 }
+
+.memos-plus-tag-chip[data-tag-color="0"] { --memos-plus-tag-tone: #6d28d9; }
+.memos-plus-tag-chip[data-tag-color="1"] { --memos-plus-tag-tone: #1d4ed8; }
+.memos-plus-tag-chip[data-tag-color="2"] { --memos-plus-tag-tone: #0e7490; }
+.memos-plus-tag-chip[data-tag-color="3"] { --memos-plus-tag-tone: #047857; }
+.memos-plus-tag-chip[data-tag-color="4"] { --memos-plus-tag-tone: #a16207; }
+.memos-plus-tag-chip[data-tag-color="5"] { --memos-plus-tag-tone: #c2410c; }
+.memos-plus-tag-chip[data-tag-color="6"] { --memos-plus-tag-tone: #be123c; }
+.memos-plus-tag-chip[data-tag-color="7"] { --memos-plus-tag-tone: #be185d; }
+
+.theme-dark .memos-plus-tag-chip[data-tag-color="0"] { --memos-plus-tag-tone: #c4b5fd; }
+.theme-dark .memos-plus-tag-chip[data-tag-color="1"] { --memos-plus-tag-tone: #93c5fd; }
+.theme-dark .memos-plus-tag-chip[data-tag-color="2"] { --memos-plus-tag-tone: #67e8f9; }
+.theme-dark .memos-plus-tag-chip[data-tag-color="3"] { --memos-plus-tag-tone: #6ee7b7; }
+.theme-dark .memos-plus-tag-chip[data-tag-color="4"] { --memos-plus-tag-tone: #fde68a; }
+.theme-dark .memos-plus-tag-chip[data-tag-color="5"] { --memos-plus-tag-tone: #fdba74; }
+.theme-dark .memos-plus-tag-chip[data-tag-color="6"] { --memos-plus-tag-tone: #fda4af; }
+.theme-dark .memos-plus-tag-chip[data-tag-color="7"] { --memos-plus-tag-tone: #f9a8d4; }
 
 .memos-plus-empty {
   color: var(--memos-plus-muted);

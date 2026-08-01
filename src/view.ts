@@ -40,6 +40,7 @@ import {
   type SidebarSearchItem
 } from "./sidebar";
 import { computeMemoStats, type MemoStats } from "./stats";
+import { tagColorSlot } from "./tagColor";
 import { filterTaskIndexItems, getTaskIndexOrganizerCounts, type TaskIndexItem, type TaskIndexStatus } from "./taskIndex";
 import { openIndexedTask } from "./taskNavigation";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
@@ -732,6 +733,7 @@ export class MemosPlusView extends ItemView {
       const tags = card.createDiv({ cls: "memos-plus-card-tags" });
       for (const tag of memo.tags) {
         const chip = tags.createEl("button", { cls: "memos-plus-tag-chip", text: `#${tag}` });
+        chip.setAttr("data-tag-color", String(tagColorSlot(tag)));
         chip.addEventListener("click", () => {
           this.tag = tag;
           this.activeOrganizerSectionId = "";
@@ -1596,7 +1598,8 @@ export class MemosPlusView extends ItemView {
       if (result.tags.length > 0) {
         const tags = card.createDiv({ cls: "memos-plus-card-tags" });
         for (const tag of result.tags.slice(0, 8)) {
-          tags.createSpan({ cls: "memos-plus-tag-chip", text: `#${tag}` });
+          const chip = tags.createSpan({ cls: "memos-plus-tag-chip", text: `#${tag}` });
+          chip.setAttr("data-tag-color", String(tagColorSlot(tag)));
         }
       }
     }
