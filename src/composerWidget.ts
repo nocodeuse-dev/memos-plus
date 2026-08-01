@@ -110,6 +110,10 @@ export class ComposerWidget {
     this.composer.focus();
   }
 
+  isFocused(): boolean {
+    return this.isComposerEditorActive();
+  }
+
   insertText(text: string): void {
     this.composer.insertText(text);
     this.handleInputContentUpdated(false);

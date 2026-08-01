@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { createComposerActions } from "../src/composerActions";
-import { resolveComposerInitialContent } from "../src/composerSession";
+import { resolveComposerInitialContent, shouldApplyResolvedInitialContent } from "../src/composerSession";
 import { normalizeSettings } from "../src/settings";
 
 vi.mock("obsidian", () => ({
@@ -29,6 +29,12 @@ function fakeComposer(value: string) {
 }
 
 describe("composer send failure draft recovery", () => {
+  it("does not apply delayed initial content after the user has typed or the composer was destroyed", () => {
+    expect(shouldApplyResolvedInitialContent("", "", false)).toBe(true);
+    expect(shouldApplyResolvedInitialContent("", "用户刚输入的内容", false)).toBe(false);
+    expect(shouldApplyResolvedInitialContent("原草稿", "原草稿", true)).toBe(false);
+  });
+
   it("clears the saved failure draft when the shared composer clear button clears drafts", () => {
     const sessionSource = readFileSync("src/composerSession.ts", "utf8");
     expect(sessionSource).toContain("clearComposerDraftCaches");

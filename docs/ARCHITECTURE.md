@@ -49,7 +49,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/displayModules.ts`：统一显示模块系统。定义 `DisplayModule` 注册表、三端 `ViewLayout` 配置、预设模式、模块顺序、紧凑模式、模块性能等级和配置同步/归一化 helper；桌面主页、右侧栏快速输入和移动端轻量首页已接入该配置。
 - `src/composerWidget.ts`：共享输入框组件。封装内嵌 Markdown 编辑器/textarea fallback、工具栏、更多菜单、图片粘贴/拖拽、Callout、代码块和 Excalidraw。
 - `src/composerActions.ts`：共享输入框发送动作。主输入框、快速记录弹窗和右侧栏快速输入共用普通保存、默认发送菜单、发送到项目/模板和弹窗默认保存逻辑。
-- `src/composerSession.ts`：共享输入框创建层。统一创建 `ComposerWidget` 和 `composerActions`，并集中处理快速记录/侧边栏的选中文字与剪贴板文字/链接初始内容填入逻辑；自动初始内容路径不具备读取图片的能力。
+- `src/composerSession.ts`：共享输入框创建层。统一创建 `ComposerWidget` 和 `composerActions`，并集中处理快速记录/侧边栏的选中文字与剪贴板文字/链接初始内容填入逻辑；自动初始内容路径不具备读取图片的能力，且异步结果只有在输入内容未变化、会话未销毁时才允许写入。
 - `src/quickCaptureContent.ts`：快速记录初始内容来源。统一读取当前编辑器选中文字和剪贴板文字/链接，处理已有草稿冲突，并提供替换/追加/忽略询问弹窗；不会读取剪贴板图片。
 - `src/imageSaveAuthorization.ts` / `src/clipboardImageImport.ts`：图片写入授权边界。附件保存只接受手动粘贴、文件选择、拖放或已确认的剪贴板图片导入；明确导入命令先确认，再读取剪贴板。
 - `src/quickInputView.ts`：右侧栏“ Memos Plus 快速输入”独立视图，复用 `composerSession`，并读取 `sidebarLayout` 决定是否渲染输入框、目录、数量和结果列表；桌面端走右侧栏，移动端命令回退到快速记录弹窗。
@@ -98,7 +98,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 
 | 功能模块 | 相关文件 | 关键类/函数 | 说明 |
 | --- | --- | --- | --- |
-| 插件入口 | `main.ts` | `MemosPlusPlugin.onload`, `activateView`, `saveSettings`, `refreshViews` | 注册视图、命令、设置页、EditorSuggest，创建 store。 |
+| 插件入口 | `main.ts` | `MemosPlusPlugin.onload`, `activateView`, `saveSettings`, `refreshViews` | 注册视图、命令、设置页、EditorSuggest，创建 store；任务索引后台刷新遇到聚焦中或非空的输入框时跳过整页重建。 |
 | 快速输入侧栏 | `main.ts`, `src/quickInputView.ts`, `src/composerSession.ts`, `src/displayModules.ts` | `MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE`, `MemosPlusQuickInputView`, `activateQuickInputView`, `focusComposer`, `resolveViewLayoutModules` | 右侧栏独立输入视图；命令重复执行时聚焦输入框，移动端回退快速记录弹窗。侧边栏不再渲染独有快捷按钮，只保留共用输入框，并按 `sidebarLayout` 隐藏未启用模块，隐藏数量/结果时跳过对应计算和预览加载。 |
 | 快速记录内容来源 | `main.ts`, `src/modal.ts`, `src/quickInputView.ts`, `src/composerSession.ts`, `src/quickCaptureContent.ts`, `src/imageSaveAuthorization.ts`, `src/clipboardImageImport.ts` | `registerObsidianProtocolHandler`, `handleMemosPlusProtocol`, `createComposerSession`, `getQuickCaptureInitialContent`, `readCurrentEditorSelection`, `readClipboardTextSafely`, `importClipboardImageWithConfirmation`, `saveUserAuthorizedImage` | 快速记录和侧边栏自动检测只共享选中文字与剪贴板文字/链接；打开界面、启动、重载、聚焦均不能读取或保存剪贴板图片。图片只允许手动粘贴、文件选择、拖放或用户确认后的明确导入命令。 |
 | 移动端轻量首页 | `src/view.ts`, `src/displayModules.ts`, `src/settings.ts` | `shouldRenderMobileLightHome`, `renderMobileLightHome`, `mobileLayoutModules`, `resolveViewLayoutModules` | 移动端性能模式开启时直接读取 `mobileLayout` / `DisplayModule` 决定是否渲染输入框、目录、统计、热力图、文件数量和文件列表；布局为完整模式时回到完整工作台。 |
@@ -128,7 +128,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 | 旧项目插入模板 | 当前未实现 | 当前已删除 | 旧 `projectInsertTemplate` / `projectTemplateOptions` / `projectInsertHeading` / `createProjectHeadingIfMissing` 不再属于设置模型；发送到项目由现代发送规则 `ManagedTemplate` 统一承担。 |
 | Tasks 格式生成 | `src/templateManager.ts`, `src/projectFileSuggestModal.ts`, `src/tasksFormat.ts`, `src/taskContent.ts`, `src/store.ts`, `src/settings.ts` | `resolveTemplateTaskDecision`, `ProjectTaskOptions`, `renderTaskContentWithDetail`, `buildTasksMarkdownLine`, `renderTasksSettings` | 每个投递模板独立决定是否生成任务；全局 Obsidian Tasks 设置只决定任务行是否追加优先级、日期和重复规则等兼容字段。任务可以包住 Callout、代码块或自定义格式作为缩进详情。 |
 | Callout 格式生成 | `src/callout.ts`, `src/view.ts`, `src/settings.ts` | `prepareCalloutContent`, `buildCalloutMarkdown`, `renderCalloutSettings` | 输入保存和投递前可将内容转换为 Callout。 |
-| 输入框共享组件 | `src/composerWidget.ts`, `src/composerActions.ts`, `src/composerSession.ts`, `src/view.ts`, `src/modal.ts`, `src/quickInputView.ts` | `ComposerWidget`, `createComposerSession`, `createComposerActions`, `saveDefault`, `sendToProject`, `resolveComposerInitialContent` | 主页面、快速记录和侧边栏快速输入共享工具栏、图片处理、默认发送、发送到项目/模板、初始内容填入和发送失败草稿恢复逻辑。 |
+| 输入框共享组件 | `src/composerWidget.ts`, `src/composerActions.ts`, `src/composerSession.ts`, `src/view.ts`, `src/modal.ts`, `src/quickInputView.ts` | `ComposerWidget`, `createComposerSession`, `createComposerActions`, `saveDefault`, `sendToProject`, `resolveComposerInitialContent` | 主页面、快速记录和侧边栏快速输入共享工具栏、图片处理、默认发送、发送到项目/模板、初始内容填入和发送失败草稿恢复逻辑；主页面必须重建时先恢复内存草稿，迟到的异步初始内容不得覆盖用户新输入。 |
 | 图标选择器 | `src/iconPicker.ts`, `src/view.ts`, `src/savedSearchModal.ts`, `src/sidebarGroupModal.ts` | `IconPickerModal`, `openAllMemosIconPicker`, `renderSelectedIcon` | 基于 Obsidian `getIconIds` / `setIcon`。 |
 | 设置页标签栏 | `src/settings.ts` | `MemosPlusSettingTab`, `renderSettingsTabs`, `renderSettingsTabButton`, `renderActiveSettingsTab`, `renderLayoutVisualWorkspace`, `renderLayoutModuleInspector` | 设置页使用顶部横向胶囊标签栏，只渲染当前标签内容；“界面布局”标签内使用三端切换、真实界面缩略预览和右侧属性面板，点击区域只刷新预览与属性面板。 |
 | 图片粘贴 | `src/view.ts`, `src/store.ts`, `src/imageHandling.ts` | `handleComposerPaste`, `handleComposerDrop`, `saveImageAttachment`, `shouldMemosHandleImagePaste` | 支持 Image Auto Upload 兼容，不接管时不 preventDefault。 |

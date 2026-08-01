@@ -27,7 +27,7 @@ describe("mobile light home source integration", () => {
     expect(renderBlock).toContain("const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, activeSurface)");
     expect(renderBlock).toContain("const surfaceModules = surfaceLayoutModules.modules");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
-    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout)");
+    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft)");
     expect(dataNeedsBlock).toContain("Platform.isMobile");
     expect(dataNeedsBlock).toContain("this.layoutForSurface(surface)");
   });
@@ -40,7 +40,7 @@ describe("mobile light home source integration", () => {
   });
 
   it("renders mobile display modules conditionally instead of using the legacy mobile layout resolver", () => {
-    const mobileBlock = viewSource.match(/private async renderMobileLightHome\(shell: Element\): Promise<void> \{([\s\S]*?)\n {2}\}/)?.[1] ?? "";
+    const mobileBlock = viewSource.match(/private async renderMobileLightHome\(shell: Element, initialComposerContent\?: string\): Promise<void> \{([\s\S]*?)\n {2}\}/)?.[1] ?? "";
     expect(mobileBlock).toContain('const mobileLayout = this.layoutForSurface("mobile")');
     expect(mobileBlock).toContain('resolveLayoutSurfaceModules(mobileLayout, "mobile")');
     expect(mobileBlock).toContain("renderLayoutSurface({");

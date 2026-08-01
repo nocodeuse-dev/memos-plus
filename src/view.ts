@@ -111,6 +111,7 @@ export class MemosPlusView extends ItemView {
   private mobileLightFullWorkbench = false;
   private visibleCount = 50;
   private composerSession: ComposerSession | null = null;
+  private transientComposerDraft: string | undefined;
   private timelineEl: HTMLElement | null = null;
   private timelineRenderTimer: number | null = null;
   private timelineRenderToken = 0;
@@ -162,6 +163,7 @@ export class MemosPlusView extends ItemView {
     this.vaultSearchIndex.clearContentCache();
     this.composerSession?.destroy();
     this.composerSession = null;
+    this.transientComposerDraft = undefined;
     this.timelineEl = null;
     this.timelineRenderToken += 1;
     this.clearDerivedViewCaches();
@@ -189,6 +191,11 @@ export class MemosPlusView extends ItemView {
     logMemosPlusDiagnostic("view:render", { type: MEMOS_PLUS_VIEW_TYPE });
     logMemosPlusDiagnostic("view:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
     setMemosPlusDiagnosticState({ isRendering: true });
+    const activeComposerDraft = this.composerSession?.widget.getValue();
+    if (activeComposerDraft !== undefined) {
+      this.transientComposerDraft = activeComposerDraft;
+    }
+    const transientComposerDraft = this.transientComposerDraft;
     try {
       await this.profiler().measure("render view time", async () => {
         this.cancelScheduledTimelineRender();
@@ -203,7 +210,7 @@ export class MemosPlusView extends ItemView {
 
         const shell = container.createDiv({ cls: this.shouldRenderMobileLightHome() ? "memos-plus-mobile-light-shell" : "memos-plus-shell" });
         if (this.shouldRenderMobileLightHome()) {
-          await this.renderMobileLightHome(shell);
+          await this.renderMobileLightHome(shell, transientComposerDraft);
           return;
         }
         const activeSurface: DisplaySurface = Platform.isMobile ? "mobile" : "home";
@@ -213,7 +220,7 @@ export class MemosPlusView extends ItemView {
         if (this.shouldRenderDisplaySidebar(surfaceModules)) {
           this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules));
         }
-        await this.renderMain(shell, activeSurface, activeLayout);
+        await this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft);
         this.renderMobileFab(shell);
       });
     } finally {
@@ -302,7 +309,12 @@ export class MemosPlusView extends ItemView {
     logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
   }
 
-  private async renderMain(shell: Element, activeSurface: DisplaySurface, layout: ViewLayoutSettings): Promise<void> {
+  private async renderMain(
+    shell: Element,
+    activeSurface: DisplaySurface,
+    layout: ViewLayoutSettings,
+    initialComposerContent?: string
+  ): Promise<void> {
     logMemosPlusDiagnostic("main:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
     try {
       const { modules } = resolveLayoutSurfaceModules(layout, activeSurface);
@@ -329,7 +341,7 @@ export class MemosPlusView extends ItemView {
             return;
           }
           if (groupId === "composer" && modules.has("quickInput")) {
-            this.renderComposer(main, activeSurface === "mobile" ? "mobileHome" : "home", modules);
+            this.renderComposer(main, activeSurface === "mobile" ? "mobileHome" : "home", modules, initialComposerContent);
             return;
           }
           if (groupId === "results") {
@@ -377,7 +389,7 @@ export class MemosPlusView extends ItemView {
     };
   }
 
-  private async renderMobileLightHome(shell: Element): Promise<void> {
+  private async renderMobileLightHome(shell: Element, initialComposerContent?: string): Promise<void> {
     const lang = this.plugin.settings.language;
     const mobileLayout = this.layoutForSurface("mobile");
     const { modules, orderedModules } = resolveLayoutSurfaceModules(mobileLayout, "mobile");
@@ -410,7 +422,7 @@ export class MemosPlusView extends ItemView {
         }
         if (groupId === "composer") {
           if (modules.has("quickInput")) {
-            this.renderComposer(home, "mobileHome", modules);
+            this.renderComposer(home, "mobileHome", modules, initialComposerContent);
             this.renderMobileLightLaterButtonIfNeeded(home, modules);
           }
           return;
@@ -607,7 +619,12 @@ export class MemosPlusView extends ItemView {
     await this.renderTimeline(this.timelineEl);
   }
 
-  private renderComposer(main: Element, surface: ComposerSurface = "home", modules?: ReadonlySet<DisplayModuleId>): void {
+  private renderComposer(
+    main: Element,
+    surface: ComposerSurface = "home",
+    modules?: ReadonlySet<DisplayModuleId>,
+    initialContent?: string
+  ): void {
     this.composerSession = createComposerSession({
       app: this.app,
       parent: main,
@@ -620,10 +637,14 @@ export class MemosPlusView extends ItemView {
       selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
     }, {
       surface,
+      initialContent,
       clipboardAutoFillContext: surface === "mobileHome" ? "mobile" : "main",
       clipboardAutoFillState: this.plugin.settings.clipboardAutoFillState,
       displayModules: modules
     });
+    if (initialContent !== undefined) {
+      return;
+    }
     void this.composerSession.applyInitialContent("auto").catch((error) => {
       console.warn("[Memos Plus] Failed to apply composer initial content", error);
     });
@@ -1917,6 +1938,11 @@ export class MemosPlusView extends ItemView {
 
   focusComposer(): void {
     this.composerSession?.focus();
+  }
+
+  hasActiveComposerInput(): boolean {
+    const widget = this.composerSession?.widget;
+    return Boolean(widget && (widget.getValue() || widget.isFocused()));
   }
 
   async insertConfirmedClipboardImage(file: File): Promise<boolean> {

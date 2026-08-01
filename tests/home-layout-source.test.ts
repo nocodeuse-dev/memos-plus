@@ -15,7 +15,7 @@ describe("desktop home layout source integration", () => {
     expect(renderBlock).toContain("const surfaceModules = surfaceLayoutModules.modules");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
     expect(renderBlock).toContain("this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules))");
-    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout)");
+    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft)");
   });
 
   it("skips hidden desktop home modules before rendering or binding events", () => {
@@ -39,7 +39,7 @@ describe("desktop home layout source integration", () => {
     const composerSessionSource = readFileSync("src/composerSession.ts", "utf8");
     const composerWidgetSource = readFileSync("src/composerWidget.ts", "utf8");
 
-    expect(renderMainBlock).toContain('this.renderComposer(main, activeSurface === "mobile" ? "mobileHome" : "home", modules)');
+    expect(renderMainBlock).toContain('this.renderComposer(main, activeSurface === "mobile" ? "mobileHome" : "home", modules, initialComposerContent)');
     expect(renderComposerBlock).toContain("displayModules: modules");
     expect(composerSessionSource).toContain("displayModules: options.displayModules");
     expect(composerWidgetSource).toContain('this.shouldRenderDisplayModule("inputToolbar")');

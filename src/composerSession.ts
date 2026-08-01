@@ -78,8 +78,13 @@ export function resolveComposerInitialContent(settings: MemosPlusSettings, initi
   return draft ? settings.sendFailureDraftContent : undefined;
 }
 
+export function shouldApplyResolvedInitialContent(contentAtStart: string, currentContent: string, destroyed: boolean): boolean {
+  return !destroyed && currentContent === contentAtStart;
+}
+
 export function createComposerSession(host: ComposerSessionHost, options: ComposerSessionOptions = {}): ComposerSession {
   let actions: ComposerActions | null = null;
+  let destroyed = false;
   const widget = new ComposerWidget({
     app: host.app,
     parent: host.parent,
@@ -166,9 +171,10 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     if (mode === "none") {
       return;
     }
+    const contentAtStart = widget.getValue();
     const result = await getQuickCaptureInitialContent({
       settings: host.settings,
-      existingContent: widget.getValue(),
+      existingContent: contentAtStart,
       mode,
       readSelection: () => readCurrentEditorSelection(host.app),
       readClipboardText: () => readClipboardTextSafely(() => notice("quickCaptureContent.clipboardUnsupported")),
@@ -177,10 +183,16 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
       clipboardAutoFillContext: options.clipboardAutoFillContext,
       clipboardThrottleMs: options.clipboardThrottleMs
     });
+    if (destroyed) {
+      return;
+    }
     if (!result) {
       if (showClipboardEmptyNotice && mode === "clipboard") {
         notice("quickCaptureContent.clipboardEmpty");
       }
+      return;
+    }
+    if (!shouldApplyResolvedInitialContent(contentAtStart, widget.getValue(), destroyed)) {
       return;
     }
     await applyIncomingContent(result);
@@ -192,7 +204,10 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     applyInitialContent,
     insertConfirmedClipboardImage: (file) => widget.insertConfirmedClipboardImage(file),
     focus: () => widget.focus(),
-    destroy: () => widget.destroy()
+    destroy: () => {
+      destroyed = true;
+      widget.destroy();
+    }
   };
 }
 

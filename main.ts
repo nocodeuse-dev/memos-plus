@@ -541,6 +541,13 @@ export default class MemosPlusPlugin extends Plugin {
     for (const leaf of leaves) {
       const view = leaf.view;
       if (view instanceof MemosPlusView) {
+        if (source === "task-index-change" && view.hasActiveComposerInput()) {
+          logMemosPlusDiagnostic("view:refresh-skipped", {
+            source,
+            reason: "active-composer-draft"
+          });
+          continue;
+        }
         await view.reload();
       }
     }
