@@ -15,6 +15,9 @@ import type { TaskIndexItem } from "./src/taskIndex";
 import { editIndexedTaskWithTasksApi, getTasksApi, toggleIndexedTask } from "./src/taskActions";
 import { showTaskMutationFailure, TaskManagementModal } from "./src/taskManagementModal";
 import { openIndexedTask } from "./src/taskNavigation";
+import { confirmWithModal } from "./src/confirmModal";
+import { importClipboardImageWithConfirmation } from "./src/clipboardImageImport";
+import { readClipboardImageSafely } from "./src/quickCaptureContent";
 import { VaultMetadataIndex } from "./src/vaultIndex";
 import { viewLayoutsNeedData, type ViewLayoutsSettings } from "./src/displayModules";
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./src/projectFileSuggestModal";
@@ -135,6 +138,14 @@ export default class MemosPlusPlugin extends Plugin {
       name: t(this.settings.language, "command.quickCaptureClipboard"),
       callback: () => {
         this.openQuickCaptureWithContentSource("clipboard", true);
+      }
+    });
+
+    this.addCommand({
+      id: "import-clipboard-image",
+      name: t(this.settings.language, "command.importClipboardImage"),
+      callback: () => {
+        this.runAsyncOperation("import clipboard image", () => this.importClipboardImage());
       }
     });
 
@@ -284,6 +295,32 @@ export default class MemosPlusPlugin extends Plugin {
       resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
       selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options)
     }).open();
+  }
+
+  private async importClipboardImage(): Promise<void> {
+    const lang = this.settings.language;
+    const result = await importClipboardImageWithConfirmation({
+      confirmImport: () =>
+        confirmWithModal(this.app, {
+          language: lang,
+          title: t(lang, "clipboardImageImport.title"),
+          message: t(lang, "clipboardImageImport.message"),
+          confirmText: t(lang, "clipboardImageImport.confirm")
+        }),
+      readClipboardImage: () => readClipboardImageSafely(),
+      saveConfirmedImage: async (file) => {
+        const leaf = await this.activateView();
+        if (!(leaf?.view instanceof MemosPlusView)) {
+          return false;
+        }
+        return leaf.view.insertConfirmedClipboardImage(file);
+      }
+    });
+    if (result === "empty") {
+      new Notice(t(lang, "clipboardImageImport.empty"));
+    } else if (result === "failed") {
+      new Notice(t(lang, "notice.imageFailed"));
+    }
   }
 
   private handleMemosPlusProtocol(params: ObsidianProtocolData): void {

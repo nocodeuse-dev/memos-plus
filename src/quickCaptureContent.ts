@@ -5,12 +5,11 @@ import { type MemosPlusSettings, type QuickCaptureClipboardMode } from "./settin
 import {
   type ClipboardAutoFillContext,
   type ClipboardAutoFillState,
-  getClipboardImageAutoFillKey,
   shouldAutoApplyClipboard
 } from "./clipboardAutoFill";
 
 export type QuickCaptureInitialContentMode = "auto" | "selection" | "clipboard" | "none";
-export type QuickCaptureContentSource = "selection" | "clipboard-text" | "clipboard-link" | "clipboard-image";
+export type QuickCaptureContentSource = "selection" | "clipboard-text" | "clipboard-link";
 export type QuickCaptureContentAction = "replace" | "append" | "skip";
 
 export interface QuickCapturePromptRequest {
@@ -23,8 +22,6 @@ export interface QuickCaptureInitialContentResult {
   action: QuickCaptureContentAction;
   content: string;
   source: QuickCaptureContentSource;
-  autoFillFingerprintContent?: string;
-  imageFile?: File;
 }
 
 export interface QuickCaptureInitialContentOptions {
@@ -36,7 +33,6 @@ export interface QuickCaptureInitialContentOptions {
   clipboardThrottleMs?: number;
   readSelection?: () => string;
   readClipboardText?: () => Promise<string>;
-  readClipboardImage?: () => Promise<File | null>;
   chooseAction?: (request: QuickCapturePromptRequest) => Promise<QuickCaptureContentAction>;
   onClipboardUnsupported?: () => void;
 }
@@ -70,20 +66,6 @@ export async function getQuickCaptureInitialContent(options: QuickCaptureInitial
     }
     const source = options.settings.quickCaptureRecognizeClipboardLinks && isLikelyUrl(clipboardText) ? "clipboard-link" : "clipboard-text";
     return resolveIncomingContent(options, clipboardText, source);
-  }
-  const imageFile = await options.readClipboardImage?.();
-  if (imageFile) {
-    const autoFillFingerprintContent = getClipboardImageAutoFillKey(imageFile);
-    const allowed = shouldAutoApplyClipboard(autoFillFingerprintContent, {
-      context: options.clipboardAutoFillContext ?? "quickCapture",
-      state: options.clipboardAutoFillState,
-      throttleMs: options.clipboardThrottleMs
-    });
-    if (!allowed) {
-      return null;
-    }
-    const result = await resolveIncomingContent(options, imageFile.name, "clipboard-image");
-    return result ? { ...result, autoFillFingerprintContent, imageFile } : null;
   }
   return null;
 }

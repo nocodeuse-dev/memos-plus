@@ -303,7 +303,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   taskIndexDelayOnMobile: true,
   quickCaptureAutoSelection: true,
   quickCaptureDetectClipboard: true,
-  sidebarAutoDetectClipboard: true,
+  sidebarAutoDetectClipboard: false,
   quickCaptureClipboardDesktopMode: "ask",
   quickCaptureClipboardMobileMode: "ask",
   quickCaptureExistingContentMode: "ask",

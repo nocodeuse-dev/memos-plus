@@ -48,8 +48,9 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/displayModules.ts`：统一显示模块系统。定义 `DisplayModule` 注册表、三端 `ViewLayout` 配置、预设模式、模块顺序、紧凑模式、模块性能等级和配置同步/归一化 helper；桌面主页、右侧栏快速输入和移动端轻量首页已接入该配置。
 - `src/composerWidget.ts`：共享输入框组件。封装内嵌 Markdown 编辑器/textarea fallback、工具栏、更多菜单、图片粘贴/拖拽、Callout、代码块和 Excalidraw。
 - `src/composerActions.ts`：共享输入框发送动作。主输入框、快速记录弹窗和右侧栏快速输入共用普通保存、默认发送菜单、发送到项目/模板和弹窗默认保存逻辑。
-- `src/composerSession.ts`：共享输入框创建层。统一创建 `ComposerWidget` 和 `composerActions`，并集中处理快速记录/侧边栏的选中文字、剪贴板和图片初始内容填入逻辑。
-- `src/quickCaptureContent.ts`：快速记录初始内容来源。统一读取当前编辑器选中文字、剪贴板文字/链接/图片，处理已有草稿冲突，并提供替换/追加/忽略询问弹窗。
+- `src/composerSession.ts`：共享输入框创建层。统一创建 `ComposerWidget` 和 `composerActions`，并集中处理快速记录/侧边栏的选中文字与剪贴板文字/链接初始内容填入逻辑；自动初始内容路径不具备读取图片的能力。
+- `src/quickCaptureContent.ts`：快速记录初始内容来源。统一读取当前编辑器选中文字和剪贴板文字/链接，处理已有草稿冲突，并提供替换/追加/忽略询问弹窗；不会读取剪贴板图片。
+- `src/imageSaveAuthorization.ts` / `src/clipboardImageImport.ts`：图片写入授权边界。附件保存只接受手动粘贴、文件选择、拖放或已确认的剪贴板图片导入；明确导入命令先确认，再读取剪贴板。
 - `src/quickInputView.ts`：右侧栏“ Memos Plus 快速输入”独立视图，复用 `composerSession`，并读取 `sidebarLayout` 决定是否渲染输入框、目录、数量和结果列表；桌面端走右侧栏，移动端命令回退到快速记录弹窗。
 - `src/organizerPanel.ts`：整理目录纯函数。定义整理分区、整理状态、设置归一化和基于已加载 memo 的分区计算。文件名沿用旧面板命名以兼容已有字段。
 - `src/taskIndex.ts`：全库任务行索引。分批读取 Markdown 文件、缓存任务行，按文件 mtime 跳过未变化文件；结果排序和卡片时间优先使用任务文本开头的收集时间或 Tasks 创建日期，并提供整理目录任务分支的数量统计和筛选结果。
@@ -95,7 +96,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 | --- | --- | --- | --- |
 | 插件入口 | `main.ts` | `MemosPlusPlugin.onload`, `activateView`, `saveSettings`, `refreshViews` | 注册视图、命令、设置页、EditorSuggest，创建 store。 |
 | 快速输入侧栏 | `main.ts`, `src/quickInputView.ts`, `src/composerSession.ts`, `src/displayModules.ts` | `MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE`, `MemosPlusQuickInputView`, `activateQuickInputView`, `focusComposer`, `resolveViewLayoutModules` | 右侧栏独立输入视图；命令重复执行时聚焦输入框，移动端回退快速记录弹窗。侧边栏不再渲染独有快捷按钮，只保留共用输入框，并按 `sidebarLayout` 隐藏未启用模块，隐藏数量/结果时跳过对应计算和预览加载。 |
-| 快速记录内容来源 | `main.ts`, `src/modal.ts`, `src/quickInputView.ts`, `src/composerSession.ts`, `src/quickCaptureContent.ts` | `registerObsidianProtocolHandler`, `handleMemosPlusProtocol`, `createComposerSession`, `getQuickCaptureInitialContent`, `readCurrentEditorSelection`, `readClipboardTextSafely`, `mergeComposerContent`, `openQuickCaptureContentPrompt` | 快速记录和侧边栏快速输入共享选中文字/剪贴板内容获取逻辑；已有草稿按设置询问、保留、替换或追加。`obsidian://memos-plus` 可从 iPhone 快捷指令直接打开快速记录。 |
+| 快速记录内容来源 | `main.ts`, `src/modal.ts`, `src/quickInputView.ts`, `src/composerSession.ts`, `src/quickCaptureContent.ts`, `src/imageSaveAuthorization.ts`, `src/clipboardImageImport.ts` | `registerObsidianProtocolHandler`, `handleMemosPlusProtocol`, `createComposerSession`, `getQuickCaptureInitialContent`, `readCurrentEditorSelection`, `readClipboardTextSafely`, `importClipboardImageWithConfirmation`, `saveUserAuthorizedImage` | 快速记录和侧边栏自动检测只共享选中文字与剪贴板文字/链接；打开界面、启动、重载、聚焦均不能读取或保存剪贴板图片。图片只允许手动粘贴、文件选择、拖放或用户确认后的明确导入命令。 |
 | 移动端轻量首页 | `src/view.ts`, `src/displayModules.ts`, `src/settings.ts` | `shouldRenderMobileLightHome`, `renderMobileLightHome`, `mobileLayoutModules`, `resolveViewLayoutModules` | 移动端性能模式开启时直接读取 `mobileLayout` / `DisplayModule` 决定是否渲染输入框、目录、统计、热力图、文件数量和文件列表；布局为完整模式时回到完整工作台。 |
 | 统一显示模块配置 | `src/displayModules.ts`, `src/settings.ts`, `src/quickInputView.ts`, `src/view.ts` | `DISPLAY_MODULE_REGISTRY`, `normalizeViewLayout`, `resolveViewLayoutModules`, `copyViewLayoutToSurface`, `renderLayoutSettings`, `renderLayoutPreview`, `renderLayoutModuleInspector` | 主页、侧边栏、移动端的可显示区域统一注册为模块；设置页“界面布局”以真实界面缩略图 + 属性面板编辑三端 `homeLayout` / `sidebarLayout` / `mobileLayout` 配置，预览区域只显示短标签并保留配置同步按钮。`homeLayout` 已接入桌面主页，`sidebarLayout` 已接入右侧栏快速输入，`mobileLayout` 已接入移动端轻量首页。 |
 | 设置加载 | `main.ts`, `src/settings.ts` | `loadData`, `normalizeSettings`, `DEFAULT_SETTINGS` | 旧配置归一化，补齐默认字段；旧项目投递设置会生成默认模板“发送到项目”。 |

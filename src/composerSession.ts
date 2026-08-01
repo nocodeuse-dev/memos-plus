@@ -9,14 +9,12 @@ import {
   type ComposerSurface
 } from "./composerWidget";
 import type { DisplayModuleId } from "./displayModules";
-import { shouldMemosHandleImagePaste } from "./imageHandling";
 import { t } from "./i18n";
 import { runExcalidrawCreateAfterTargetSelection } from "./excalidrawEmbed";
 import {
   type QuickCaptureContentSource,
   getQuickCaptureInitialContent,
   openQuickCaptureContentPrompt,
-  readClipboardImageSafely,
   readClipboardTextSafely,
   readCurrentEditorSelection,
   type QuickCaptureInitialContentMode,
@@ -64,6 +62,7 @@ export interface ComposerSession {
   widget: ComposerWidget;
   actions: ComposerActions;
   applyInitialContent: (mode?: QuickCaptureInitialContentMode, showClipboardEmptyNotice?: boolean) => Promise<void>;
+  insertConfirmedClipboardImage: (file: File) => Promise<boolean>;
   focus: () => void;
   destroy: () => void;
 }
@@ -126,12 +125,6 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
   };
 
   const applyIncomingContent = async (result: QuickCaptureInitialContentResult): Promise<void> => {
-    if (result.imageFile) {
-      await widget.insertImageFile(result.imageFile);
-      markAutoFillIfNeeded(result.source, result.autoFillFingerprintContent ?? result.content);
-      await options.onIncomingContentApplied?.();
-      return;
-    }
     if (result.action === "skip") {
       return;
     }
@@ -179,9 +172,6 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
       mode,
       readSelection: () => readCurrentEditorSelection(host.app),
       readClipboardText: () => readClipboardTextSafely(() => notice("quickCaptureContent.clipboardUnsupported")),
-      readClipboardImage: shouldMemosHandleImagePaste(host.settings.imageHandlingMode, host.app)
-        ? () => readClipboardImageSafely(() => notice("quickCaptureContent.clipboardUnsupported"))
-        : undefined,
       chooseAction: (request) => openQuickCaptureContentPrompt(host.app, host.settings.language, request),
       clipboardAutoFillState: options.clipboardAutoFillState,
       clipboardAutoFillContext: options.clipboardAutoFillContext,
@@ -200,6 +190,7 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
     widget,
     actions,
     applyInitialContent,
+    insertConfirmedClipboardImage: (file) => widget.insertConfirmedClipboardImage(file),
     focus: () => widget.focus(),
     destroy: () => widget.destroy()
   };
@@ -210,7 +201,7 @@ function shouldMarkAutoFillContent(
   content: string,
   options: ComposerSessionOptions
 ): boolean {
-  if (source !== "clipboard-text" && source !== "clipboard-link" && source !== "clipboard-image") {
+  if (source !== "clipboard-text" && source !== "clipboard-link") {
     return false;
   }
   if (!content.trim()) {

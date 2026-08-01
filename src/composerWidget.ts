@@ -9,6 +9,7 @@ import {
 } from "./composerTools";
 import type { DisplayModuleId } from "./displayModules";
 import { shouldMemosHandleImagePaste } from "./imageHandling";
+import { saveUserAuthorizedImage, type UserAuthorizedImageAction } from "./imageSaveAuthorization";
 import { t } from "./i18n";
 import { createNativeMarkdownComposer, type NativeMarkdownComposer } from "./nativeComposer";
 import { mergeComposerContent, type QuickCaptureContentAction } from "./quickCaptureContent";
@@ -129,8 +130,8 @@ export class ComposerWidget {
     this.handleInputContentUpdated(options.emitInputEvent ?? false);
   }
 
-  async insertImageFile(file: File): Promise<void> {
-    await this.handleImageFile(file);
+  async insertConfirmedClipboardImage(file: File): Promise<boolean> {
+    return this.handleImageFile(file, "confirmed-clipboard-import");
   }
 
   resetCalloutMode(): void {
@@ -685,24 +686,26 @@ export class ComposerWidget {
   private async handleSelectedImages(files: FileList | null): Promise<void> {
     for (const file of Array.from(files ?? [])) {
       if (file.type.startsWith("image/")) {
-        await this.handleImageFile(file);
+        await this.handleImageFile(file, "file-picker");
       }
     }
   }
 
-  private async handleImageFile(file: File): Promise<void> {
+  private async handleImageFile(file: File, action: UserAuthorizedImageAction): Promise<boolean> {
     const lang = this.options.settings().language;
-    try {
-      const extension = file.name.split(".").pop() || "png";
-      const buffer = await file.arrayBuffer();
-      const path = await this.options.saveImageAttachment(buffer, extension);
-      const fileName = path.split("/").pop() ?? path;
-      this.insertImageEmbed(fileName);
-      new Notice(`${t(lang, "notice.imageSaved")}: ${fileName}`);
-    } catch (error) {
-      console.error("[Memos Plus] Failed to save image attachment", error);
+    const result = await saveUserAuthorizedImage(file, action, {
+      saveAttachment: (buffer, extension) => this.options.saveImageAttachment(buffer, extension),
+      insertEmbed: (fileName) => this.insertImageEmbed(fileName)
+    });
+    if (result.status === "saved") {
+      new Notice(`${t(lang, "notice.imageSaved")}: ${result.fileName}`);
+      return true;
+    }
+    if (result.status === "failed") {
+      console.error("[Memos Plus] Failed to save image attachment", result.error);
       new Notice(t(lang, "notice.imageFailed"));
     }
+    return false;
   }
 
   private async createExcalidrawAttachment(): Promise<void> {
@@ -738,7 +741,7 @@ export class ComposerWidget {
         return;
       }
       event.preventDefault();
-      await this.handleImageFile(file);
+      await this.handleImageFile(file, "paste");
       return;
     }
 
@@ -797,7 +800,7 @@ export class ComposerWidget {
     event.preventDefault();
     this.element.classList.remove("is-dragging");
     for (const file of files) {
-      await this.handleImageFile(file);
+      await this.handleImageFile(file, "drop");
     }
   }
 

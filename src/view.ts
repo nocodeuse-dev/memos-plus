@@ -1918,6 +1918,10 @@ export class MemosPlusView extends ItemView {
   focusComposer(): void {
     this.composerSession?.focus();
   }
+
+  async insertConfirmedClipboardImage(file: File): Promise<boolean> {
+    return this.composerSession?.insertConfirmedClipboardImage(file) ?? false;
+  }
 }
 
 function createSidebarItemId(prefix: string): string {
