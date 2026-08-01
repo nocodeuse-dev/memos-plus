@@ -26,6 +26,16 @@ describe("task management floating entry source integration", () => {
     expect(modalSource).toContain("this.unsubscribe?.()");
   });
 
+  it("opens the existing quick capture flow from the task manager header", () => {
+    expect(modalSource).toContain('header.createDiv({ cls: "memos-plus-task-manager-header-actions" })');
+    expect(modalSource).toContain('cls: "memos-plus-icon-button memos-plus-task-manager-quick-capture"');
+    expect(modalSource).toContain('setIcon(quickCaptureButton, "message-square-plus")');
+    expect(modalSource.indexOf("this.close();")).toBeLessThan(modalSource.indexOf("this.options.onQuickCapture()"));
+    expect(mainSource).toContain('onQuickCapture: () => this.openQuickCaptureWithContentSource("auto")');
+    expect(stylesSource).toContain(".memos-plus-task-manager-header-actions,");
+    expect(stylesSource).toContain(".memos-plus-task-manager-header-actions {");
+  });
+
   it("keeps the toolbar visible and task content vertical across Obsidian themes", () => {
     expect(modalSource).toContain('contentEl.createDiv({ cls: "memos-plus-task-manager-toolbar" })');
     expect(modalSource).toContain('toolbar.createDiv({ cls: "memos-plus-task-manager-controls" })');

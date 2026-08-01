@@ -367,6 +367,7 @@ export default class MemosPlusPlugin extends Plugin {
       language: this.settings.language,
       taskIndex: this.taskIndex,
       canEditWithTasksApi: Boolean(getTasksApi(this.app)?.editTaskLineModal),
+      onQuickCapture: () => this.openQuickCaptureWithContentSource("auto"),
       onOpenTask: (item) => openIndexedTask(this.app, item),
       onToggleTask: (item) => this.toggleTaskIndexItem(item),
       onEditTask: (item) => this.editTaskIndexItem(item)

@@ -10,6 +10,7 @@ export interface TaskManagementModalOptions {
   language: Language;
   taskIndex: TaskIndex;
   canEditWithTasksApi: boolean;
+  onQuickCapture: () => void;
   onOpenTask: (item: TaskIndexItem) => Promise<void>;
   onToggleTask: (item: TaskIndexItem) => Promise<boolean>;
   onEditTask: (item: TaskIndexItem) => Promise<boolean>;
@@ -50,7 +51,23 @@ export class TaskManagementModal extends Modal {
     const heading = header.createDiv();
     heading.createEl("h2", { text: t(this.options.language, "taskManager.title") });
     this.statusEl = heading.createDiv({ cls: "memos-plus-task-manager-status" });
-    this.refreshButton = header.createEl("button", {
+    const headerActions = header.createDiv({ cls: "memos-plus-task-manager-header-actions" });
+    const quickCaptureButton = headerActions.createEl("button", {
+      cls: "memos-plus-icon-button memos-plus-task-manager-quick-capture",
+      attr: {
+        type: "button",
+        title: t(this.options.language, "command.quickCapture"),
+        "aria-label": t(this.options.language, "command.quickCapture")
+      }
+    });
+    setIcon(quickCaptureButton, "message-square-plus");
+    quickCaptureButton.addEventListener("click", () => {
+      quickCaptureButton.disabled = true;
+      this.close();
+      window.setTimeout(() => this.options.onQuickCapture(), 0);
+    });
+
+    this.refreshButton = headerActions.createEl("button", {
       cls: "memos-plus-icon-button memos-plus-task-manager-refresh",
       attr: {
         type: "button",

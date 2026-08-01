@@ -2242,6 +2242,7 @@
 }
 
 .memos-plus-task-manager-header,
+.memos-plus-task-manager-header-actions,
 .memos-plus-task-manager-controls,
 .memos-plus-task-manager-filters,
 .memos-plus-task-manager-row-actions,
@@ -2257,6 +2258,11 @@
 
 .memos-plus-task-manager-header h2 {
   margin: 0;
+}
+
+.memos-plus-task-manager-header-actions {
+  flex: 0 0 auto;
+  gap: 6px;
 }
 
 .memos-plus-task-manager-status {

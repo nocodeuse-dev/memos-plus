@@ -1,6 +1,6 @@
 # Task Manager Modal Design QA
 
-Reference: user-provided Obsidian screenshot showing the task manager modal in a dark theme.
+Reference: user-provided Obsidian screenshot showing the task manager modal in a dark theme, with the requested quick-capture position marked between the title block and refresh button.
 
 ## Findings addressed
 
@@ -15,6 +15,8 @@ Reference: user-provided Obsidian screenshot showing the task manager modal in a
 - Search and filters now live in a non-shrinking toolbar; the filter row has explicit vertical space and horizontal overflow only.
 - Empty task text has a localized fallback label.
 - Mobile task titles are limited to two lines and retain the bounded result count.
+- The task manager header now groups a quick-capture icon and the existing refresh icon with a compact fixed gap; the new action uses the existing theme-aware icon-button style.
+- Quick capture closes the task manager before opening the existing capture modal, so the new entry does not stack two Modal shells.
 
 ## Visual verification
 
