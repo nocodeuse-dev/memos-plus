@@ -1,6 +1,17 @@
 import { App, Platform, PluginSettingTab, Setting, TFolder, normalizePath } from "obsidian";
 import type MemosPlusPlugin from "../main";
 import {
+  DEFAULT_APPLE_SYNC_STATE,
+  normalizeAppleSyncConflictPolicy,
+  normalizeAppleSyncInterval,
+  normalizeAppleSyncState,
+  normalizeAppleSyncTag,
+  normalizeAppleSyncTarget,
+  type AppleSyncConflictPolicy,
+  type AppleSyncState,
+  type AppleSyncTarget
+} from "./appleSync";
+import {
   CALLOUT_TYPES,
   DEFAULT_CALLOUT_SETTINGS,
   normalizeCalloutFoldMode,
@@ -169,6 +180,16 @@ export interface MemosPlusSettings {
   taskIndexEnabled: boolean;
   taskIndexAutoBuild: boolean;
   taskIndexDelayOnMobile: boolean;
+  appleSyncEnabled: boolean;
+  appleSyncTarget: AppleSyncTarget;
+  appleSyncTag: string;
+  appleRemindersList: string;
+  appleCalendarName: string;
+  appleSyncInboxPath: string;
+  appleSyncIntervalMinutes: number;
+  appleSyncOnStartup: boolean;
+  appleSyncConflictPolicy: AppleSyncConflictPolicy;
+  appleSyncState: AppleSyncState;
   quickCaptureAutoSelection: boolean;
   quickCaptureDetectClipboard: boolean;
   sidebarAutoDetectClipboard: boolean;
@@ -301,6 +322,16 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   taskIndexEnabled: true,
   taskIndexAutoBuild: true,
   taskIndexDelayOnMobile: true,
+  appleSyncEnabled: false,
+  appleSyncTarget: "reminders",
+  appleSyncTag: "#Apple同步",
+  appleRemindersList: "Memos Plus",
+  appleCalendarName: "Memos Plus",
+  appleSyncInboxPath: "我的资源/Memos/Apple 同步.md",
+  appleSyncIntervalMinutes: 15,
+  appleSyncOnStartup: false,
+  appleSyncConflictPolicy: "newest",
+  appleSyncState: { ...DEFAULT_APPLE_SYNC_STATE, records: {} },
   quickCaptureAutoSelection: true,
   quickCaptureDetectClipboard: true,
   sidebarAutoDetectClipboard: false,
@@ -552,6 +583,16 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     taskIndexEnabled: typeof raw.taskIndexEnabled === "boolean" ? raw.taskIndexEnabled : DEFAULT_SETTINGS.taskIndexEnabled,
     taskIndexAutoBuild: typeof raw.taskIndexAutoBuild === "boolean" ? raw.taskIndexAutoBuild : DEFAULT_SETTINGS.taskIndexAutoBuild,
     taskIndexDelayOnMobile: typeof raw.taskIndexDelayOnMobile === "boolean" ? raw.taskIndexDelayOnMobile : DEFAULT_SETTINGS.taskIndexDelayOnMobile,
+    appleSyncEnabled: typeof raw.appleSyncEnabled === "boolean" ? raw.appleSyncEnabled : DEFAULT_SETTINGS.appleSyncEnabled,
+    appleSyncTarget: normalizeAppleSyncTarget(raw.appleSyncTarget),
+    appleSyncTag: normalizeAppleSyncTag(raw.appleSyncTag),
+    appleRemindersList: normalizeTextSetting(raw.appleRemindersList, DEFAULT_SETTINGS.appleRemindersList),
+    appleCalendarName: normalizeTextSetting(raw.appleCalendarName, DEFAULT_SETTINGS.appleCalendarName),
+    appleSyncInboxPath: normalizeVaultPath(raw.appleSyncInboxPath, DEFAULT_SETTINGS.appleSyncInboxPath),
+    appleSyncIntervalMinutes: normalizeAppleSyncInterval(raw.appleSyncIntervalMinutes),
+    appleSyncOnStartup: typeof raw.appleSyncOnStartup === "boolean" ? raw.appleSyncOnStartup : DEFAULT_SETTINGS.appleSyncOnStartup,
+    appleSyncConflictPolicy: normalizeAppleSyncConflictPolicy(raw.appleSyncConflictPolicy),
+    appleSyncState: normalizeAppleSyncState(raw.appleSyncState),
     quickCaptureAutoSelection: typeof raw.quickCaptureAutoSelection === "boolean" ? raw.quickCaptureAutoSelection : DEFAULT_SETTINGS.quickCaptureAutoSelection,
     quickCaptureDetectClipboard: typeof raw.quickCaptureDetectClipboard === "boolean" ? raw.quickCaptureDetectClipboard : DEFAULT_SETTINGS.quickCaptureDetectClipboard,
     sidebarAutoDetectClipboard:
@@ -4015,6 +4056,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     });
     this.renderTaskIndexSummary(container);
     this.renderTaskIndexSettings(container);
+    this.renderAppleSyncSettings(container);
   }
 
   private renderTaskIndexSummary(container: HTMLElement): void {
@@ -4084,6 +4126,138 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addButton((button) => {
         button.setButtonText(t(lang, "settings.taskIndexClearCache")).onClick(() => {
           this.plugin.taskIndex.clearCache();
+          this.display();
+        });
+      });
+  }
+
+  private renderAppleSyncSettings(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    const available = this.plugin.appleSync.isAvailable();
+    this.renderSectionHeader(container, "settings.appleSync", "settings.appleSyncDesc");
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncAvailability"))
+      .setDesc(t(lang, available ? "settings.appleSyncAvailable" : "settings.appleSyncUnavailable"));
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncEnabled"))
+      .setDesc(t(lang, "settings.appleSyncEnabledDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.appleSyncEnabled).setDisabled(!available).onChange(async (value) => {
+          this.plugin.settings.appleSyncEnabled = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncTarget"))
+      .setDesc(t(lang, "settings.appleSyncTargetDesc"))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("reminders", t(lang, "settings.appleSyncTarget.reminders"))
+          .addOption("calendar", t(lang, "settings.appleSyncTarget.calendar"))
+          .setValue(this.plugin.settings.appleSyncTarget)
+          .onChange(async (value) => {
+            this.plugin.settings.appleSyncTarget = normalizeAppleSyncTarget(value);
+            await this.plugin.persistSettings();
+            this.display();
+          });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncTag"))
+      .setDesc(t(lang, "settings.appleSyncTagDesc"))
+      .addText((textInput) => {
+        textInput.setValue(this.plugin.settings.appleSyncTag).onChange(async (value) => {
+          this.plugin.settings.appleSyncTag = normalizeAppleSyncTag(value);
+          await this.plugin.persistSettings();
+        });
+      });
+    if (this.plugin.settings.appleSyncTarget === "reminders") {
+      new Setting(container)
+        .setName(t(lang, "settings.appleRemindersList"))
+        .setDesc(t(lang, "settings.appleRemindersListDesc"))
+        .addText((textInput) => {
+          textInput.setValue(this.plugin.settings.appleRemindersList).onChange(async (value) => {
+            this.plugin.settings.appleRemindersList = normalizeTextSetting(value, DEFAULT_SETTINGS.appleRemindersList);
+            await this.plugin.persistSettings();
+          });
+        });
+    } else {
+      new Setting(container)
+        .setName(t(lang, "settings.appleCalendarName"))
+        .setDesc(t(lang, "settings.appleCalendarNameDesc"))
+        .addText((textInput) => {
+          textInput.setValue(this.plugin.settings.appleCalendarName).onChange(async (value) => {
+            this.plugin.settings.appleCalendarName = normalizeTextSetting(value, DEFAULT_SETTINGS.appleCalendarName);
+            await this.plugin.persistSettings();
+          });
+        });
+    }
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncInboxPath"))
+      .setDesc(t(lang, "settings.appleSyncInboxPathDesc"))
+      .addText((textInput) => {
+        textInput.setValue(this.plugin.settings.appleSyncInboxPath).onChange(async (value) => {
+          this.plugin.settings.appleSyncInboxPath = normalizeVaultPath(value, DEFAULT_SETTINGS.appleSyncInboxPath);
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncInterval"))
+      .setDesc(t(lang, "settings.appleSyncIntervalDesc"))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("0", t(lang, "settings.appleSyncInterval.manual"))
+          .addOption("5", t(lang, "settings.appleSyncInterval.minutes").replace("{count}", "5"))
+          .addOption("15", t(lang, "settings.appleSyncInterval.minutes").replace("{count}", "15"))
+          .addOption("30", t(lang, "settings.appleSyncInterval.minutes").replace("{count}", "30"))
+          .addOption("60", t(lang, "settings.appleSyncInterval.minutes").replace("{count}", "60"))
+          .setValue(String(this.plugin.settings.appleSyncIntervalMinutes))
+          .onChange(async (value) => {
+            this.plugin.settings.appleSyncIntervalMinutes = normalizeAppleSyncInterval(value);
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncOnStartup"))
+      .setDesc(t(lang, "settings.appleSyncOnStartupDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.appleSyncOnStartup).onChange(async (value) => {
+          this.plugin.settings.appleSyncOnStartup = value;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncConflictPolicy"))
+      .setDesc(t(lang, "settings.appleSyncConflictPolicyDesc"))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("newest", t(lang, "settings.appleSyncConflictPolicy.newest"))
+          .addOption("local-wins", t(lang, "settings.appleSyncConflictPolicy.local"))
+          .addOption("remote-wins", t(lang, "settings.appleSyncConflictPolicy.remote"))
+          .setValue(this.plugin.settings.appleSyncConflictPolicy)
+          .onChange(async (value) => {
+            this.plugin.settings.appleSyncConflictPolicy = normalizeAppleSyncConflictPolicy(value);
+            await this.plugin.persistSettings();
+          });
+      });
+    const state = this.plugin.settings.appleSyncState;
+    new Setting(container)
+      .setName(t(lang, "settings.appleSyncStatus"))
+      .setDesc(
+        state.lastError
+          ? t(lang, "settings.appleSyncStatus.error").replace("{error}", state.lastError)
+          : state.lastSyncAt
+            ? t(lang, "settings.appleSyncStatus.lastSync").replace("{time}", new Date(state.lastSyncAt).toLocaleString())
+            : t(lang, "settings.appleSyncStatus.never")
+      )
+      .addButton((button) => {
+        button.setButtonText(t(lang, "settings.appleSyncTest")).setDisabled(!available).onClick(async () => {
+          await this.plugin.testAppleSyncConnection();
+          this.display();
+        });
+      })
+      .addButton((button) => {
+        button.setButtonText(t(lang, "settings.appleSyncNow")).setCta().setDisabled(!available).onClick(async () => {
+          await this.plugin.syncAppleNow();
           this.display();
         });
       });

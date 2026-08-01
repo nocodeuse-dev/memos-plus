@@ -30,6 +30,8 @@ import {
   setMemosPlusDiagnosticState
 } from "./src/diagnostics";
 import { SerialTaskQueue } from "./src/serialTaskQueue";
+import { MacOsAppleSyncBridge } from "./src/appleSyncBridge";
+import { AppleSyncService } from "./src/appleSyncService";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -38,6 +40,7 @@ export default class MemosPlusPlugin extends Plugin {
   store!: MemosPlusStore;
   vaultIndex!: VaultMetadataIndex;
   taskIndex!: TaskIndex;
+  appleSync!: AppleSyncService;
   private diagnosticSessionId = "";
   private taskIndexRefreshTimer: number | null = null;
   private vaultIndexWarmTimer: number | null = null;
@@ -83,6 +86,13 @@ export default class MemosPlusPlugin extends Plugin {
     this.vaultIndex = new VaultMetadataIndex(this.app);
     this.taskIndex = new TaskIndex(this.app, { isMobile: () => Platform.isMobile });
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
+    this.appleSync = new AppleSyncService({
+      app: this.app,
+      taskIndex: this.taskIndex,
+      bridge: new MacOsAppleSyncBridge(),
+      getSettings: () => this.settings,
+      persistSettings: () => this.persistSettings()
+    });
     registerMemosPlusDiagnostics(this, this.app);
     this.registerVaultIndexInvalidation();
     this.registerTaskIndexInvalidation();
@@ -131,6 +141,22 @@ export default class MemosPlusPlugin extends Plugin {
       id: "open-task-manager",
       name: t(this.settings.language, "taskManager.open"),
       callback: () => this.openTaskManagement()
+    });
+
+    this.addCommand({
+      id: "sync-apple-now",
+      name: t(this.settings.language, "command.appleSyncNow"),
+      callback: () => {
+        this.runAsyncOperation("sync Apple apps", () => this.syncAppleNow());
+      }
+    });
+
+    this.addCommand({
+      id: "test-apple-sync",
+      name: t(this.settings.language, "command.appleSyncTest"),
+      callback: () => {
+        this.runAsyncOperation("test Apple sync", () => this.testAppleSyncConnection());
+      }
     });
 
     this.addCommand({
@@ -193,6 +219,7 @@ export default class MemosPlusPlugin extends Plugin {
     this.addSettingTab(new MemosPlusSettingTab(this.app, this));
     this.maybeBuildTaskIndexAfterLoad();
     this.maybeWarmVaultIndexAfterLoad();
+    this.registerAppleSyncSchedule();
     if (this.settings.quickInputEnabled && this.settings.quickInputAutoOpen) {
       this.app.workspace.onLayoutReady(() => {
         this.runAsyncOperation("auto open quick input", () => this.activateQuickInputView({ focusComposer: false, useModalFallback: false }));
@@ -340,6 +367,40 @@ export default class MemosPlusPlugin extends Plugin {
   async exportDiagnosticLog(): Promise<void> {
     const path = await exportMemosPlusDiagnosticLog(this.app);
     new Notice(t(this.settings.language, "notice.diagnosticLogExported") + path);
+  }
+
+  async syncAppleNow(showNotice = true): Promise<void> {
+    const lang = this.settings.language;
+    try {
+      const result = await this.appleSync.syncNow();
+      if (showNotice) {
+        new Notice(
+          t(lang, "notice.appleSyncComplete")
+            .replace("{pushed}", String(result.pushed))
+            .replace("{pulled}", String(result.pulled))
+            .replace("{imported}", String(result.imported))
+        );
+      }
+    } catch (error) {
+      if (showNotice) {
+        new Notice(t(lang, "notice.appleSyncFailed").replace("{error}", error instanceof Error ? error.message : String(error)));
+      }
+    }
+  }
+
+  async testAppleSyncConnection(): Promise<void> {
+    const lang = this.settings.language;
+    try {
+      const probe = await this.appleSync.probe();
+      const target = this.settings.appleSyncTarget;
+      const available =
+        target === "reminders"
+          ? probe.reminderLists.includes(this.settings.appleRemindersList)
+          : probe.calendars.some((calendar) => calendar.name === this.settings.appleCalendarName && calendar.writable);
+      new Notice(t(lang, available ? "notice.appleSyncConnectionOk" : "notice.appleSyncContainerMissing"));
+    } catch (error) {
+      new Notice(t(lang, "notice.appleSyncFailed").replace("{error}", error instanceof Error ? error.message : String(error)));
+    }
   }
 
   private registerTaskManagerStatusBarItem(): void {
@@ -631,6 +692,36 @@ export default class MemosPlusPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.taskIndex.scheduleBuild(1200);
     });
+  }
+
+  private registerAppleSyncSchedule(): void {
+    if (!this.appleSync.isAvailable()) {
+      return;
+    }
+    this.registerInterval(
+      window.setInterval(() => {
+        if (!this.shouldRunScheduledAppleSync()) {
+          return;
+        }
+        this.runAsyncOperation("scheduled Apple sync", () => this.syncAppleNow(false));
+      }, 60_000)
+    );
+    if (this.settings.appleSyncEnabled && this.settings.appleSyncOnStartup) {
+      this.app.workspace.onLayoutReady(() => {
+        const timer = window.setTimeout(() => {
+          this.runAsyncOperation("startup Apple sync", () => this.syncAppleNow(false));
+        }, 2_500);
+        this.register(() => window.clearTimeout(timer));
+      });
+    }
+  }
+
+  private shouldRunScheduledAppleSync(now = Date.now()): boolean {
+    if (!this.settings.appleSyncEnabled || this.settings.appleSyncIntervalMinutes <= 0) {
+      return false;
+    }
+    const lastSync = Date.parse(this.settings.appleSyncState.lastSyncAt);
+    return !Number.isFinite(lastSync) || now - lastSync >= this.settings.appleSyncIntervalMinutes * 60_000;
   }
 
   private maybeWarmVaultIndexAfterLoad(): void {

@@ -11,6 +11,7 @@ Memos Plus 是一个本地优先的 Obsidian 收集与整理工作台。它不�
 - 一键收集：从主页面、快速记录弹窗、侧边栏或移动端入口抓取内容。
 - 即时归档：把内容直接投递到项目文件、标签文件、最近文件或真实 Markdown 标题下。
 - 边收边整理：支持链接资料、普通笔记、Obsidian Tasks 任务、Callout、代码块和自定义格式。
+- Apple 双向同步：macOS 桌面端可把明确标记的 Markdown 任务同步到 Apple 提醒事项或 Apple 日历；默认关闭。
 - 移动端可用：适合 iPhone 快速记录，也支持 GitHub Release / BRAT 更新方式。
 
 完整中文产品介绍见 [飞书文档](https://d00d1uhgsxk.feishu.cn/wiki/EErRwsN1oibZ14kiBsdcTqq2nyd?from=from_copylink)。
@@ -51,6 +52,11 @@ task, and saved-search features read or write Markdown data locally inside your
 vault. When link title analysis is enabled, only URLs you choose to analyze are
 requested to retrieve their page titles; note content is not uploaded by Memos
 Plus.
+
+Apple sync is opt-in and macOS-desktop-only. It uses the local Apple automation
+interface and never stores an Apple ID password or CalDAV credential. Only
+Markdown tasks carrying the configured sync tag are exported. Deletions are not
+propagated automatically.
 
 ## Development
 

@@ -22,6 +22,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - 新建文件模板库：搜索不到目标文件时，可从独立 Markdown 模板库选择文件骨架模板创建新文件，再把当前输入内容插入到新文件中。
 - 项目分类兼容：旧 `projectSections` 字段仍用于创建项目文件的默认标题骨架和旧配置迁移；投递弹窗不再显示固定分类按钮。
 - Tasks 格式兼容：可生成 Obsidian Tasks 风格任务行。
+- Apple 任务同步：macOS 桌面端可将带指定标签的 Markdown 任务与 Apple 提醒事项或 Apple 日历双向同步；移动端不直接访问系统 API。
 - Callout 相关功能：输入框工具栏可切换 Callout 模式，长内容/链接内容可自动包装为 Obsidian Callout。
 - 设置页面：使用顶部横向胶囊标签栏，入口为 `发送规则 / 输入工具 / 记录设置 / 任务设置 / 新建文件模板库 / 筛选与侧栏 / 界面布局 / 显示设置 / 性能与缓存 / 高级设置`；`界面布局` 标签内再用二级切换配置 `桌面主页 / 侧边栏 / 移动端` 的真实界面缩略预览和右侧属性面板。
 - 图片粘贴处理：支持 Memos Plus 内置保存、交给 Image Auto Upload、自动检测三种模式。
@@ -57,6 +58,9 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/taskManagementModal.ts`：Obsidian 底部状态栏任务管理入口打开的轻量面板。复用 `TaskIndex` 做状态、日期、优先级和关键词筛选，按端限制首批渲染量，并负责移动端弹窗生命周期清理；标题栏可先关闭当前面板再调用现有快速记录流程。
 - `src/taskManagement.ts`：任务管理面板的纯筛选和计数函数，不读取文件。
 - `src/taskActions.ts` / `src/taskLineActions.ts`：索引任务的安全写回与纯行替换 helper；优先使用 Obsidian Tasks `apiV1` 处理重复任务和编辑，回退时只切换标准 Markdown 复选框，并在写回前核对原始行。
+- `src/appleSync.ts`：Apple 同步的纯数据协议、稳定 ID、签名、三方冲突判断和 Markdown 任务行合并 helper。
+- `src/appleSyncBridge.ts`：macOS 本地 JXA 桥接。使用无 shell 的 `/usr/bin/osascript` 读取/更新 Apple Reminders 或 Calendar；移动端不会加载执行 Node 子进程能力。
+- `src/appleSyncService.ts`：协调 `TaskIndex`、标签范围、Apple 远端项目、导入文件和 `data.json` 同步状态；串行合并且不传播删除。
 - `src/store.ts`：数据读写层。负责年度 memo 文件读写、memo 增删改、状态标签切换、图片附件保存、项目和文件投递调用。
 - `src/markdown.ts`：memo Markdown 协议解析与写回。定义 `MemoItem`，解析 `YYYY.md`，插入/替换/删除 memo，切换任务和标签。
 - `src/filter.ts`：memo 内部视图筛选、搜索、排序、日期工具。
@@ -113,6 +117,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 | Vault metadata 索引 | `src/vaultIndex.ts`, `main.ts`, `src/store.ts`, `src/vaultSearch.ts` | `VaultMetadataIndex`, `registerVaultIndexInvalidation`, `getTaggedFileInfos`, `getProjectInfos`, `scanFileTemplateLibrary` | 第一阶段全库统一索引；只缓存 metadata，不读正文；项目、标签文件、文件搜索、最近文件、模板库和 vault metadata 检索复用同一份文件元信息。 |
 | TaskIndex 任务索引 | `src/taskIndex.ts`, `main.ts`, `src/view.ts`, `src/settings.ts` | `TaskIndex`, `parseTaskIndexItemsFromMarkdown`, `filterTaskIndexItems`, `registerTaskIndexInvalidation`, `renderTaskIndexResults` | 缓存全库任务行、所在文件、行号、优先级、日期、任务收集时间和 mtime；mtime 只负责缓存失效，列表排序和卡片时间优先用任务自身时间。插件启动后可异步分批构建，文件变化后失效并延迟重建，整理目录任务分支从缓存读取数量和结果。 |
 | 状态栏任务管理 | `main.ts`, `src/taskManagementModal.ts`, `src/taskManagement.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `addStatusBarItem`, `TaskManagementModal`, `filterTaskManagementItems`, `toggleIndexedTask`, `openIndexedTask` | Obsidian 底部状态栏入口复用同一 TaskIndex；面板分批渲染、局部刷新，完成/编辑优先走官方 Tasks API，写回时拒绝覆盖已变化的源行；标题栏按钮可切换到现有快速记录弹窗。 |
+| Apple 双向同步 | `main.ts`, `src/appleSync.ts`, `src/appleSyncBridge.ts`, `src/appleSyncService.ts`, `src/settings.ts` | `AppleSyncService`, `MacOsAppleSyncBridge`, `resolveAppleSyncDirection`, `updateTaskLineFromApple` | 默认关闭，仅 macOS 桌面端运行；按标签选择任务，通过隐藏 ID 和上次签名做三方合并。提醒事项同步完成/日期/优先级，日历同步全天事件；新 Apple 项目导入单独文件，不传播删除。 |
 | 项目文件识别 | `src/vaultIndex.ts`, `src/projectSend.ts`, `src/store.ts` | `VaultMetadataIndex.getProjectFiles`, `VaultMetadataIndex.getProjectInfos`, `normalizeProjectTag` | Store 层优先通过统一索引判断项目文件；`projectSend.ts` 仍保留纯函数兼容测试和旧调用。 |
 | 发送到项目 | `src/view.ts`, `src/store.ts`, `src/projectDelivery.ts`, `src/projectSend.ts`, `src/projectFileSuggestModal.ts` | `sendComposerToProject`, `sendContentToProject`, `ProjectSendModal`, `renderHeadingPicker`, `sendToFileTarget` | 弹窗按当前内部模板规则决定默认来源，再按项目/标签文件/最近/搜索/固定文件等来源选择目标文件和真实 Markdown 标题后插入。 |
 | 添加项目 | `src/projectFileSuggestModal.ts`, `src/store.ts`, `src/fileTemplateLibrary.ts` | `openFileTemplateLibraryModal("project")`, `FileTemplateLibraryModal`, `createFileFromLibraryTemplate` | 弹窗中先从新建文件模板库选择文件骨架模板和文件名，再创建项目 Markdown 文件；旧 `createProject` 兼容方法仍保留。 |
@@ -202,6 +207,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `sendToFileNoHeadingBehavior`：无标题文件处理方式。
 - `recentFileTargetPaths`：最近投递文件路径。
 - `tasksFormatEnabled` 及 `task*` 字段：Tasks 格式兼容设置；`taskPromptOnCreate` 控制输入框任务按钮和模板待办任务发送时是否先弹出任务设置，默认发送不受影响。
+- `appleSync*` 字段：Apple 同步开关、目标、范围标签、目标列表/日历、导入文件、间隔、启动策略、冲突策略和本地同步状态。默认 `appleSyncEnabled=false`、`appleSyncOnStartup=false`，旧配置不会自动获得 Apple 访问行为。
 - `callout*` 字段：Callout 启用、类型、折叠、标题和自动启用阈值。
 
 ### Memo 数据
