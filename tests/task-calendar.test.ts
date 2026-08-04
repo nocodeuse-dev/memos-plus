@@ -2,12 +2,16 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_TASK_CALENDAR_SETTINGS,
+  formatTaskCalendarMonth,
   normalizeTaskCalendarSettings,
   shiftTaskCalendarDate,
+  shiftTaskCalendarMonth,
   taskCalendarDateRange,
+  taskCalendarMonthDays,
   taskCalendarTasks
 } from "../src/taskCalendar";
 import { normalizeAppleCalendarAgendaError } from "../src/appleCalendarAgenda";
+import { taskCalendarGridPlacement } from "../src/taskCalendarAgendaGrid";
 import type { TaskIndexItem } from "../src/taskIndex";
 
 function task(overrides: Partial<TaskIndexItem> = {}): TaskIndexItem {
@@ -77,6 +81,25 @@ describe("Schedule and tasks state", () => {
     expect(shiftTaskCalendarDate("2026-08-05", "week", -1)).toBe("2026-07-29");
   });
 
+  it("builds a Monday-first compact month navigator and preserves month navigation", () => {
+    const days = taskCalendarMonthDays("2026-08-05", new Date("2026-08-05T12:00:00"));
+    expect(days).toHaveLength(42);
+    expect(days[0]?.date).toBe("2026-07-27");
+    expect(days.find((day) => day.date === "2026-08-05")).toMatchObject({ inCurrentMonth: true, isToday: true });
+    expect(shiftTaskCalendarMonth("2026-08-05", 1)).toBe("2026-09-01");
+    expect(formatTaskCalendarMonth("2026-08-05", "en-US")).toContain("August");
+  });
+
+  it("places timed events within the visible calendar grid without treating all-day events as timed blocks", () => {
+    const days = ["2026-08-03", "2026-08-04", "2026-08-05"];
+    expect(taskCalendarGridPlacement({ start: "2026-08-05T07:30:00", end: "2026-08-05T11:30:00", allDay: false }, days)).toEqual({
+      dayIndex: 2,
+      top: 96,
+      height: 256
+    });
+    expect(taskCalendarGridPlacement({ start: "2026-08-05T00:00:00", end: "2026-08-06T00:00:00", allDay: true }, days)).toBeNull();
+  });
+
   it("uses the existing task index for today, inbox, all and completed lists", () => {
     const tasks = [
       task({ text: "逾期", dueDate: "2026-08-04" }),
@@ -132,6 +155,12 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("settings.taskCalendar.agendaCalendarNames");
     expect(viewSource).toContain("cacheMinutes: settings.taskCalendar.agendaCacheMinutes");
     expect(viewSource).not.toContain("settings.appleSyncTarget !==");
+    expect(viewSource).toContain("this.plugin.appleSync.probe(\"calendar\")");
+    expect(viewSource).toContain("toggleCalendarFilter");
+    expect(viewSource).toContain("taskCalendarGridPlacement");
+    expect(viewSource).toContain("renderMiniCalendar");
+    expect(viewSource).toContain("calendarEventLocalDate(event.start)");
+    expect(viewSource).toContain("createTaskCalendarInboxTask(eventTaskText(selectedEvent), calendarEventLocalDate(selectedEvent.start))");
   });
 
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {

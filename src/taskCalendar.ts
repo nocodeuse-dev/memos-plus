@@ -44,6 +44,13 @@ export interface TaskCalendarDateRange {
   days: string[];
 }
 
+export interface TaskCalendarMonthDay {
+  date: string;
+  day: number;
+  inCurrentMonth: boolean;
+  isToday: boolean;
+}
+
 export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSettings {
   const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   return {
@@ -78,6 +85,34 @@ export function taskCalendarDateRange(date: string, mode: TaskCalendarViewMode):
 
 export function shiftTaskCalendarDate(date: string, mode: TaskCalendarViewMode, offset: number): string {
   return formatDate(addDays(parseDate(normalizeDate(date) || todayTaskCalendarDate()), offset * (mode === "week" ? 7 : 1)));
+}
+
+export function shiftTaskCalendarMonth(date: string, offset: number): string {
+  const selected = parseDate(normalizeDate(date) || todayTaskCalendarDate());
+  const next = new Date(selected.getFullYear(), selected.getMonth() + offset, 1, 12, 0, 0, 0);
+  return formatDate(next);
+}
+
+/** Monday-first six-week grid used by the compact calendar navigator. */
+export function taskCalendarMonthDays(date: string, now = new Date()): TaskCalendarMonthDay[] {
+  const selected = parseDate(normalizeDate(date) || todayTaskCalendarDate(now));
+  const monthStart = new Date(selected.getFullYear(), selected.getMonth(), 1, 12, 0, 0, 0);
+  const first = addDays(monthStart, -((monthStart.getDay() + 6) % 7));
+  const today = formatDate(now);
+  return Array.from({ length: 42 }, (_, index) => {
+    const current = addDays(first, index);
+    const currentDate = formatDate(current);
+    return {
+      date: currentDate,
+      day: current.getDate(),
+      inCurrentMonth: current.getMonth() === selected.getMonth(),
+      isToday: currentDate === today
+    };
+  });
+}
+
+export function formatTaskCalendarMonth(date: string, locale = "zh-CN"): string {
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(parseDate(normalizeDate(date) || todayTaskCalendarDate()));
 }
 
 export function taskCalendarTasks(items: TaskIndexItem[], navigation: TaskCalendarNavigation, selectedDate: string): TaskIndexItem[] {
