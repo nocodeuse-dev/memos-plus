@@ -103,6 +103,12 @@ function safeValue(getter) { try { return getter(); } catch (_) { return null; }
 function safeDate(getter) { try { const value = getter(); return value ? new Date(value) : null; } catch (_) { return null; } }
 `;
 
+// Calendar may take a while to wake and hydrate subscribed calendars on the
+// first request.  The agenda is opened deliberately by the user, so allow a
+// bounded one-minute response instead of turning a cold Calendar launch into a
+// false failure after 30 seconds.
+const APPLE_CALENDAR_AGENDA_TIMEOUT_MS = 60_000;
+
 export class AppleCalendarAgendaService {
   private readonly cache = new Map<string, { expiresAt: number; result: AppleCalendarAgendaResult }>();
 
@@ -144,10 +150,10 @@ export class AppleCalendarAgendaService {
       execFile(
         "/usr/bin/osascript",
         ["-l", "JavaScript", "-e", APPLE_CALENDAR_AGENDA_JXA, JSON.stringify(request)],
-        { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 },
+        { timeout: APPLE_CALENDAR_AGENDA_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },
         (error, stdout, stderr) => {
           if (error) {
-            reject(new Error((stderr || error.message).replace(/\s+/g, " ").trim()));
+            reject(new Error(normalizeAppleCalendarAgendaError(stderr || error.message)));
             return;
           }
           try {
@@ -159,4 +165,20 @@ export class AppleCalendarAgendaService {
       );
     });
   }
+}
+
+/**
+ * Node's child-process timeout error embeds the full `osascript -e` command in
+ * `error.message`.  That command contains the whole JXA program, which must
+ * never be rendered in the agenda UI (and makes the three-column view unusable).
+ */
+export function normalizeAppleCalendarAgendaError(message: string): string {
+  const clean = message.replace(/\s+/g, " ").trim();
+  if (/not authorized|not permitted|permission|(-1743)|(-10004)/i.test(clean)) {
+    return "Obsidian 没有访问 Apple 日历的权限，请在 macOS 系统设置 > 隐私与安全性中授权。";
+  }
+  if (/Command failed:\s*\/usr\/bin\/osascript|ETIMEDOUT|timed out|SIGTERM|killed/i.test(clean)) {
+    return "读取 Apple 日历超时或暂时不可用，请稍后点击“刷新日程”重试。";
+  }
+  return clean.slice(0, 320) || "无法读取 Apple 日历，请稍后重试。";
 }

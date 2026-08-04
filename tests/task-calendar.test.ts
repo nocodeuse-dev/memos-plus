@@ -7,6 +7,7 @@ import {
   taskCalendarDateRange,
   taskCalendarTasks
 } from "../src/taskCalendar";
+import { normalizeAppleCalendarAgendaError } from "../src/appleCalendarAgenda";
 import type { TaskIndexItem } from "../src/taskIndex";
 
 function task(overrides: Partial<TaskIndexItem> = {}): TaskIndexItem {
@@ -116,6 +117,14 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(agendaSource).not.toContain("upsert");
     expect(agendaSource).not.toContain("createContainer");
     expect(agendaSource).not.toContain("tasks.json");
+    expect(agendaSource).toContain("APPLE_CALENDAR_AGENDA_TIMEOUT_MS");
+    expect(agendaSource).toContain("normalizeAppleCalendarAgendaError(stderr || error.message)");
+  });
+
+  it("never renders the full osascript command when Calendar is slow or unavailable", () => {
+    const commandError = "Command failed: /usr/bin/osascript -l JavaScript -e function run(argv) { /* private JXA source */ } {\\\"startDate\\\":\\\"2026-08-05\\\"}";
+    expect(normalizeAppleCalendarAgendaError(commandError)).toBe("读取 Apple 日历超时或暂时不可用，请稍后点击“刷新日程”重试。");
+    expect(normalizeAppleCalendarAgendaError("Not authorized to send Apple events to Calendar. (-1743)")).toContain("隐私与安全性");
   });
 
   it("keeps agenda sources independent from the writable Apple sync target", () => {
