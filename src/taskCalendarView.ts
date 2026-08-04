@@ -13,6 +13,8 @@ import {
 } from "./taskCalendar";
 import type { TaskIndexItem } from "./taskIndex";
 import { TaskCalendarEventModal } from "./taskCalendarEventModal";
+import { TaskCalendarEventDetailModal } from "./taskCalendarEventDetailModal";
+import { QuickCaptureModal } from "./modal";
 
 export const MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE = "memos-plus-task-calendar-view";
 
@@ -109,6 +111,26 @@ export class TaskCalendarView extends ItemView {
     }).catch((error) => {
       new Notice(t(this.plugin.settings.language, "notice.taskCalendarEventFailed").replace("{error}", error instanceof Error ? error.message : String(error)));
     });
+  }
+
+  private openEventDetails(event: AppleCalendarAgendaEvent): void {
+    new TaskCalendarEventDetailModal(this.plugin.app, {
+      language: this.plugin.settings.language,
+      event,
+      onCreateTask: (selectedEvent) => this.plugin.createTaskCalendarInboxTask(eventTaskText(selectedEvent), selectedEvent.start.slice(0, 10)),
+      onQuickCapture: (selectedEvent) => {
+        new QuickCaptureModal(this.plugin.app, {
+          settings: this.plugin.settings,
+          store: this.plugin.store,
+          persistSettings: () => this.plugin.persistSettings(),
+          refreshViews: () => this.plugin.refreshViews(),
+          resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text),
+          selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options),
+          initialContent: eventMemoText(selectedEvent),
+          initialContentMode: "none"
+        }).open();
+      }
+    }).open();
   }
 
   private scheduleRender(): void {
@@ -233,13 +255,17 @@ export class TaskCalendarView extends ItemView {
   }
 
   private renderEvent(container: HTMLElement, event: AppleCalendarAgendaEvent): void {
-    const eventEl = container.createDiv({ cls: "memos-plus-task-calendar-event", attr: { title: [event.location, event.notes].filter(Boolean).join("\n") } });
+    const eventEl = container.createEl("button", {
+      cls: "memos-plus-task-calendar-event",
+      attr: { type: "button", title: [event.location, event.notes].filter(Boolean).join("\n"), "aria-label": event.title }
+    });
     eventEl.style.setProperty("--memos-plus-calendar-color", colorForCalendar(event.calendar));
     if (!event.allDay) eventEl.createSpan({ cls: "memos-plus-task-calendar-time", text: `${timePart(event.start)}–${timePart(event.end)}` });
     const detail = eventEl.createDiv({ cls: "memos-plus-task-calendar-event-detail" });
     detail.createDiv({ cls: "memos-plus-task-calendar-event-title", text: event.title });
     const meta = [event.calendar, event.location, event.recurring ? "↻" : ""].filter(Boolean).join(" · ");
     if (meta) detail.createDiv({ cls: "memos-plus-task-calendar-event-meta", text: meta });
+    eventEl.addEventListener("click", () => this.openEventDetails(event));
   }
 
   private renderTask(container: HTMLElement, task: TaskIndexItem, selectedDate: string): void {
@@ -349,4 +375,15 @@ function colorForCalendar(name: string): string {
 
 function priorityLabel(priority: TaskIndexItem["priority"]): string {
   return ({ highest: "🔺", high: "⏫", medium: "🔼", low: "🔽", lowest: "⏬", none: "" } as const)[priority] || "";
+}
+
+function eventTaskText(event: AppleCalendarAgendaEvent): string {
+  const details = [event.calendar, event.location, event.allDay ? "全天" : `${timePart(event.start)}–${timePart(event.end)}`].filter(Boolean).join(" · ");
+  return details ? `${event.title}（${details}）` : event.title;
+}
+
+function eventMemoText(event: AppleCalendarAgendaEvent): string {
+  const time = event.allDay ? "全天" : `${event.start.slice(0, 10)} ${timePart(event.start)}–${timePart(event.end)}`;
+  const details = [time, event.calendar, event.location].filter(Boolean).join(" · ");
+  return [event.title, details, event.notes].filter(Boolean).join("\n");
 }
