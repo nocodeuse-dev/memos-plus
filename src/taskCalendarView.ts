@@ -1,4 +1,4 @@
-import { ItemView, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
 import type MemosPlusPlugin from "../main";
 import { AppleCalendarAgendaService, type AppleCalendarAgendaEvent } from "./appleCalendarAgenda";
 import { t } from "./i18n";
@@ -12,6 +12,7 @@ import {
   type TaskCalendarViewMode
 } from "./taskCalendar";
 import type { TaskIndexItem } from "./taskIndex";
+import { TaskCalendarEventModal } from "./taskCalendarEventModal";
 
 export const MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE = "memos-plus-task-calendar-view";
 
@@ -82,6 +83,34 @@ export class TaskCalendarView extends ItemView {
     void this.updateState({ navigation, viewMode: navigation === "week" ? "week" : this.plugin.settings.taskCalendar.viewMode });
   }
 
+  openEventComposer(): void {
+    if (!this.agenda.isAvailable()) {
+      new Notice(t(this.plugin.settings.language, "taskCalendar.calendarUnavailable"));
+      return;
+    }
+    void this.plugin.appleSync.probe("calendar").then((probe) => {
+      const calendars = probe.calendars.filter((calendar) => calendar.writable).map((calendar) => calendar.name);
+      if (calendars.length === 0) {
+        new Notice(t(this.plugin.settings.language, "notice.taskCalendarNoWritableCalendar"));
+        return;
+      }
+      const configured = this.plugin.settings.taskCalendar.agendaCalendarNames.find((name) => calendars.includes(name));
+      new TaskCalendarEventModal(this.plugin.app, {
+        language: this.plugin.settings.language,
+        date: this.plugin.settings.taskCalendar.selectedDate || todayTaskCalendarDate(),
+        calendars,
+        defaultCalendar: configured || calendars[0],
+        createEvent: (input) => this.agenda.createEvent(input),
+        onCreated: () => {
+          this.loadedAgendaKey = "";
+          this.scheduleRender();
+        }
+      }).open();
+    }).catch((error) => {
+      new Notice(t(this.plugin.settings.language, "notice.taskCalendarEventFailed").replace("{error}", error instanceof Error ? error.message : String(error)));
+    });
+  }
+
   private scheduleRender(): void {
     if (this.renderTimer !== null) window.clearTimeout(this.renderTimer);
     this.renderTimer = window.setTimeout(() => {
@@ -120,6 +149,7 @@ export class TaskCalendarView extends ItemView {
     const mode = headerActions.createEl("button", { cls: "memos-plus-task-calendar-mode", attr: { type: "button" } });
     mode.setText(state.viewMode === "day" ? t(lang, "taskCalendar.mode.day") : t(lang, "taskCalendar.mode.week"));
     mode.addEventListener("click", () => void this.updateState({ viewMode: state.viewMode === "day" ? "week" : "day" }));
+    this.iconButton(headerActions, "calendar-plus", t(lang, "taskCalendar.newEvent"), () => this.openEventComposer());
     this.iconButton(headerActions, "refresh-cw", t(lang, "taskCalendar.refresh"), () => void this.loadAgenda(range.startDate, range.endDate, true));
 
     if (Platform.isMobile) {

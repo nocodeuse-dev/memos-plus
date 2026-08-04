@@ -101,6 +101,7 @@ describe("Schedule and tasks state", () => {
 
 describe("Schedule and tasks integration boundaries", () => {
   const agendaSource = readFileSync("src/appleCalendarAgenda.ts", "utf8");
+  const eventModalSource = readFileSync("src/taskCalendarEventModal.ts", "utf8");
   const viewSource = readFileSync("src/taskCalendarView.ts", "utf8");
   const mainSource = readFileSync("main.ts", "utf8");
 
@@ -128,5 +129,16 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(mainSource).toContain("updateTaskCalendarRibbon");
     expect(mainSource).toContain("buildTasksMarkdownLine");
     expect(mainSource).toContain("任务收件箱");
+  });
+
+  it("creates Apple events only from an explicit calendar-event action", () => {
+    expect(agendaSource).toContain('request.operation === "create"');
+    expect(agendaSource).toContain("async createEvent(input");
+    expect(agendaSource).toContain("Calendar is read-only");
+    expect(mainSource).toContain('id: "quick-add-calendar-event"');
+    expect(viewSource).toContain('"calendar-plus"');
+    expect(eventModalSource).toContain("const event = await this.options.createEvent(input)");
+    expect(eventModalSource).toContain('text: t(lang, "taskCalendar.createEvent")');
+    expect(eventModalSource.slice(0, eventModalSource.indexOf("private async save"))).not.toContain("this.options.createEvent(");
   });
 });

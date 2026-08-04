@@ -179,6 +179,16 @@ export default class MemosPlusPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "quick-add-calendar-event",
+      name: t(this.settings.language, "command.quickAddCalendarEvent"),
+      callback: () => this.runAsyncOperation("open calendar event composer", async () => {
+        const leaf = await this.activateTaskCalendarView();
+        const view = leaf?.view;
+        if (view instanceof TaskCalendarView) view.openEventComposer();
+      })
+    });
+
+    this.addCommand({
       id: "open-task-calendar-inbox",
       name: t(this.settings.language, "command.openTaskCalendarInbox"),
       callback: () => this.runAsyncOperation("open task calendar inbox", async () => {

@@ -17,9 +17,21 @@ export interface AppleCalendarAgendaResult {
   fetchedAt: string;
 }
 
+export interface CreateAppleCalendarEventInput {
+  calendar: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  allDay: boolean;
+  location: string;
+  notes: string;
+}
+
 const APPLE_CALENDAR_AGENDA_JXA = String.raw`
 function run(argv) {
   const request = JSON.parse(argv[0] || "{}");
+  if (request.operation === "create") return JSON.stringify(createEvent(request));
   const start = new Date(String(request.startDate) + "T00:00:00");
   const end = new Date(String(request.endDate) + "T00:00:00");
   const names = Array.isArray(request.calendarNames) ? request.calendarNames.map(String) : [];
@@ -48,6 +60,44 @@ function run(argv) {
   });
   return JSON.stringify(events);
 }
+function createEvent(request) {
+  const calendarName = String(request.calendar || "").trim();
+  const title = String(request.title || "").trim();
+  if (!calendarName) throw new Error("Apple Calendar name is required");
+  if (!title) throw new Error("Calendar event title is required");
+  const app = Application("Calendar");
+  const calendars = app.calendars.whose({ name: calendarName })();
+  if (!calendars || calendars.length === 0) throw new Error("Calendar not found: " + calendarName);
+  const calendar = calendars[0];
+  let writable = false;
+  try { writable = Boolean(calendar.writable()); } catch (_) {}
+  if (!writable) throw new Error("Calendar is read-only: " + calendarName);
+  const allDay = Boolean(request.allDay);
+  const start = localDateTime(request.date, allDay ? "00:00" : request.startTime);
+  const end = allDay ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1, 0, 0, 0, 0) : localDateTime(request.date, request.endTime);
+  if (end <= start) throw new Error("Calendar event end time must be after start time");
+  const event = app.Event({ summary: title, startDate: start, endDate: end, alldayEvent: allDay });
+  if (request.location) event.location = String(request.location);
+  if (request.notes) event.description = String(request.notes);
+  calendar.events.push(event);
+  return {
+    id: safeGet(function () { return event.uid(); }),
+    calendar: String(calendar.name()),
+    title: safeGet(function () { return event.summary(); }) || title,
+    start: start.toISOString(),
+    end: end.toISOString(),
+    allDay: allDay,
+    location: safeGet(function () { return event.location(); }),
+    notes: safeGet(function () { return event.description(); }),
+    recurring: false
+  };
+}
+function localDateTime(dateValue, timeValue) {
+  const date = String(dateValue || "").split("-").map(Number);
+  const time = String(timeValue || "").split(":").map(Number);
+  if (date.length !== 3 || time.length !== 2 || date.some(isNaN) || time.some(isNaN)) throw new Error("Invalid calendar date or time");
+  return new Date(date[0], date[1] - 1, date[2], time[0], time[1], 0, 0);
+}
 function safeGet(getter) { try { const value = getter(); return value == null ? "" : String(value); } catch (_) { return ""; } }
 function safeValue(getter) { try { return getter(); } catch (_) { return null; } }
 function safeDate(getter) { try { const value = getter(); return value ? new Date(value) : null; } catch (_) { return null; } }
@@ -68,9 +118,29 @@ export class AppleCalendarAgendaService {
     const key = JSON.stringify(request);
     const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.result;
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- the macOS-only guard keeps Node access out of mobile runtime.
+    const events = await this.runJxa<AppleCalendarAgendaEvent[]>(request);
+    const result = { events: events.sort((left, right) => left.start.localeCompare(right.start) || left.title.localeCompare(right.title)), fetchedAt: new Date().toISOString() };
+    this.cache.set(key, { result, expiresAt: Date.now() + Math.max(1, options.cacheMinutes) * 60_000 });
+    return result;
+  }
+
+  async createEvent(input: CreateAppleCalendarEventInput): Promise<AppleCalendarAgendaEvent> {
+    if (!this.isAvailable()) {
+      throw new Error("Apple Calendar event creation is available only in Obsidian Desktop on macOS");
+    }
+    const event = await this.runJxa<AppleCalendarAgendaEvent>({ operation: "create", ...input });
+    this.clearCache();
+    return event;
+  }
+
+  clearCache(): void {
+    this.cache.clear();
+  }
+
+  private runJxa<T>(request: Record<string, unknown>): Promise<T> {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- callers check the macOS-only guard before Node access.
     const { execFile } = require("node:child_process") as typeof import("node:child_process");
-    const events = await new Promise<AppleCalendarAgendaEvent[]>((resolve, reject) => {
+    return new Promise<T>((resolve, reject) => {
       execFile(
         "/usr/bin/osascript",
         ["-l", "JavaScript", "-e", APPLE_CALENDAR_AGENDA_JXA, JSON.stringify(request)],
@@ -81,19 +151,12 @@ export class AppleCalendarAgendaService {
             return;
           }
           try {
-            resolve(JSON.parse(stdout.trim()) as AppleCalendarAgendaEvent[]);
+            resolve(JSON.parse(stdout.trim()) as T);
           } catch {
-            reject(new Error("Apple Calendar returned an invalid agenda response"));
+            reject(new Error("Apple Calendar returned an invalid response"));
           }
         }
       );
     });
-    const result = { events: events.sort((left, right) => left.start.localeCompare(right.start) || left.title.localeCompare(right.title)), fetchedAt: new Date().toISOString() };
-    this.cache.set(key, { result, expiresAt: Date.now() + Math.max(1, options.cacheMinutes) * 60_000 });
-    return result;
-  }
-
-  clearCache(): void {
-    this.cache.clear();
   }
 }
