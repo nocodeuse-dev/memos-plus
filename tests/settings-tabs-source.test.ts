@@ -49,6 +49,9 @@ describe("settings top tabs source", () => {
     expect(tabButtonSource).toContain("this.switchSettingsTab(tab.id, button)");
     expect(tabButtonSource).not.toContain("this.display()");
     expect(settingsSource).toContain("restoreSettingsTabsScroll");
+    expect(settingsSource).toContain("previousScrollTop = scrollContainer?.scrollTop ?? 0");
+    expect(settingsSource).toContain("this.restoreSettingsScroll(scrollContainer, previousScrollTop, renderVersion)");
+    expect(settingsSource).toContain("window.requestAnimationFrame(restore)");
     expect(settingsSource).toContain("private renderCurrentSettingsPanel()");
     expect(settingsSource).toContain("private updateSettingsTabButtons()");
   });

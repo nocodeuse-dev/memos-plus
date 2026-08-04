@@ -479,6 +479,17 @@ interface HorizontalScrollTarget {
   scrollIntoView(options?: ScrollIntoViewOptions): void;
 }
 
+interface VerticalScrollContainer {
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+  isConnected?: boolean;
+}
+
+export function boundedSettingsScrollTop(previousScrollTop: number, scrollHeight: number, clientHeight: number): number {
+  return Math.max(0, Math.min(Math.max(0, previousScrollTop), Math.max(0, scrollHeight - clientHeight)));
+}
+
 export function restoreSettingsTabsScroll(
   tabBar: HorizontalScrollContainer,
   previousScrollLeft: number,
@@ -802,6 +813,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   private settingsTabsEl: HTMLElement | null = null;
   private settingsPanelEl: HTMLElement | null = null;
   private fileTemplateLibraryItemCache: { folder: string; items: FileTemplateLibraryItem[] } | null = null;
+  private settingsRenderVersion = 0;
 
   constructor(app: App, private readonly plugin: MemosPlusPlugin) {
     super(app, plugin);
@@ -810,12 +822,43 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   display(): void {
     logMemosPlusDiagnostic("settings:display", { tab: this.currentSettingTab });
     const { containerEl } = this;
+    const scrollContainer = this.findSettingsScrollContainer();
+    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
+    const previousTabsScrollLeft = this.settingsTabsEl?.scrollLeft ?? 0;
+    const renderVersion = ++this.settingsRenderVersion;
     containerEl.empty();
     containerEl.addClass("memos-plus-settings");
     this.renderDiagnosticExport(containerEl);
     this.settingsTabsEl = this.renderSettingsTabs(containerEl);
     this.settingsPanelEl = containerEl.createDiv({ cls: "memos-plus-settings-panel" });
     this.renderCurrentSettingsPanel();
+    if (this.settingsTabsEl) {
+      restoreSettingsTabsScroll(this.settingsTabsEl, previousTabsScrollLeft, this.findSettingsTabButton(this.currentSettingTab));
+    }
+    this.restoreSettingsScroll(scrollContainer, previousScrollTop, renderVersion);
+  }
+
+  private findSettingsScrollContainer(): HTMLElement | null {
+    const preferred = this.containerEl.closest<HTMLElement>(".vertical-tab-content-container");
+    if (preferred) return preferred;
+    let current: HTMLElement | null = this.containerEl;
+    while (current) {
+      if (current.scrollHeight > current.clientHeight) return current;
+      current = current.parentElement;
+    }
+    return this.containerEl.isConnected ? this.containerEl : null;
+  }
+
+  private restoreSettingsScroll(container: VerticalScrollContainer | null, previousScrollTop: number, renderVersion: number): void {
+    if (!container) return;
+    const restore = () => {
+      if (renderVersion !== this.settingsRenderVersion || container.isConnected === false) return;
+      container.scrollTop = boundedSettingsScrollTop(previousScrollTop, container.scrollHeight, container.clientHeight);
+    };
+    // The Settings app can apply its own layout pass after PluginSettingTab.display.
+    // Restoring in the next frame keeps both immediate and deferred scroll resets stable.
+    restore();
+    window.requestAnimationFrame(restore);
   }
 
   private renderDiagnosticExport(container: HTMLElement): void {

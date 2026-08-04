@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, normalizeSettings, restoreSettingsTabsScroll } from "../src/settings";
+import { DEFAULT_SETTINGS, boundedSettingsScrollTop, normalizeSettings, restoreSettingsTabsScroll } from "../src/settings";
 import { buildEmptyExcalidrawFile, buildExcalidrawAttachmentPath, buildImageAttachmentPath, normalizeImageExtension } from "../src/store";
 
 const settingsSource = readFileSync("src/settings.ts", "utf8");
@@ -278,6 +278,12 @@ describe("DEFAULT_SETTINGS", () => {
 });
 
 describe("settings tab scroll behavior", () => {
+  it("keeps a settings-panel scroll position within the newly rendered content bounds", () => {
+    expect(boundedSettingsScrollTop(680, 2_000, 900)).toBe(680);
+    expect(boundedSettingsScrollTop(680, 1_200, 900)).toBe(300);
+    expect(boundedSettingsScrollTop(-20, 2_000, 900)).toBe(0);
+  });
+
   it("restores the tab bar scroll position and leaves visible active tabs alone", () => {
     const activeTab = {
       getBoundingClientRect: () => ({ left: 140, right: 220 }),
