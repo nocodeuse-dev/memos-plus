@@ -151,7 +151,7 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(agendaSource).toContain("excludeGeneratedCalendars");
     expect(agendaSource).toContain("generatedCalendar(name)");
     expect(agendaSource).toContain("agendaRequests");
-    expect(agendaSource).toContain("calendar.events.whose({ endDate: { _greaterThan: start } })()");
+    expect(agendaSource).toContain("calendar.events.whose({ endDate: { _greaterThan: start }, startDate: { _lessThan: end } })()");
     expect(agendaSource).not.toContain("calendar.events().forEach");
   });
 
