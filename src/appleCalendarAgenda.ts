@@ -44,7 +44,11 @@ function run(argv) {
   });
   const events = [];
   calendars.forEach(function (calendar) {
-    calendar.events().forEach(function (item) {
+    // Query Calendar.app by the lower bound before asking for item fields.
+    // Calling calendar.events() first forces Calendar to hydrate its whole
+    // history, even when the workbench only needs one day.  Filtering by end
+    // date preserves multi-day events that started before this date.
+    calendar.events.whose({ endDate: { _greaterThan: start } })().forEach(function (item) {
       const eventStart = safeDate(function () { return item.startDate(); });
       const eventEnd = safeDate(function () { return item.endDate(); }) || eventStart;
       if (!eventStart || eventStart >= end || eventEnd <= start) return;

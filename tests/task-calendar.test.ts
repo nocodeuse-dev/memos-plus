@@ -151,6 +151,8 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(agendaSource).toContain("excludeGeneratedCalendars");
     expect(agendaSource).toContain("generatedCalendar(name)");
     expect(agendaSource).toContain("agendaRequests");
+    expect(agendaSource).toContain("calendar.events.whose({ endDate: { _greaterThan: start } })()");
+    expect(agendaSource).not.toContain("calendar.events().forEach");
   });
 
   it("never renders the full osascript command when Calendar is slow or unavailable", () => {
