@@ -61,6 +61,12 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.sidebarAutoDetectClipboard).toBe(false);
     expect(DEFAULT_SETTINGS.quickCaptureClipboardDesktopMode).toBe("ask");
     expect(DEFAULT_SETTINGS.quickCaptureClipboardMobileMode).toBe("ask");
+    expect(DEFAULT_SETTINGS.taskCalendar).toMatchObject({
+      showRibbon: true,
+      defaultView: "today",
+      inboxPath: "我的资源/Memos/任务收件箱.md",
+      agendaCacheMinutes: 5
+    });
     expect(DEFAULT_SETTINGS).not.toHaveProperty("quickCaptureClipboardMode");
     expect(DEFAULT_SETTINGS.composerToolbar).toEqual({
       tag: true,
@@ -83,6 +89,19 @@ describe("DEFAULT_SETTINGS", () => {
     expect(normalizeSettings({ composerBorderColor: "#ff00aa", composerBackgroundColor: "#202020" }).composerBorderColor).toBe("#ff00aa");
     expect(normalizeSettings({ composerBorderColor: "bad", composerBackgroundColor: "rgb(1,2,3)" }).composerBorderColor).toBe("#8b5cf6");
     expect(normalizeSettings({ composerBorderColor: "bad", composerBackgroundColor: "rgb(1,2,3)" }).composerBackgroundColor).toBe("");
+  });
+
+  it("normalizes schedule and tasks preferences without enabling Apple sync", () => {
+    const settings = normalizeSettings({
+      appleSyncEnabled: false,
+      taskCalendar: { inboxPath: "收件箱", agendaCacheMinutes: 0, defaultView: "completed" }
+    });
+    expect(settings.appleSyncEnabled).toBe(false);
+    expect(settings.taskCalendar).toMatchObject({
+      inboxPath: "收件箱.md",
+      agendaCacheMinutes: 1,
+      defaultView: "completed"
+    });
   });
 
   it("normalizes shared view layout settings for all display surfaces", () => {

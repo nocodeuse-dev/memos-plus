@@ -141,6 +141,7 @@ import { normalizeProjectTag } from "./projectSend";
 import { normalizeSavedSearches, type SavedSearch } from "./savedSearch";
 import { normalizeSidebarItems, type SidebarItem } from "./sidebar";
 import { normalizeTaskDate, normalizeTaskPriority, normalizeTaskRecurrence, type TaskPriority, type TaskRecurrence } from "./tasksFormat";
+import { DEFAULT_TASK_CALENDAR_SETTINGS, normalizeTaskCalendarSettings, type TaskCalendarSettings } from "./taskCalendar";
 import type { TaskIndexStatus } from "./taskIndex";
 import {
   cloneManagedTemplate,
@@ -276,6 +277,7 @@ export interface MemosPlusSettings {
   taskDefaultScheduledDate: string;
   taskDefaultRecurrence: TaskRecurrence;
   taskPromptOnCreate: boolean;
+  taskCalendar: TaskCalendarSettings;
 }
 
 export const DEFAULT_MEMO_FOLDER = "我的资源/Memos";
@@ -411,7 +413,8 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   taskDefaultDueDate: "",
   taskDefaultScheduledDate: "",
   taskDefaultRecurrence: "none",
-  taskPromptOnCreate: true
+  taskPromptOnCreate: true,
+  taskCalendar: { ...DEFAULT_TASK_CALENDAR_SETTINGS }
 };
 
 type SettingsTabId =
@@ -686,7 +689,8 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     taskDefaultDueDate: normalizeTaskDate(raw.taskDefaultDueDate),
     taskDefaultScheduledDate: normalizeTaskDate(raw.taskDefaultScheduledDate),
     taskDefaultRecurrence: normalizeTaskRecurrence(raw.taskDefaultRecurrence),
-    taskPromptOnCreate: typeof raw.taskPromptOnCreate === "boolean" ? raw.taskPromptOnCreate : DEFAULT_SETTINGS.taskPromptOnCreate
+    taskPromptOnCreate: typeof raw.taskPromptOnCreate === "boolean" ? raw.taskPromptOnCreate : DEFAULT_SETTINGS.taskPromptOnCreate,
+    taskCalendar: normalizeTaskCalendarSettings(raw.taskCalendar)
   };
 }
 
@@ -4057,6 +4061,57 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.renderTaskIndexSummary(container);
     this.renderTaskIndexSettings(container);
     this.renderAppleSyncSettings(container);
+    this.renderTaskCalendarSettings(container);
+  }
+
+  private renderTaskCalendarSettings(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    const state = this.plugin.settings.taskCalendar;
+    this.renderSectionHeader(container, "settings.taskCalendar", "settings.taskCalendarDesc");
+    new Setting(container)
+      .setName(t(lang, "settings.taskCalendarRibbon"))
+      .setDesc(t(lang, "settings.taskCalendarRibbonDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(state.showRibbon).onChange(async (value) => {
+          this.plugin.settings.taskCalendar.showRibbon = value;
+          this.plugin.updateTaskCalendarRibbon(value);
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.taskCalendarDefaultView"))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("today", t(lang, "taskCalendar.nav.today"))
+          .addOption("inbox", t(lang, "taskCalendar.nav.inbox"))
+          .addOption("all", t(lang, "taskCalendar.nav.all"))
+          .addOption("completed", t(lang, "taskCalendar.nav.completed"))
+          .setValue(state.defaultView)
+          .onChange(async (value) => {
+            this.plugin.settings.taskCalendar.defaultView = value === "inbox" || value === "all" || value === "completed" ? value : "today";
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.taskCalendarInboxPath"))
+      .setDesc(t(lang, "settings.taskCalendarInboxPathDesc"))
+      .addText((text) => {
+        text.setValue(state.inboxPath).onChange(async (value) => {
+          const normalized = normalizeTaskCalendarSettings({ ...state, inboxPath: value });
+          this.plugin.settings.taskCalendar.inboxPath = normalized.inboxPath;
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.taskCalendarCache"))
+      .setDesc(t(lang, "settings.taskCalendarCacheDesc"))
+      .addDropdown((dropdown) => {
+        for (const minutes of [1, 5, 10, 15]) dropdown.addOption(String(minutes), t(lang, "settings.taskCalendarMinutes").replace("{minutes}", String(minutes)));
+        dropdown.setValue(String(state.agendaCacheMinutes)).onChange(async (value) => {
+          this.plugin.settings.taskCalendar.agendaCacheMinutes = normalizeTaskCalendarSettings({ ...state, agendaCacheMinutes: value }).agendaCacheMinutes;
+          await this.plugin.persistSettings();
+        });
+      });
   }
 
   private renderTaskIndexSummary(container: HTMLElement): void {

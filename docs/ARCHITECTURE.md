@@ -23,6 +23,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - 项目分类兼容：旧 `projectSections` 字段仍用于创建项目文件的默认标题骨架和旧配置迁移；投递弹窗不再显示固定分类按钮。
 - Tasks 格式兼容：可生成 Obsidian Tasks 风格任务行。
 - Apple 任务同步：macOS 桌面端可将带指定标签的 Markdown 任务与 Apple 提醒事项或 Apple 日历双向同步；移动端不直接访问系统 API。
+- 日程与任务工作台：独立工作区按当前日/周只读显示已配置的 Apple 日历日程，并复用全库 Markdown `TaskIndex` 管理今天、收件箱、全部和已完成任务；快速新增仍写入 Markdown 收件箱，不建立第二套任务数据库。
 - Callout 相关功能：输入框工具栏可切换 Callout 模式，长内容/链接内容可自动包装为 Obsidian Callout。
 - 设置页面：使用顶部横向胶囊标签栏，入口为 `发送规则 / 输入工具 / 记录设置 / 任务设置 / 新建文件模板库 / 筛选与侧栏 / 界面布局 / 显示设置 / 性能与缓存 / 高级设置`；`界面布局` 标签内再用二级切换配置 `桌面主页 / 侧边栏 / 移动端` 的真实界面缩略预览和右侧属性面板。
 - 图片粘贴处理：支持 Memos Plus 内置保存、交给 Image Auto Upload、自动检测三种模式。
@@ -57,6 +58,9 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/taskIndex.ts`：全库任务行索引。分批读取 Markdown 文件、缓存任务行，按文件 mtime 跳过未变化文件；结果排序和卡片时间优先使用任务文本开头的收集时间或 Tasks 创建日期，并提供整理目录任务分支的数量统计和筛选结果。
 - `src/taskManagementModal.ts`：Obsidian 底部状态栏任务管理入口打开的轻量面板。复用 `TaskIndex` 做状态、日期、优先级和关键词筛选，按端限制首批渲染量，并负责移动端弹窗生命周期清理；标题栏可先关闭当前面板再调用现有快速记录流程。
 - `src/taskManagement.ts`：任务管理面板的纯筛选和计数函数，不读取文件。
+- `src/taskCalendar.ts`：日程与任务工作台的纯状态、日期范围、任务筛选和持久化设置归一化。
+- `src/taskCalendarView.ts`：独立“日程与任务”ItemView，负责桌面三栏与移动端标签切换、任务快速新增/完成/跳转和当前日/周的日程渲染。
+- `src/appleCalendarAgenda.ts`：仅 macOS 桌面端使用的 Apple Calendar 日程读取服务；读取前先检查运行时，使用短期内存缓存，不写入 Calendar/Reminders，也不保存事件到 `data.json`。
 - `src/taskActions.ts` / `src/taskLineActions.ts`：索引任务的安全写回与纯行替换 helper；优先使用 Obsidian Tasks `apiV1` 处理重复任务和编辑，回退时只切换标准 Markdown 复选框，并在写回前核对原始行。
 - `src/appleSync.ts`：Apple 同步的纯数据协议、稳定 ID、签名、三方冲突判断和 Markdown 任务行合并 helper。
 - `src/appleSyncBridge.ts`：macOS 本地 JXA 桥接。使用无 shell 的 `/usr/bin/osascript` 读取/更新 Apple Reminders 或 Calendar；探测只访问当前选择的应用，可在用户明确点击后创建专用容器；移动端不会加载执行 Node 子进程能力。
@@ -117,6 +121,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 | Vault metadata 索引 | `src/vaultIndex.ts`, `main.ts`, `src/store.ts`, `src/vaultSearch.ts` | `VaultMetadataIndex`, `registerVaultIndexInvalidation`, `getTaggedFileInfos`, `getProjectInfos`, `scanFileTemplateLibrary` | 第一阶段全库统一索引；只缓存 metadata，不读正文；项目、标签文件、文件搜索、最近文件、模板库和 vault metadata 检索复用同一份文件元信息。 |
 | TaskIndex 任务索引 | `src/taskIndex.ts`, `main.ts`, `src/view.ts`, `src/settings.ts` | `TaskIndex`, `parseTaskIndexItemsFromMarkdown`, `filterTaskIndexItems`, `registerTaskIndexInvalidation`, `renderTaskIndexResults` | 缓存全库任务行、所在文件、行号、优先级、日期、任务收集时间和 mtime；mtime 只负责缓存失效，列表排序和卡片时间优先用任务自身时间。插件启动后可异步分批构建，文件变化后失效并延迟重建，整理目录任务分支从缓存读取数量和结果。 |
 | 状态栏任务管理 | `main.ts`, `src/taskManagementModal.ts`, `src/taskManagement.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `addStatusBarItem`, `TaskManagementModal`, `filterTaskManagementItems`, `toggleIndexedTask`, `openIndexedTask` | Obsidian 底部状态栏入口复用同一 TaskIndex；面板分批渲染、局部刷新，完成/编辑优先走官方 Tasks API，写回时拒绝覆盖已变化的源行；标题栏按钮可切换到现有快速记录弹窗。 |
+| 日程与任务工作台 | `main.ts`, `src/taskCalendar.ts`, `src/taskCalendarView.ts`, `src/appleCalendarAgenda.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `TaskCalendarView`, `AppleCalendarAgendaService`, `taskCalendarTasks`, `createTaskCalendarInboxTask` | 单独 WorkspaceLeaf，Ribbon 与命令可打开。桌面端为导航/日程/任务三栏，移动端切换今天、任务和日历标签。任务唯一来源仍是 `TaskIndex` 与 Markdown；快速新增写入可配置收件箱。日程仅在已启用并选中 Apple 日历同步目标时读取当前日/周，JXA 读取在 macOS 守卫后执行，结果只短暂缓存在内存，不进行 Apple 写入。 |
 | Apple 双向同步 | `main.ts`, `src/appleSync.ts`, `src/appleSyncBridge.ts`, `src/appleSyncService.ts`, `src/settings.ts` | `AppleSyncService`, `MacOsAppleSyncBridge`, `resolveAppleSyncDirection`, `updateTaskLineFromApple` | 默认关闭，仅 macOS 桌面端运行；设置页读取当前 Apple 应用的真实容器，支持明确创建专用容器。按标签选择任务，通过隐藏 ID 和上次签名做三方合并；连接失败发生在本地 ID 写入前。提醒事项同步完成/日期/优先级，日历同步全天事件；新 Apple 项目导入单独文件，不传播删除。 |
 | 项目文件识别 | `src/vaultIndex.ts`, `src/projectSend.ts`, `src/store.ts` | `VaultMetadataIndex.getProjectFiles`, `VaultMetadataIndex.getProjectInfos`, `normalizeProjectTag` | Store 层优先通过统一索引判断项目文件；`projectSend.ts` 仍保留纯函数兼容测试和旧调用。 |
 | 发送到项目 | `src/view.ts`, `src/store.ts`, `src/projectDelivery.ts`, `src/projectSend.ts`, `src/projectFileSuggestModal.ts` | `sendComposerToProject`, `sendContentToProject`, `ProjectSendModal`, `renderHeadingPicker`, `sendToFileTarget` | 弹窗按当前内部模板规则决定默认来源，再按项目/标签文件/最近/搜索/固定文件等来源选择目标文件和真实 Markdown 标题后插入。 |

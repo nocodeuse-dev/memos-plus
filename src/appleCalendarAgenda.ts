@@ -1,0 +1,95 @@
+import { isMacOsDesktopRuntime } from "./appleSyncBridge";
+
+export interface AppleCalendarAgendaEvent {
+  id: string;
+  calendar: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  location: string;
+  notes: string;
+  recurring: boolean;
+}
+
+export interface AppleCalendarAgendaResult {
+  events: AppleCalendarAgendaEvent[];
+  fetchedAt: string;
+}
+
+const APPLE_CALENDAR_AGENDA_JXA = String.raw`
+function run(argv) {
+  const request = JSON.parse(argv[0] || "{}");
+  const start = new Date(String(request.startDate) + "T00:00:00");
+  const end = new Date(String(request.endDate) + "T00:00:00");
+  const names = Array.isArray(request.calendarNames) ? request.calendarNames.map(String) : [];
+  const app = Application("Calendar");
+  const calendars = app.calendars().filter(function (calendar) {
+    return names.length === 0 || names.indexOf(String(calendar.name())) >= 0;
+  });
+  const events = [];
+  calendars.forEach(function (calendar) {
+    calendar.events().forEach(function (item) {
+      const eventStart = safeDate(function () { return item.startDate(); });
+      const eventEnd = safeDate(function () { return item.endDate(); }) || eventStart;
+      if (!eventStart || eventStart >= end || eventEnd <= start) return;
+      events.push({
+        id: safeGet(function () { return item.uid(); }),
+        calendar: String(calendar.name()),
+        title: safeGet(function () { return item.summary(); }) || "(无标题日程)",
+        start: eventStart.toISOString(),
+        end: eventEnd ? eventEnd.toISOString() : eventStart.toISOString(),
+        allDay: Boolean(safeValue(function () { return item.alldayEvent(); })),
+        location: safeGet(function () { return item.location(); }),
+        notes: safeGet(function () { return item.description(); }),
+        recurring: Boolean(safeValue(function () { return item.recurrence(); }))
+      });
+    });
+  });
+  return JSON.stringify(events);
+}
+function safeGet(getter) { try { const value = getter(); return value == null ? "" : String(value); } catch (_) { return ""; } }
+function safeValue(getter) { try { return getter(); } catch (_) { return null; } }
+function safeDate(getter) { try { const value = getter(); return value ? new Date(value) : null; } catch (_) { return null; } }
+`;
+
+export class AppleCalendarAgendaService {
+  private readonly cache = new Map<string, { expiresAt: number; result: AppleCalendarAgendaResult }>();
+
+  async listEvents(options: { startDate: string; endDate: string; calendarNames: string[]; cacheMinutes: number }): Promise<AppleCalendarAgendaResult> {
+    if (!isMacOsDesktopRuntime()) {
+      throw new Error("Apple Calendar agenda is available only in Obsidian Desktop on macOS");
+    }
+    const request = { startDate: options.startDate, endDate: options.endDate, calendarNames: options.calendarNames };
+    const key = JSON.stringify(request);
+    const cached = this.cache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.result;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- the macOS-only guard keeps Node access out of mobile runtime.
+    const { execFile } = require("node:child_process") as typeof import("node:child_process");
+    const events = await new Promise<AppleCalendarAgendaEvent[]>((resolve, reject) => {
+      execFile(
+        "/usr/bin/osascript",
+        ["-l", "JavaScript", "-e", APPLE_CALENDAR_AGENDA_JXA, JSON.stringify(request)],
+        { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error((stderr || error.message).replace(/\s+/g, " ").trim()));
+            return;
+          }
+          try {
+            resolve(JSON.parse(stdout.trim()) as AppleCalendarAgendaEvent[]);
+          } catch {
+            reject(new Error("Apple Calendar returned an invalid agenda response"));
+          }
+        }
+      );
+    });
+    const result = { events: events.sort((left, right) => left.start.localeCompare(right.start) || left.title.localeCompare(right.title)), fetchedAt: new Date().toISOString() };
+    this.cache.set(key, { result, expiresAt: Date.now() + Math.max(1, options.cacheMinutes) * 60_000 });
+    return result;
+  }
+
+  clearCache(): void {
+    this.cache.clear();
+  }
+}
