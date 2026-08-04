@@ -7,6 +7,7 @@ import {
   formatTaskCalendarDate,
   shiftTaskCalendarMonth,
   taskCalendarMonthDays,
+  taskCalendarDefaultAgendaNames,
   taskCalendarDateRange,
   taskCalendarTasks,
   todayTaskCalendarDate,
@@ -43,8 +44,6 @@ export class TaskCalendarView extends ItemView {
   private agendaLoading = false;
   private loadedAgendaKey = "";
   private availableCalendars: Array<{ name: string; writable: boolean }> = [];
-  private calendarChoicesLoading = false;
-  private calendarChoicesLoaded = false;
   private unsubscribeTasks: (() => void) | null = null;
   private renderTimer: number | null = null;
   private renderVersion = 0;
@@ -69,7 +68,6 @@ export class TaskCalendarView extends ItemView {
     this.contentEl.addClass("memos-plus-task-calendar-view");
     this.unsubscribeTasks = this.plugin.taskIndex.onChange(() => this.scheduleRender());
     this.render();
-    this.loadCalendarChoices();
   }
 
   async onClose(): Promise<void> {
@@ -193,7 +191,7 @@ export class TaskCalendarView extends ItemView {
       });
     }
     this.iconButton(headerActions, "calendar-plus", t(lang, "taskCalendar.newEvent"), () => this.openEventComposer());
-    this.iconButton(headerActions, "refresh-cw", t(lang, "taskCalendar.refresh"), () => void this.loadAgenda(range.startDate, range.endDate, true));
+    this.iconButton(headerActions, "refresh-cw", t(lang, "taskCalendar.refresh"), () => void this.loadAgenda(range.startDate, range.endDate, state.agendaCalendarNames, state.agendaCalendarNames.length === 0, true));
 
     if (Platform.isMobile) {
       const tabs = root.createDiv({ cls: "memos-plus-task-calendar-mobile-tabs", attr: { role: "tablist" } });
@@ -243,9 +241,10 @@ export class TaskCalendarView extends ItemView {
       for (const task of tasks.slice(0, Platform.isMobile ? 40 : 80)) this.renderTask(taskList, task, selectedDate);
       if (tasks.length > (Platform.isMobile ? 40 : 80)) taskList.createDiv({ cls: "memos-plus-task-calendar-more", text: t(lang, "taskCalendar.moreTasks").replace("{count}", String(tasks.length - (Platform.isMobile ? 40 : 80))) });
     }
-    const agendaKey = this.agendaKey(range.startDate, range.endDate);
+    const calendarNames = state.agendaCalendarNames;
+    const agendaKey = this.agendaKey(range.startDate, range.endDate, calendarNames);
     if (this.loadedAgendaKey !== agendaKey && !this.agendaLoading) {
-      void this.loadAgenda(range.startDate, range.endDate, false);
+      void this.loadAgenda(range.startDate, range.endDate, calendarNames, state.agendaCalendarNames.length === 0, false);
     }
   }
 
@@ -279,19 +278,19 @@ export class TaskCalendarView extends ItemView {
     const heading = section.createDiv({ cls: "memos-plus-task-calendar-calendar-filters-heading" });
     heading.createSpan({ text: t(lang, "taskCalendar.calendars") });
     const all = heading.createEl("button", { text: t(lang, "taskCalendar.showAllCalendars"), attr: { type: "button" } });
-    all.addEventListener("click", () => void this.updateState({ agendaCalendarNames: [] }));
+    all.addEventListener("click", () => void this.updateState({ agendaCalendarNames: choices.map((calendar) => calendar.name) }));
     const choices = this.availableCalendars.length > 0
       ? this.availableCalendars
       : uniqueCalendarChoices(this.events.map((event) => event.calendar));
     if (choices.length === 0) {
-      section.createDiv({ cls: "memos-plus-task-calendar-calendar-filter-status", text: this.calendarChoicesLoading ? t(lang, "taskCalendar.loading") : t(lang, "taskCalendar.calendarsUnavailable") });
+      section.createDiv({ cls: "memos-plus-task-calendar-calendar-filter-status", text: this.agendaLoading ? t(lang, "taskCalendar.loading") : t(lang, "taskCalendar.calendarsUnavailable") });
       return;
     }
-    const selected = this.plugin.settings.taskCalendar.agendaCalendarNames;
+    const selected = this.effectiveAgendaCalendarNames();
     for (const calendar of choices) {
       const label = section.createEl("label", { cls: "memos-plus-task-calendar-calendar-filter" });
       const input = label.createEl("input", { type: "checkbox", attr: { "aria-label": calendar.name } });
-      input.checked = selected.length === 0 || selected.includes(calendar.name);
+      input.checked = selected.includes(calendar.name);
       input.addEventListener("change", () => {
         input.disabled = true;
         void this.toggleCalendarFilter(calendar.name, input.checked, choices.map((item) => item.name)).finally(() => { if (input.isConnected) input.disabled = false; });
@@ -303,28 +302,15 @@ export class TaskCalendarView extends ItemView {
   }
 
   private async toggleCalendarFilter(name: string, checked: boolean, allNames: string[]): Promise<void> {
-    const current = this.plugin.settings.taskCalendar.agendaCalendarNames;
-    const selected = current.length === 0 ? new Set(allNames) : new Set(current);
+    const current = this.effectiveAgendaCalendarNames();
+    const selected = new Set(current);
     if (checked) selected.add(name);
     else selected.delete(name);
-    const next = allNames.every((calendar) => selected.has(calendar)) ? [] : allNames.filter((calendar) => selected.has(calendar));
+    const defaultNames = taskCalendarDefaultAgendaNames(allNames);
+    const nextNames = allNames.filter((calendar) => selected.has(calendar));
+    const next = sameCalendarNames(nextNames, defaultNames) ? [] : nextNames;
     this.loadedAgendaKey = "";
     await this.updateState({ agendaCalendarNames: next });
-  }
-
-  private loadCalendarChoices(): void {
-    if (!this.agenda.isAvailable() || this.calendarChoicesLoading || this.calendarChoicesLoaded) return;
-    this.calendarChoicesLoading = true;
-    void this.plugin.appleSync.probe("calendar").then((probe) => {
-      if (!this.contentEl.isConnected) return;
-      this.availableCalendars = uniqueCalendarChoices(probe.calendars);
-      this.calendarChoicesLoaded = true;
-    }).catch(() => {
-      this.calendarChoicesLoaded = true;
-    }).finally(() => {
-      this.calendarChoicesLoading = false;
-      if (this.contentEl.isConnected) this.scheduleRender();
-    });
   }
 
   private renderAgenda(container: HTMLElement, days: string[], selectedDate: string, showAllDayEvents: boolean): void {
@@ -413,7 +399,7 @@ export class TaskCalendarView extends ItemView {
     body.addEventListener("click", () => void this.plugin.openTaskCalendarTask(task));
   }
 
-  private async loadAgenda(startDate: string, endDate: string, force: boolean): Promise<void> {
+  private async loadAgenda(startDate: string, endDate: string, calendarNames: string[], excludeGeneratedCalendars: boolean, force: boolean): Promise<void> {
     const settings = this.plugin.settings;
     if (!this.agenda.isAvailable()) {
       this.events = [];
@@ -423,19 +409,22 @@ export class TaskCalendarView extends ItemView {
     }
     if (this.agendaLoading && !force) return;
     const version = ++this.renderVersion;
-    const agendaKey = this.agendaKey(startDate, endDate);
+    const agendaKey = this.agendaKey(startDate, endDate, calendarNames);
     this.agendaLoading = true;
     this.agendaError = "";
+    this.scheduleRender();
     if (force) this.agenda.clearCache();
     try {
       const result = await this.agenda.listEvents({
         startDate,
         endDate,
-        calendarNames: settings.taskCalendar.agendaCalendarNames,
+        calendarNames,
+        excludeGeneratedCalendars,
         cacheMinutes: settings.taskCalendar.agendaCacheMinutes
       });
       if (version !== this.renderVersion || !this.contentEl.isConnected) return;
       this.events = result.events;
+      this.availableCalendars = uniqueCalendarChoices(result.calendars);
       this.loadedAgendaKey = agendaKey;
     } catch (error) {
       if (version !== this.renderVersion || !this.contentEl.isConnected) return;
@@ -450,9 +439,15 @@ export class TaskCalendarView extends ItemView {
     }
   }
 
-  private agendaKey(startDate: string, endDate: string): string {
+  private effectiveAgendaCalendarNames(): string[] {
+    const configured = this.plugin.settings.taskCalendar.agendaCalendarNames;
+    if (configured.length > 0) return configured;
+    return taskCalendarDefaultAgendaNames(this.availableCalendars.map((calendar) => calendar.name));
+  }
+
+  private agendaKey(startDate: string, endDate: string, calendarNames: string[]): string {
     const settings = this.plugin.settings;
-    return `${startDate}:${endDate}:${settings.taskCalendar.agendaCalendarNames.join("\u0001")}:${settings.taskCalendar.showAllDayEvents}`;
+    return `${startDate}:${endDate}:${calendarNames.join("\u0001")}:${settings.taskCalendar.showAllDayEvents}`;
   }
 
   private openNavigation(navigation: TaskCalendarNavigation): void {
@@ -520,6 +515,11 @@ function uniqueCalendarChoices(values: Array<string | { name: string; writable: 
     result.push({ name, writable: typeof value === "string" ? false : value.writable });
   }
   return result;
+}
+
+function sameCalendarNames(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((name, index) => name === right[index]);
 }
 
 function priorityLabel(priority: TaskIndexItem["priority"]): string {

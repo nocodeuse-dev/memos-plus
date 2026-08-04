@@ -14,6 +14,7 @@ export interface AppleCalendarAgendaEvent {
 
 export interface AppleCalendarAgendaResult {
   events: AppleCalendarAgendaEvent[];
+  calendars: Array<{ name: string; writable: boolean }>;
   fetchedAt: string;
 }
 
@@ -36,8 +37,10 @@ function run(argv) {
   const end = new Date(String(request.endDate) + "T00:00:00");
   const names = Array.isArray(request.calendarNames) ? request.calendarNames.map(String) : [];
   const app = Application("Calendar");
-  const calendars = app.calendars().filter(function (calendar) {
-    return names.length === 0 || names.indexOf(String(calendar.name())) >= 0;
+  const allCalendars = app.calendars();
+  const calendars = allCalendars.filter(function (calendar) {
+    const name = String(calendar.name());
+    return names.length > 0 ? names.indexOf(name) >= 0 : !request.excludeGeneratedCalendars || !generatedCalendar(name);
   });
   const events = [];
   calendars.forEach(function (calendar) {
@@ -58,7 +61,18 @@ function run(argv) {
       });
     });
   });
-  return JSON.stringify(events);
+  return JSON.stringify({
+    events: events,
+    calendars: allCalendars.map(function (calendar) {
+      let writable = false;
+      try { writable = Boolean(calendar.writable()); } catch (_) {}
+      return { name: String(calendar.name()), writable: writable };
+    })
+  });
+}
+function generatedCalendar(name) {
+  const normalized = String(name || "").trim().toLowerCase();
+  return ["birthdays", "us holidays", "siri suggestions", "生日", "节假日", "中国节假日", "siri 建议"].indexOf(normalized) >= 0 || / holidays$/.test(normalized);
 }
 function createEvent(request) {
   const calendarName = String(request.calendar || "").trim();
@@ -110,24 +124,31 @@ function safeDate(getter) { try { const value = getter(); return value ? new Dat
 const APPLE_CALENDAR_AGENDA_TIMEOUT_MS = 60_000;
 
 export class AppleCalendarAgendaService {
-  private readonly cache = new Map<string, { expiresAt: number; result: AppleCalendarAgendaResult }>();
-
   isAvailable(): boolean {
     return isMacOsDesktopRuntime();
   }
 
-  async listEvents(options: { startDate: string; endDate: string; calendarNames: string[]; cacheMinutes: number }): Promise<AppleCalendarAgendaResult> {
+  async listEvents(options: { startDate: string; endDate: string; calendarNames: string[]; excludeGeneratedCalendars: boolean; cacheMinutes: number }): Promise<AppleCalendarAgendaResult> {
     if (!this.isAvailable()) {
       throw new Error("Apple Calendar agenda is available only in Obsidian Desktop on macOS");
     }
-    const request = { startDate: options.startDate, endDate: options.endDate, calendarNames: options.calendarNames };
+    const request = { startDate: options.startDate, endDate: options.endDate, calendarNames: options.calendarNames, excludeGeneratedCalendars: options.excludeGeneratedCalendars };
     const key = JSON.stringify(request);
-    const cached = this.cache.get(key);
+    const cached = agendaCache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.result;
-    const events = await this.runJxa<AppleCalendarAgendaEvent[]>(request);
-    const result = { events: events.sort((left, right) => left.start.localeCompare(right.start) || left.title.localeCompare(right.title)), fetchedAt: new Date().toISOString() };
-    this.cache.set(key, { result, expiresAt: Date.now() + Math.max(1, options.cacheMinutes) * 60_000 });
-    return result;
+    const existing = agendaRequests.get(key);
+    if (existing) return existing;
+    const requestPromise = this.runJxa<{ events: AppleCalendarAgendaEvent[]; calendars: Array<{ name: string; writable: boolean }> }>(request).then((response) => {
+      const result = {
+        events: response.events.sort((left, right) => left.start.localeCompare(right.start) || left.title.localeCompare(right.title)),
+        calendars: response.calendars,
+        fetchedAt: new Date().toISOString()
+      };
+      agendaCache.set(key, { result, expiresAt: Date.now() + Math.max(1, options.cacheMinutes) * 60_000 });
+      return result;
+    }).finally(() => agendaRequests.delete(key));
+    agendaRequests.set(key, requestPromise);
+    return requestPromise;
   }
 
   async createEvent(input: CreateAppleCalendarEventInput): Promise<AppleCalendarAgendaEvent> {
@@ -140,7 +161,7 @@ export class AppleCalendarAgendaService {
   }
 
   clearCache(): void {
-    this.cache.clear();
+    agendaCache.clear();
   }
 
   private runJxa<T>(request: Record<string, unknown>): Promise<T> {
@@ -166,6 +187,12 @@ export class AppleCalendarAgendaService {
     });
   }
 }
+
+// Keep Calendar.app results available across tab changes and multiple workbench
+// leaves.  Calendar's first JXA read can be expensive; a per-view cache was
+// discarded whenever the user switched tabs and caused needless re-reads.
+const agendaCache = new Map<string, { expiresAt: number; result: AppleCalendarAgendaResult }>();
+const agendaRequests = new Map<string, Promise<AppleCalendarAgendaResult>>();
 
 /**
  * Node's child-process timeout error embeds the full `osascript -e` command in

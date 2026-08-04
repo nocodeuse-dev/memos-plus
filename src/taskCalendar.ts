@@ -115,6 +115,30 @@ export function formatTaskCalendarMonth(date: string, locale = "zh-CN"): string 
   return new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(parseDate(normalizeDate(date) || todayTaskCalendarDate()));
 }
 
+/**
+ * Calendar.app exposes several generated, read-only calendars alongside a
+ * user's own calendars.  They are useful when explicitly selected, but asking
+ * Calendar.app to hydrate every one of them makes the first agenda read much
+ * slower (especially with subscribed holiday feeds).  An empty persisted
+ * selection therefore means "normal calendars", not "every generated feed".
+ */
+export function taskCalendarDefaultAgendaNames(calendarNames: string[]): string[] {
+  return normalizeCalendarNames(calendarNames).filter((name) => !isGeneratedSystemCalendar(name));
+}
+
+function isGeneratedSystemCalendar(name: string): boolean {
+  const normalized = name.trim().toLocaleLowerCase();
+  return [
+    "birthdays",
+    "us holidays",
+    "siri suggestions",
+    "生日",
+    "节假日",
+    "中国节假日",
+    "siri 建议"
+  ].includes(normalized) || normalized.endsWith(" holidays");
+}
+
 export function taskCalendarTasks(items: TaskIndexItem[], navigation: TaskCalendarNavigation, selectedDate: string): TaskIndexItem[] {
   const date = normalizeDate(selectedDate) || todayTaskCalendarDate();
   const incomplete = items.filter((item) => !item.completed);

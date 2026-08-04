@@ -6,6 +6,7 @@ import {
   normalizeTaskCalendarSettings,
   shiftTaskCalendarDate,
   shiftTaskCalendarMonth,
+  taskCalendarDefaultAgendaNames,
   taskCalendarDateRange,
   taskCalendarMonthDays,
   taskCalendarTasks
@@ -65,6 +66,11 @@ describe("Schedule and tasks state", () => {
       agendaCacheMinutes: 30,
       agendaCalendarNames: ["Calendar", "Work"]
     });
+  });
+
+  it("keeps generated Calendar feeds available but excludes them from the default agenda read", () => {
+    const calendars = ["Home", "工作", "个人", "yang122395@gmail.com", "Scheduled Reminders", "Birthdays", "US Holidays", "Siri Suggestions"];
+    expect(taskCalendarDefaultAgendaNames(calendars)).toEqual(["Home", "工作", "个人", "yang122395@gmail.com", "Scheduled Reminders"]);
   });
 
   it("builds bounded local day and Monday-first week windows", () => {
@@ -142,6 +148,9 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(agendaSource).not.toContain("tasks.json");
     expect(agendaSource).toContain("APPLE_CALENDAR_AGENDA_TIMEOUT_MS");
     expect(agendaSource).toContain("normalizeAppleCalendarAgendaError(stderr || error.message)");
+    expect(agendaSource).toContain("excludeGeneratedCalendars");
+    expect(agendaSource).toContain("generatedCalendar(name)");
+    expect(agendaSource).toContain("agendaRequests");
   });
 
   it("never renders the full osascript command when Calendar is slow or unavailable", () => {
@@ -155,8 +164,10 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("settings.taskCalendar.agendaCalendarNames");
     expect(viewSource).toContain("cacheMinutes: settings.taskCalendar.agendaCacheMinutes");
     expect(viewSource).not.toContain("settings.appleSyncTarget !==");
-    expect(viewSource).toContain("this.plugin.appleSync.probe(\"calendar\")");
+    expect(viewSource.slice(viewSource.indexOf("async onOpen"), viewSource.indexOf("async onClose"))).not.toContain("this.plugin.appleSync.probe(\"calendar\")");
     expect(viewSource).toContain("toggleCalendarFilter");
+    expect(viewSource).toContain("taskCalendarDefaultAgendaNames");
+    expect(viewSource).toContain("result.calendars");
     expect(viewSource).toContain("taskCalendarGridPlacement");
     expect(viewSource).toContain("renderMiniCalendar");
     expect(viewSource).toContain("calendarEventLocalDate(event.start)");
