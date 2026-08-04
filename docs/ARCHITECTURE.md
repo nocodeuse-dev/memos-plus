@@ -59,8 +59,8 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/taskManagement.ts`：任务管理面板的纯筛选和计数函数，不读取文件。
 - `src/taskActions.ts` / `src/taskLineActions.ts`：索引任务的安全写回与纯行替换 helper；优先使用 Obsidian Tasks `apiV1` 处理重复任务和编辑，回退时只切换标准 Markdown 复选框，并在写回前核对原始行。
 - `src/appleSync.ts`：Apple 同步的纯数据协议、稳定 ID、签名、三方冲突判断和 Markdown 任务行合并 helper。
-- `src/appleSyncBridge.ts`：macOS 本地 JXA 桥接。使用无 shell 的 `/usr/bin/osascript` 读取/更新 Apple Reminders 或 Calendar；移动端不会加载执行 Node 子进程能力。
-- `src/appleSyncService.ts`：协调 `TaskIndex`、标签范围、Apple 远端项目、导入文件和 `data.json` 同步状态；串行合并且不传播删除。
+- `src/appleSyncBridge.ts`：macOS 本地 JXA 桥接。使用无 shell 的 `/usr/bin/osascript` 读取/更新 Apple Reminders 或 Calendar；探测只访问当前选择的应用，可在用户明确点击后创建专用容器；移动端不会加载执行 Node 子进程能力。
+- `src/appleSyncService.ts`：协调 `TaskIndex`、标签范围、Apple 远端项目、导入文件和 `data.json` 同步状态；先验证远端容器再写本地同步 ID，串行合并且不传播删除。
 - `src/store.ts`：数据读写层。负责年度 memo 文件读写、memo 增删改、状态标签切换、图片附件保存、项目和文件投递调用。
 - `src/markdown.ts`：memo Markdown 协议解析与写回。定义 `MemoItem`，解析 `YYYY.md`，插入/替换/删除 memo，切换任务和标签。
 - `src/filter.ts`：memo 内部视图筛选、搜索、排序、日期工具。
@@ -117,7 +117,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 | Vault metadata 索引 | `src/vaultIndex.ts`, `main.ts`, `src/store.ts`, `src/vaultSearch.ts` | `VaultMetadataIndex`, `registerVaultIndexInvalidation`, `getTaggedFileInfos`, `getProjectInfos`, `scanFileTemplateLibrary` | 第一阶段全库统一索引；只缓存 metadata，不读正文；项目、标签文件、文件搜索、最近文件、模板库和 vault metadata 检索复用同一份文件元信息。 |
 | TaskIndex 任务索引 | `src/taskIndex.ts`, `main.ts`, `src/view.ts`, `src/settings.ts` | `TaskIndex`, `parseTaskIndexItemsFromMarkdown`, `filterTaskIndexItems`, `registerTaskIndexInvalidation`, `renderTaskIndexResults` | 缓存全库任务行、所在文件、行号、优先级、日期、任务收集时间和 mtime；mtime 只负责缓存失效，列表排序和卡片时间优先用任务自身时间。插件启动后可异步分批构建，文件变化后失效并延迟重建，整理目录任务分支从缓存读取数量和结果。 |
 | 状态栏任务管理 | `main.ts`, `src/taskManagementModal.ts`, `src/taskManagement.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `addStatusBarItem`, `TaskManagementModal`, `filterTaskManagementItems`, `toggleIndexedTask`, `openIndexedTask` | Obsidian 底部状态栏入口复用同一 TaskIndex；面板分批渲染、局部刷新，完成/编辑优先走官方 Tasks API，写回时拒绝覆盖已变化的源行；标题栏按钮可切换到现有快速记录弹窗。 |
-| Apple 双向同步 | `main.ts`, `src/appleSync.ts`, `src/appleSyncBridge.ts`, `src/appleSyncService.ts`, `src/settings.ts` | `AppleSyncService`, `MacOsAppleSyncBridge`, `resolveAppleSyncDirection`, `updateTaskLineFromApple` | 默认关闭，仅 macOS 桌面端运行；按标签选择任务，通过隐藏 ID 和上次签名做三方合并。提醒事项同步完成/日期/优先级，日历同步全天事件；新 Apple 项目导入单独文件，不传播删除。 |
+| Apple 双向同步 | `main.ts`, `src/appleSync.ts`, `src/appleSyncBridge.ts`, `src/appleSyncService.ts`, `src/settings.ts` | `AppleSyncService`, `MacOsAppleSyncBridge`, `resolveAppleSyncDirection`, `updateTaskLineFromApple` | 默认关闭，仅 macOS 桌面端运行；设置页读取当前 Apple 应用的真实容器，支持明确创建专用容器。按标签选择任务，通过隐藏 ID 和上次签名做三方合并；连接失败发生在本地 ID 写入前。提醒事项同步完成/日期/优先级，日历同步全天事件；新 Apple 项目导入单独文件，不传播删除。 |
 | 项目文件识别 | `src/vaultIndex.ts`, `src/projectSend.ts`, `src/store.ts` | `VaultMetadataIndex.getProjectFiles`, `VaultMetadataIndex.getProjectInfos`, `normalizeProjectTag` | Store 层优先通过统一索引判断项目文件；`projectSend.ts` 仍保留纯函数兼容测试和旧调用。 |
 | 发送到项目 | `src/view.ts`, `src/store.ts`, `src/projectDelivery.ts`, `src/projectSend.ts`, `src/projectFileSuggestModal.ts` | `sendComposerToProject`, `sendContentToProject`, `ProjectSendModal`, `renderHeadingPicker`, `sendToFileTarget` | 弹窗按当前内部模板规则决定默认来源，再按项目/标签文件/最近/搜索/固定文件等来源选择目标文件和真实 Markdown 标题后插入。 |
 | 添加项目 | `src/projectFileSuggestModal.ts`, `src/store.ts`, `src/fileTemplateLibrary.ts` | `openFileTemplateLibraryModal("project")`, `FileTemplateLibraryModal`, `createFileFromLibraryTemplate` | 弹窗中先从新建文件模板库选择文件骨架模板和文件名，再创建项目 Markdown 文件；旧 `createProject` 兼容方法仍保留。 |

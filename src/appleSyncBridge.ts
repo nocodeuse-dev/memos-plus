@@ -3,6 +3,12 @@ import type { AppleSyncRemoteItem, AppleSyncTarget } from "./appleSync";
 export interface AppleSyncProbeResult {
   reminderLists: string[];
   calendars: Array<{ name: string; writable: boolean }>;
+  defaultReminderList: string;
+}
+
+export interface AppleSyncContainerResult {
+  name: string;
+  writable: boolean;
 }
 
 export interface AppleSyncUpsertInput {
@@ -17,13 +23,14 @@ export interface AppleSyncUpsertInput {
 }
 
 export interface AppleSyncBridge {
-  probe(): Promise<AppleSyncProbeResult>;
+  probe(kind: AppleSyncTarget): Promise<AppleSyncProbeResult>;
+  createContainer(kind: AppleSyncTarget, name: string): Promise<AppleSyncContainerResult>;
   list(kind: AppleSyncTarget, container: string): Promise<AppleSyncRemoteItem[]>;
   upsert(input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem>;
 }
 
 interface JxaRequest {
-  operation: "probe" | "list" | "upsert";
+  operation: "probe" | "create-container" | "list" | "upsert";
   kind?: AppleSyncTarget;
   container?: string;
   remoteId?: string;
@@ -37,23 +44,61 @@ interface JxaRequest {
 const APPLE_SYNC_JXA = String.raw`
 function run(argv) {
   const request = JSON.parse(argv[0] || "{}");
-  if (request.operation === "probe") return JSON.stringify(probe());
+  if (request.operation === "probe") return JSON.stringify(probe(request.kind));
+  if (request.operation === "create-container") return JSON.stringify(createContainer(request));
   if (request.operation === "list") return JSON.stringify(listItems(request));
   if (request.operation === "upsert") return JSON.stringify(upsertItem(request));
   throw new Error("Unsupported Memos Plus Apple sync operation");
 }
 
-function probe() {
+function probe(kind) {
+  if (kind === "calendar") {
+    const calendar = Application("Calendar");
+    return {
+      reminderLists: [],
+      calendars: calendar.calendars().map(function (item) {
+        let writable = false;
+        try { writable = Boolean(item.writable()); } catch (_) {}
+        return { name: String(item.name()), writable: writable };
+      }),
+      defaultReminderList: ""
+    };
+  }
   const reminders = Application("Reminders");
-  const calendar = Application("Calendar");
+  let defaultReminderList = "";
+  try { defaultReminderList = String(reminders.defaultList().name()); } catch (_) {}
   return {
     reminderLists: reminders.lists().map(function (item) { return String(item.name()); }),
-    calendars: calendar.calendars().map(function (item) {
-      let writable = false;
-      try { writable = Boolean(item.writable()); } catch (_) {}
-      return { name: String(item.name()), writable: writable };
-    })
+    calendars: [],
+    defaultReminderList: defaultReminderList
   };
+}
+
+function createContainer(request) {
+  const name = String(request.container || "").trim();
+  if (!name) throw new Error("Apple sync container name is empty");
+  if (request.kind === "calendar") {
+    const app = Application("Calendar");
+    const existing = app.calendars.whose({ name: name })();
+    if (existing.length > 0) {
+      let writable = false;
+      try { writable = Boolean(existing[0].writable()); } catch (_) {}
+      if (!writable) throw new Error("Calendar is read-only: " + name);
+      return { name: String(existing[0].name()), writable: true };
+    }
+    const created = app.Calendar({ name: name });
+    app.calendars.push(created);
+    let writable = false;
+    try { writable = Boolean(created.writable()); } catch (_) {}
+    if (!writable) throw new Error("Calendar was created but is not writable: " + name);
+    return { name: String(created.name()), writable: true };
+  }
+  const app = Application("Reminders");
+  const existing = app.lists.whose({ name: name })();
+  if (existing.length > 0) return { name: String(existing[0].name()), writable: true };
+  const created = app.List({ name: name });
+  app.lists.push(created);
+  return { name: String(created.name()), writable: true };
 }
 
 function listItems(request) {
@@ -216,8 +261,12 @@ function withLocalMarker(notes, localId) {
 `;
 
 export class MacOsAppleSyncBridge implements AppleSyncBridge {
-  async probe(): Promise<AppleSyncProbeResult> {
-    return this.run<AppleSyncProbeResult>({ operation: "probe" });
+  async probe(kind: AppleSyncTarget): Promise<AppleSyncProbeResult> {
+    return this.run<AppleSyncProbeResult>({ operation: "probe", kind });
+  }
+
+  async createContainer(kind: AppleSyncTarget, name: string): Promise<AppleSyncContainerResult> {
+    return this.run<AppleSyncContainerResult>({ operation: "create-container", kind, container: name });
   }
 
   async list(kind: AppleSyncTarget, container: string): Promise<AppleSyncRemoteItem[]> {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.249 - Unreleased
+
+- 修复 Apple 同步把默认名称 `Memos Plus` 当成必须预先存在的容器、导致用户明明已有日历或待办却只能看到笼统连接失败的问题。设置页现在只读取当前选择的 Apple 应用，并将系统中真实存在的提醒事项列表或可写日历显示为下拉选项。
+- 新增“创建并选择 Memos Plus”明确操作：用户点击后才创建专用日历或提醒事项列表并保存选择；不会静默把已有个人日历作为同步目标，避免把其中无标记的事件或待办批量导入 Markdown。
+- “测试连接”现在显示具体目标名称及可用容器，不再把列表缺失、日历缺失和只读状态合并成无法定位的提示。正式同步也会先验证/读取 Apple 容器，再向 Markdown 任务写入同步 ID，连接失败不会先修改笔记。
+
 ## 0.1.248 - Unreleased
 
 - 修复 Apple 日历/提醒事项同步在 Obsidian `app://` 运行环境中报错 `Failed to fetch dynamically imported module: node:child_process`：macOS 桌面桥接改为在运行环境检查通过后再使用 CommonJS `require`，不再触发浏览器式模块请求。

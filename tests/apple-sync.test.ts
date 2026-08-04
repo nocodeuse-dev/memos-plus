@@ -145,6 +145,7 @@ describe("Apple sync source integration", () => {
   it("rejects a disabled sync before rebuilding the task index or calling Apple", async () => {
     const bridge: AppleSyncBridge = {
       probe: vi.fn(),
+      createContainer: vi.fn(),
       list: vi.fn(),
       upsert: vi.fn()
     };
@@ -162,6 +163,23 @@ describe("Apple sync source integration", () => {
     expect(bridge.probe).not.toHaveBeenCalled();
     expect(bridge.list).not.toHaveBeenCalled();
     expect(bridge.upsert).not.toHaveBeenCalled();
+  });
+
+  it("probes only the selected Apple target and offers explicit container creation", () => {
+    expect(bridgeSource).toContain('probe(request.kind)');
+    expect(bridgeSource).toContain('if (kind === "calendar")');
+    expect(bridgeSource).toContain('operation: "create-container"');
+    expect(bridgeSource).toContain('app.Calendar({ name: name })');
+    expect(bridgeSource).toContain('app.List({ name: name })');
+    expect(mainSource).toContain('this.appleSync.probe(target)');
+    expect(mainSource).toContain('createAppleSyncContainer');
+  });
+
+  it("validates the Apple container before writing local sync ids", () => {
+    const remoteListIndex = serviceSource.indexOf("const remoteItems = await this.options.bridge.list(kind, container)");
+    const ensureIdsIndex = serviceSource.indexOf("localTasks = await this.ensureLocalIds(localTasks)");
+    expect(remoteListIndex).toBeGreaterThan(-1);
+    expect(ensureIdsIndex).toBeGreaterThan(remoteListIndex);
   });
 
   it("registers manual sync and connection-test commands", () => {

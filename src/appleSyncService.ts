@@ -45,11 +45,22 @@ export class AppleSyncService {
     return !Platform.isMobile && isMacOsDesktopRuntime();
   }
 
-  async probe(): Promise<AppleSyncProbeResult> {
+  async probe(kind = this.options.getSettings().appleSyncTarget): Promise<AppleSyncProbeResult> {
     if (!this.isAvailable()) {
       throw new Error("Apple sync is available only in Obsidian Desktop on macOS");
     }
-    return this.options.bridge.probe();
+    return this.options.bridge.probe(kind);
+  }
+
+  async createContainer(kind: MemosPlusSettings["appleSyncTarget"], name: string): Promise<string> {
+    if (!this.isAvailable()) {
+      throw new Error("Apple sync is available only in Obsidian Desktop on macOS");
+    }
+    const created = await this.options.bridge.createContainer(kind, name);
+    if (!created.writable) {
+      throw new Error(`${kind === "calendar" ? "Calendar" : "Reminders list"} is read-only: ${created.name}`);
+    }
+    return created.name;
   }
 
   syncNow(): Promise<AppleSyncResult> {
@@ -73,15 +84,16 @@ export class AppleSyncService {
     const result: AppleSyncResult = { pushed: 0, pulled: 0, imported: 0, unchanged: 0, skipped: 0 };
     const state = normalizeAppleSyncState(settings.appleSyncState);
     try {
-      await this.options.taskIndex.rebuild();
-      let localTasks = this.options.taskIndex.getItems().filter((task) => shouldSyncTask(task, settings.appleSyncTag));
-      localTasks = await this.ensureLocalIds(localTasks);
-
       const kind = settings.appleSyncTarget;
       const container = kind === "calendar" ? settings.appleCalendarName : settings.appleRemindersList;
+      // Validate and read the Apple container before writing sync IDs into Markdown.
       const remoteItems = await this.options.bridge.list(kind, container);
       const remoteById = new Map(remoteItems.map((item) => [item.id, item]));
       const remoteByLocalId = new Map(remoteItems.filter((item) => item.localId).map((item) => [item.localId, item]));
+
+      await this.options.taskIndex.rebuild();
+      let localTasks = this.options.taskIndex.getItems().filter((task) => shouldSyncTask(task, settings.appleSyncTag));
+      localTasks = await this.ensureLocalIds(localTasks);
 
       for (const task of localTasks) {
         const localId = extractAppleSyncId(task.line);

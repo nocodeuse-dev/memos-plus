@@ -391,13 +391,43 @@ export default class MemosPlusPlugin extends Plugin {
   async testAppleSyncConnection(): Promise<void> {
     const lang = this.settings.language;
     try {
-      const probe = await this.appleSync.probe();
       const target = this.settings.appleSyncTarget;
+      const probe = await this.appleSync.probe(target);
+      const selected = target === "reminders" ? this.settings.appleRemindersList : this.settings.appleCalendarName;
       const available =
         target === "reminders"
-          ? probe.reminderLists.includes(this.settings.appleRemindersList)
-          : probe.calendars.some((calendar) => calendar.name === this.settings.appleCalendarName && calendar.writable);
-      new Notice(t(lang, available ? "notice.appleSyncConnectionOk" : "notice.appleSyncContainerMissing"));
+          ? probe.reminderLists.includes(selected)
+          : probe.calendars.some((calendar) => calendar.name === selected && calendar.writable);
+      if (available) {
+        new Notice(t(lang, "notice.appleSyncConnectionOk").replace("{name}", selected));
+        return;
+      }
+      const candidates =
+        target === "reminders"
+          ? probe.reminderLists
+          : probe.calendars.filter((calendar) => calendar.writable).map((calendar) => calendar.name);
+      new Notice(
+        t(lang, "notice.appleSyncContainerMissing")
+          .replace("{name}", selected)
+          .replace("{available}", candidates.length > 0 ? candidates.join("、") : t(lang, "notice.appleSyncContainerNone"))
+      );
+    } catch (error) {
+      new Notice(t(lang, "notice.appleSyncFailed").replace("{error}", error instanceof Error ? error.message : String(error)));
+    }
+  }
+
+  async createAppleSyncContainer(): Promise<void> {
+    const lang = this.settings.language;
+    const target = this.settings.appleSyncTarget;
+    try {
+      const name = await this.appleSync.createContainer(target, "Memos Plus");
+      if (target === "calendar") {
+        this.settings.appleCalendarName = name;
+      } else {
+        this.settings.appleRemindersList = name;
+      }
+      await this.persistSettings();
+      new Notice(t(lang, "notice.appleSyncContainerCreated").replace("{name}", name));
     } catch (error) {
       new Notice(t(lang, "notice.appleSyncFailed").replace("{error}", error instanceof Error ? error.message : String(error)));
     }

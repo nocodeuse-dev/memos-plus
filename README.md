@@ -56,7 +56,9 @@ Plus.
 Apple sync is opt-in and macOS-desktop-only. It uses the local Apple automation
 interface and never stores an Apple ID password or CalDAV credential. Only
 Markdown tasks carrying the configured sync tag are exported. Deletions are not
-propagated automatically.
+propagated automatically. The settings page lists the real writable Calendar or
+Reminders containers, and a dedicated `Memos Plus` container is created only
+after an explicit button click.
 
 ## Development
 

@@ -25,6 +25,14 @@ describe("settings UI source", () => {
     expect(pageTitleSource).not.toContain('createEl("h2"');
   });
 
+  it("loads real Apple containers into a selector and requires an explicit click to create one", () => {
+    expect(settingsSource).toContain("renderAppleSyncContainerSetting");
+    expect(settingsSource).toContain("this.plugin.appleSync");
+    expect(settingsSource).toContain(".probe(target)");
+    expect(settingsSource).toContain("settings.appleSyncCreateContainer");
+    expect(settingsSource).toContain("this.plugin.createAppleSyncContainer()");
+  });
+
   it("renders debug and maintenance as a help support card with the configured external page", () => {
     const advancedSource = settingsSource.slice(
       settingsSource.indexOf("private renderAdvancedSettings"),

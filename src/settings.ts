@@ -4170,27 +4170,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           await this.plugin.persistSettings();
         });
       });
-    if (this.plugin.settings.appleSyncTarget === "reminders") {
-      new Setting(container)
-        .setName(t(lang, "settings.appleRemindersList"))
-        .setDesc(t(lang, "settings.appleRemindersListDesc"))
-        .addText((textInput) => {
-          textInput.setValue(this.plugin.settings.appleRemindersList).onChange(async (value) => {
-            this.plugin.settings.appleRemindersList = normalizeTextSetting(value, DEFAULT_SETTINGS.appleRemindersList);
-            await this.plugin.persistSettings();
-          });
-        });
-    } else {
-      new Setting(container)
-        .setName(t(lang, "settings.appleCalendarName"))
-        .setDesc(t(lang, "settings.appleCalendarNameDesc"))
-        .addText((textInput) => {
-          textInput.setValue(this.plugin.settings.appleCalendarName).onChange(async (value) => {
-            this.plugin.settings.appleCalendarName = normalizeTextSetting(value, DEFAULT_SETTINGS.appleCalendarName);
-            await this.plugin.persistSettings();
-          });
-        });
-    }
+    this.renderAppleSyncContainerSetting(container, available);
     new Setting(container)
       .setName(t(lang, "settings.appleSyncInboxPath"))
       .setDesc(t(lang, "settings.appleSyncInboxPathDesc"))
@@ -4261,6 +4241,61 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           this.display();
         });
       });
+  }
+
+  private renderAppleSyncContainerSetting(container: HTMLElement, available: boolean): void {
+    const lang = this.plugin.settings.language;
+    const target = this.plugin.settings.appleSyncTarget;
+    const isReminders = target === "reminders";
+    const current = isReminders ? this.plugin.settings.appleRemindersList : this.plugin.settings.appleCalendarName;
+    const setting = new Setting(container)
+      .setName(t(lang, isReminders ? "settings.appleRemindersList" : "settings.appleCalendarName"))
+      .setDesc(t(lang, isReminders ? "settings.appleRemindersListDesc" : "settings.appleCalendarNameDesc"));
+
+    setting.addDropdown((dropdown) => {
+      dropdown.addOption(current, `${current} · ${t(lang, "settings.appleSyncContainerLoading")}`).setValue(current).setDisabled(!available);
+      dropdown.onChange(async (value) => {
+        if (isReminders) {
+          this.plugin.settings.appleRemindersList = value;
+        } else {
+          this.plugin.settings.appleCalendarName = value;
+        }
+        await this.plugin.persistSettings();
+      });
+      if (!available) return;
+      void this.plugin.appleSync
+        .probe(target)
+        .then((probe) => {
+          if (!dropdown.selectEl.isConnected) return;
+          const options = isReminders
+            ? probe.reminderLists.map((name) => ({ name, writable: true }))
+            : probe.calendars;
+          dropdown.selectEl.replaceChildren();
+          if (!options.some((option) => option.name === current && option.writable)) {
+            dropdown.addOption(current, `${current} · ${t(lang, "settings.appleSyncContainerMissing")}`);
+          }
+          for (const option of options) {
+            if (!option.writable) continue;
+            const suffix = isReminders && option.name === probe.defaultReminderList ? ` · ${t(lang, "settings.appleSyncContainerDefault")}` : "";
+            dropdown.addOption(option.name, `${option.name}${suffix}`);
+          }
+          dropdown.setValue(current);
+        })
+        .catch(() => {
+          if (!dropdown.selectEl.isConnected) return;
+          dropdown.selectEl.replaceChildren();
+          dropdown.addOption(current, `${current} · ${t(lang, "settings.appleSyncContainerLoadFailed")}`).setValue(current);
+        });
+    });
+    setting.addButton((button) => {
+      button
+        .setButtonText(t(lang, "settings.appleSyncCreateContainer"))
+        .setDisabled(!available)
+        .onClick(async () => {
+          await this.plugin.createAppleSyncContainer();
+          this.display();
+        });
+    });
   }
 
   private renderFilterSettings(container: HTMLElement): void {
