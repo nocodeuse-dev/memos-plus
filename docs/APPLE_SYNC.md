@@ -2,6 +2,8 @@
 
 Memos Plus 在 macOS Obsidian 桌面端提供可选的 Apple 提醒事项或 Apple 日历双向同步。实现使用本机 `/usr/bin/osascript` 运行 JXA，直接调用系统应用；不连接第三方服务器，也不保存 Apple ID、CalDAV 地址或应用专用密码。
 
+桌面子进程模块只在确认运行于 macOS Obsidian Desktop 后通过 CommonJS 加载；生产构建会拒绝可能被 `app://` 页面当作网络模块请求的动态 Node 导入。移动端不会加载该模块。
+
 ## 启用前准备
 
 1. 在 Apple 提醒事项或 Apple 日历中先创建一个独立的、可写的 `Memos Plus` 列表/日历。

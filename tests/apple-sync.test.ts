@@ -121,9 +121,19 @@ describe("Apple sync source integration", () => {
 
   it("uses execFile without a shell and never propagates deletes", () => {
     expect(bridgeSource).toContain('execFile(\n        "/usr/bin/osascript"');
+    expect(bridgeSource).toContain('require("node:child_process")');
+    expect(bridgeSource).not.toContain('await import("node:child_process")');
     expect(bridgeSource).not.toContain("shell: true");
     expect(bridgeSource).not.toContain("deleteReminder");
     expect(bridgeSource).not.toContain("deleteEvent");
+  });
+
+  it("loads the desktop child-process bridge only after the macOS runtime guard", () => {
+    const guardIndex = bridgeSource.indexOf("if (!isMacOsDesktopRuntime())");
+    const requireIndex = bridgeSource.indexOf('require("node:child_process")');
+
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(requireIndex).toBeGreaterThan(guardIndex);
   });
 
   it("does not start Apple access unless the feature is enabled", () => {

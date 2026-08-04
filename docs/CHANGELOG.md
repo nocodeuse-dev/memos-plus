@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.248 - Unreleased
+
+- 修复 Apple 日历/提醒事项同步在 Obsidian `app://` 运行环境中报错 `Failed to fetch dynamically imported module: node:child_process`：macOS 桌面桥接改为在运行环境检查通过后再使用 CommonJS `require`，不再触发浏览器式模块请求。
+- 保持移动端安全边界：iPhone/iPad 会在加载子进程模块之前退出，仍不会加载或执行 `node:child_process`、`osascript` 或 Apple 系统接口。
+- 生产构建新增桌面运行时模块检查，强制发行包不得重新出现 `import("node:child_process")`，并确认保留受保护的 `require("node:child_process")`；不新增依赖，插件体积基本不变。
+
 ## 0.1.247 - Unreleased
 
 - 紧急修复主界面输入框内容可能在发送前突然消失的问题：任务索引后台更新不再打断正在聚焦或已有内容的输入框；其他必须重建界面的刷新会先捕获当前内存草稿，并在新输入框恢复。

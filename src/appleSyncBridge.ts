@@ -232,7 +232,8 @@ export class MacOsAppleSyncBridge implements AppleSyncBridge {
     if (!isMacOsDesktopRuntime()) {
       throw new Error("Apple sync is available only in Obsidian Desktop on macOS");
     }
-    const { execFile } = await import("node:child_process");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Obsidian app:// cannot resolve dynamic Node imports; the runtime guard prevents mobile execution.
+    const { execFile } = require("node:child_process") as typeof import("node:child_process");
     return new Promise<T>((resolve, reject) => {
       execFile(
         "/usr/bin/osascript",

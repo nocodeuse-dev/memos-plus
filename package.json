@@ -1,12 +1,12 @@
 {
   "name": "memos-plus",
-  "version": "0.1.247",
+  "version": "0.1.248",
   "description": "A local-first memo workbench for Obsidian, stored as readable Markdown.",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && node scripts/check-desktop-runtime-imports.mjs",
     "check:release-version": "node scripts/check-release-version.mjs",
     "install:github": "node scripts/install-github-release.mjs",
     "lint": "eslint .",
