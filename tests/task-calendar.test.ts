@@ -40,7 +40,9 @@ describe("Schedule and tasks state", () => {
       viewMode: "day",
       agendaCacheMinutes: 5,
       agendaCalendarNames: [],
-      showAllDayEvents: true
+      showAllDayEvents: true,
+      showHomeEntry: true,
+      showMobileQuickActions: true
     });
   });
 
@@ -129,6 +131,17 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(mainSource).toContain("updateTaskCalendarRibbon");
     expect(mainSource).toContain("buildTasksMarkdownLine");
     expect(mainSource).toContain("任务收件箱");
+  });
+
+  it("keeps home and mobile shortcuts as explicit navigation actions", () => {
+    const viewSource = readFileSync("src/view.ts", "utf8");
+    expect(viewSource).toContain("renderTaskCalendarHomeEntry");
+    expect(viewSource).toContain("showHomeEntry");
+    expect(viewSource).toContain("showMobileQuickActions");
+    expect(viewSource).toContain("memos-plus-mobile-quick-actions");
+    expect(viewSource).toContain("view.focusQuickTaskInput()");
+    expect(viewSource).toContain("view.openEventComposer()");
+    expect(viewSource).toContain("openQuickCaptureFromMobileFab");
   });
 
   it("creates Apple events only from an explicit calendar-event action", () => {

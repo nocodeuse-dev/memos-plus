@@ -67,7 +67,9 @@ describe("DEFAULT_SETTINGS", () => {
       inboxPath: "我的资源/Memos/任务收件箱.md",
       agendaCacheMinutes: 5,
       agendaCalendarNames: [],
-      showAllDayEvents: true
+      showAllDayEvents: true,
+      showHomeEntry: true,
+      showMobileQuickActions: true
     });
     expect(DEFAULT_SETTINGS).not.toHaveProperty("quickCaptureClipboardMode");
     expect(DEFAULT_SETTINGS.composerToolbar).toEqual({
@@ -117,6 +119,10 @@ describe("DEFAULT_SETTINGS", () => {
       agendaCalendarNames: ["Calendar", "Work"],
       showAllDayEvents: false
     });
+  });
+
+  it("preserves the selected weekly schedule-and-tasks default view", () => {
+    expect(normalizeSettings({ taskCalendar: { defaultView: "week" } }).taskCalendar.defaultView).toBe("week");
   });
 
   it("normalizes shared view layout settings for all display surfaces", () => {

@@ -4079,6 +4079,26 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         });
       });
     new Setting(container)
+      .setName(t(lang, "settings.taskCalendarHomeEntry"))
+      .setDesc(t(lang, "settings.taskCalendarHomeEntryDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(state.showHomeEntry).onChange(async (value) => {
+          this.plugin.settings.taskCalendar.showHomeEntry = value;
+          await this.plugin.persistSettings();
+          await this.plugin.refreshViews("task-calendar-home-entry");
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.taskCalendarMobileQuickActions"))
+      .setDesc(t(lang, "settings.taskCalendarMobileQuickActionsDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(state.showMobileQuickActions).onChange(async (value) => {
+          this.plugin.settings.taskCalendar.showMobileQuickActions = value;
+          await this.plugin.persistSettings();
+          await this.plugin.refreshViews("task-calendar-mobile-actions");
+        });
+      });
+    new Setting(container)
       .setName(t(lang, "settings.taskCalendarDefaultView"))
       .addDropdown((dropdown) => {
         dropdown
@@ -4089,7 +4109,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           .addOption("completed", t(lang, "taskCalendar.nav.completed"))
           .setValue(state.defaultView)
           .onChange(async (value) => {
-            this.plugin.settings.taskCalendar.defaultView = value === "inbox" || value === "all" || value === "completed" ? value : "today";
+            this.plugin.settings.taskCalendar.defaultView = value === "week" || value === "inbox" || value === "all" || value === "completed" ? value : "today";
             await this.plugin.persistSettings();
           });
       });

@@ -17,6 +17,8 @@ export interface TaskCalendarSettings {
   agendaCacheMinutes: number;
   agendaCalendarNames: string[];
   showAllDayEvents: boolean;
+  showHomeEntry: boolean;
+  showMobileQuickActions: boolean;
 }
 
 export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
@@ -31,7 +33,9 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   tasksPaneHidden: false,
   agendaCacheMinutes: 5,
   agendaCalendarNames: [],
-  showAllDayEvents: true
+  showAllDayEvents: true,
+  showHomeEntry: true,
+  showMobileQuickActions: true
 };
 
 export interface TaskCalendarDateRange {
@@ -54,7 +58,9 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     tasksPaneHidden: typeof raw.tasksPaneHidden === "boolean" ? raw.tasksPaneHidden : false,
     agendaCacheMinutes: clampInteger(raw.agendaCacheMinutes, 1, 30, DEFAULT_TASK_CALENDAR_SETTINGS.agendaCacheMinutes),
     agendaCalendarNames: normalizeCalendarNames(raw.agendaCalendarNames),
-    showAllDayEvents: typeof raw.showAllDayEvents === "boolean" ? raw.showAllDayEvents : DEFAULT_TASK_CALENDAR_SETTINGS.showAllDayEvents
+    showAllDayEvents: typeof raw.showAllDayEvents === "boolean" ? raw.showAllDayEvents : DEFAULT_TASK_CALENDAR_SETTINGS.showAllDayEvents,
+    showHomeEntry: typeof raw.showHomeEntry === "boolean" ? raw.showHomeEntry : DEFAULT_TASK_CALENDAR_SETTINGS.showHomeEntry,
+    showMobileQuickActions: typeof raw.showMobileQuickActions === "boolean" ? raw.showMobileQuickActions : DEFAULT_TASK_CALENDAR_SETTINGS.showMobileQuickActions
   };
 }
 

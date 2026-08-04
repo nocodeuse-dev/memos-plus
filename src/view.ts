@@ -44,6 +44,8 @@ import { tagColorSlot } from "./tagColor";
 import { filterTaskIndexItems, getTaskIndexOrganizerCounts, type TaskIndexItem, type TaskIndexStatus } from "./taskIndex";
 import { openIndexedTask } from "./taskNavigation";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
+import { taskCalendarTasks, todayTaskCalendarDate } from "./taskCalendar";
+import { TaskCalendarView } from "./taskCalendarView";
 import { VaultSavedSearchIndex, type VaultSearchResult } from "./vaultSearch";
 import {
   hasSidebarDirectoryModules,
@@ -324,6 +326,7 @@ export class MemosPlusView extends ItemView {
       const titleWrap = header.createDiv();
       titleWrap.createDiv({ cls: "memos-plus-title", text: t(lang, "app.name") });
       titleWrap.createDiv({ cls: "memos-plus-subtitle", text: this.plugin.settings.memoFolderPath });
+      this.renderTaskCalendarHomeEntry(main);
 
       let toolbar: HTMLElement | null = null;
       await renderLayoutSurface({
@@ -404,6 +407,7 @@ export class MemosPlusView extends ItemView {
       text: t(lang, "mobileLightHome.fullWorkbench")
     });
     full.addEventListener("click", () => this.showFullWorkbench());
+    this.renderTaskCalendarHomeEntry(home, "memos-plus-task-calendar-home-entry-mobile");
 
     await renderLayoutSurface({
       surface: "mobile",
@@ -515,6 +519,33 @@ export class MemosPlusView extends ItemView {
     const filtered = this.currentFilteredMemos();
     const line = container.createDiv({ cls: "memos-plus-list-meta" });
     line.createSpan({ text: `${filtered.length} ${t(this.plugin.settings.language, "meta.memos")}` });
+  }
+
+  private renderTaskCalendarHomeEntry(container: Element, extraClass = ""): void {
+    if (!this.plugin.settings.taskCalendar.showHomeEntry) return;
+    const lang = this.plugin.settings.language;
+    const status = this.plugin.taskIndex.getStatus();
+    const tasks = status.updatedAt
+      ? taskCalendarTasks(this.plugin.taskIndex.getItems(), "today", todayTaskCalendarDate()).length
+      : 0;
+    const entry = container.createEl("button", {
+      cls: ["memos-plus-task-calendar-home-entry", extraClass].filter(Boolean).join(" "),
+      attr: { type: "button", "aria-label": t(lang, "taskCalendar.home.open") }
+    });
+    const icon = entry.createSpan({ cls: "memos-plus-task-calendar-home-entry-icon" });
+    setIcon(icon, "calendar-days");
+    const copy = entry.createDiv({ cls: "memos-plus-task-calendar-home-entry-copy" });
+    copy.createDiv({ cls: "memos-plus-task-calendar-home-entry-title", text: t(lang, "taskCalendar.home.title") });
+    copy.createDiv({
+      cls: "memos-plus-task-calendar-home-entry-meta",
+      text: status.updatedAt
+        ? t(lang, "taskCalendar.home.summary").replace("{count}", String(tasks))
+        : t(lang, "taskCalendar.home.open")
+    });
+    entry.createSpan({ cls: "memos-plus-task-calendar-home-entry-arrow", text: "→", attr: { "aria-hidden": "true" } });
+    entry.addEventListener("click", () => {
+      void this.plugin.activateTaskCalendarView();
+    });
   }
 
   private showFullWorkbench(): void {
@@ -1906,18 +1937,68 @@ export class MemosPlusView extends ItemView {
     if (!this.plugin.settings.mobileFab || !Platform.isMobile) {
       return;
     }
-    const button = shell.createEl("button", { cls: "memos-plus-fab", attr: { "aria-label": t(this.plugin.settings.language, "command.quickCapture") } });
+    const lang = this.plugin.settings.language;
+    if (!this.plugin.settings.taskCalendar.showMobileQuickActions) {
+      this.renderLegacyMobileFab(shell);
+      return;
+    }
+    const cluster = shell.createDiv({ cls: "memos-plus-mobile-quick-actions" });
+    const menu = cluster.createDiv({ cls: "memos-plus-mobile-quick-actions-menu" });
+    const button = cluster.createEl("button", {
+      cls: "memos-plus-fab",
+      attr: { type: "button", "aria-label": t(lang, "taskCalendar.quickActions"), "aria-expanded": "false" }
+    });
+    const closeMenu = () => {
+      cluster.removeClass("is-open");
+      button.setAttr("aria-expanded", "false");
+      setIcon(button, "plus");
+    };
+    const addAction = (icon: string, label: string, onClick: () => void) => {
+      const action = menu.createEl("button", { cls: "memos-plus-mobile-quick-action", attr: { type: "button", "aria-label": label } });
+      setIcon(action.createSpan(), icon);
+      action.createSpan({ text: label });
+      action.addEventListener("click", () => {
+        closeMenu();
+        onClick();
+      });
+    };
+    addAction("check-square", t(lang, "taskCalendar.quickAction.task"), () => {
+      void this.plugin.activateTaskCalendarView().then((leaf) => {
+        const view = leaf?.view;
+        if (view instanceof TaskCalendarView) view.focusQuickTaskInput();
+      });
+    });
+    addAction("calendar-plus", t(lang, "taskCalendar.quickAction.event"), () => {
+      void this.plugin.activateTaskCalendarView().then((leaf) => {
+        const view = leaf?.view;
+        if (view instanceof TaskCalendarView) view.openEventComposer();
+      });
+    });
+    addAction("message-square-plus", t(lang, "taskCalendar.quickAction.memo"), () => this.openQuickCaptureFromMobileFab());
     setIcon(button, "plus");
     button.addEventListener("click", () => {
-      new QuickCaptureModal(this.app, {
-          settings: this.plugin.settings,
-          store: this.plugin.store,
-          persistSettings: () => this.plugin.persistSettings(),
-          refreshViews: () => this.plugin.refreshViews(),
-          resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text),
-          selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
-        }).open();
+      const opening = !cluster.hasClass("is-open");
+      cluster.toggleClass("is-open", opening);
+      button.setAttr("aria-expanded", String(opening));
+      setIcon(button, opening ? "x" : "plus");
     });
+  }
+
+  private renderLegacyMobileFab(shell: Element): void {
+    const button = shell.createEl("button", { cls: "memos-plus-fab", attr: { type: "button", "aria-label": t(this.plugin.settings.language, "command.quickCapture") } });
+    setIcon(button, "plus");
+    button.addEventListener("click", () => this.openQuickCaptureFromMobileFab());
+  }
+
+  private openQuickCaptureFromMobileFab(): void {
+    new QuickCaptureModal(this.app, {
+      settings: this.plugin.settings,
+      store: this.plugin.store,
+      persistSettings: () => this.plugin.persistSettings(),
+      refreshViews: () => this.plugin.refreshViews(),
+      resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text),
+      selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
+    }).open();
   }
 
   private async handleComposerSend(): Promise<void> {

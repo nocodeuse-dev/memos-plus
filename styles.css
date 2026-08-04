@@ -2197,6 +2197,54 @@
   transition: opacity 120ms ease, transform 120ms ease;
 }
 
+.memos-plus-task-calendar-home-entry {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+}
+
+.memos-plus-task-calendar-home-entry:hover { background: var(--background-modifier-hover); }
+.memos-plus-task-calendar-home-entry-icon { color: var(--interactive-accent); display: inline-flex; }
+.memos-plus-task-calendar-home-entry-copy { min-width: 0; flex: 1; }
+.memos-plus-task-calendar-home-entry-title { font-weight: var(--font-semibold); }
+.memos-plus-task-calendar-home-entry-meta { margin-top: 2px; color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.memos-plus-task-calendar-home-entry-arrow { color: var(--text-muted); font-size: 18px; }
+.memos-plus-task-calendar-home-entry-mobile { margin: 0; }
+
+.memos-plus-mobile-quick-actions {
+  position: sticky;
+  bottom: 18px;
+  z-index: 8;
+  width: fit-content;
+  margin: 0 18px 18px auto;
+}
+
+.memos-plus-mobile-quick-actions .memos-plus-fab { position: static; margin: 0; }
+.memos-plus-mobile-quick-actions-menu { display: none; flex-direction: column; align-items: flex-end; gap: 7px; margin-bottom: 8px; }
+.memos-plus-mobile-quick-actions.is-open .memos-plus-mobile-quick-actions-menu { display: flex; }
+.memos-plus-mobile-quick-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+.memos-plus-mobile-quick-action svg { width: 16px; height: 16px; color: var(--interactive-accent); }
+
 .status-bar-item.memos-plus-task-status-item {
   display: inline-flex;
   align-items: center;
@@ -2221,6 +2269,15 @@
 .memos-plus-shell.is-keyboard-open .memos-plus-fab,
 .memos-plus-mobile-light-shell.is-composer-focused .memos-plus-fab,
 .memos-plus-mobile-light-shell.is-keyboard-open .memos-plus-fab {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+}
+
+.memos-plus-shell.is-composer-focused .memos-plus-mobile-quick-actions,
+.memos-plus-shell.is-keyboard-open .memos-plus-mobile-quick-actions,
+.memos-plus-mobile-light-shell.is-composer-focused .memos-plus-mobile-quick-actions,
+.memos-plus-mobile-light-shell.is-keyboard-open .memos-plus-mobile-quick-actions {
   opacity: 0;
   pointer-events: none;
   transform: translateY(8px);
