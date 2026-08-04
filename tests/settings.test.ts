@@ -65,7 +65,9 @@ describe("DEFAULT_SETTINGS", () => {
       showRibbon: true,
       defaultView: "today",
       inboxPath: "我的资源/Memos/任务收件箱.md",
-      agendaCacheMinutes: 5
+      agendaCacheMinutes: 5,
+      agendaCalendarNames: [],
+      showAllDayEvents: true
     });
     expect(DEFAULT_SETTINGS).not.toHaveProperty("quickCaptureClipboardMode");
     expect(DEFAULT_SETTINGS.composerToolbar).toEqual({
@@ -101,6 +103,19 @@ describe("DEFAULT_SETTINGS", () => {
       inboxPath: "收件箱.md",
       agendaCacheMinutes: 1,
       defaultView: "completed"
+    });
+  });
+
+  it("keeps Apple Calendar browsing independent from the sync target", () => {
+    const settings = normalizeSettings({
+      appleSyncEnabled: false,
+      appleSyncTarget: "reminders",
+      taskCalendar: { agendaCalendarNames: ["Calendar", " calendar ", "Work"], showAllDayEvents: false }
+    });
+    expect(settings.appleSyncTarget).toBe("reminders");
+    expect(settings.taskCalendar).toMatchObject({
+      agendaCalendarNames: ["Calendar", "Work"],
+      showAllDayEvents: false
     });
   });
 

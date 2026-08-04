@@ -56,8 +56,12 @@ function safeDate(getter) { try { const value = getter(); return value ? new Dat
 export class AppleCalendarAgendaService {
   private readonly cache = new Map<string, { expiresAt: number; result: AppleCalendarAgendaResult }>();
 
+  isAvailable(): boolean {
+    return isMacOsDesktopRuntime();
+  }
+
   async listEvents(options: { startDate: string; endDate: string; calendarNames: string[]; cacheMinutes: number }): Promise<AppleCalendarAgendaResult> {
-    if (!isMacOsDesktopRuntime()) {
+    if (!this.isAvailable()) {
       throw new Error("Apple Calendar agenda is available only in Obsidian Desktop on macOS");
     }
     const request = { startDate: options.startDate, endDate: options.endDate, calendarNames: options.calendarNames };

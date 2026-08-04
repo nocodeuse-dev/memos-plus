@@ -1,7 +1,7 @@
 import type { TaskIndexItem } from "./taskIndex";
 
 export type TaskCalendarViewMode = "day" | "week";
-export type TaskCalendarNavigation = "today" | "inbox" | "all" | "completed";
+export type TaskCalendarNavigation = "today" | "tomorrow" | "week" | "inbox" | "all" | "completed";
 export type TaskCalendarMobileTab = "today" | "tasks" | "calendar";
 
 export interface TaskCalendarSettings {
@@ -15,6 +15,8 @@ export interface TaskCalendarSettings {
   sidebarCollapsed: boolean;
   tasksPaneHidden: boolean;
   agendaCacheMinutes: number;
+  agendaCalendarNames: string[];
+  showAllDayEvents: boolean;
 }
 
 export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
@@ -27,7 +29,9 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   mobileTab: "today",
   sidebarCollapsed: false,
   tasksPaneHidden: false,
-  agendaCacheMinutes: 5
+  agendaCacheMinutes: 5,
+  agendaCalendarNames: [],
+  showAllDayEvents: true
 };
 
 export interface TaskCalendarDateRange {
@@ -48,7 +52,9 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     mobileTab: raw.mobileTab === "tasks" || raw.mobileTab === "calendar" ? raw.mobileTab : "today",
     sidebarCollapsed: typeof raw.sidebarCollapsed === "boolean" ? raw.sidebarCollapsed : false,
     tasksPaneHidden: typeof raw.tasksPaneHidden === "boolean" ? raw.tasksPaneHidden : false,
-    agendaCacheMinutes: clampInteger(raw.agendaCacheMinutes, 1, 30, DEFAULT_TASK_CALENDAR_SETTINGS.agendaCacheMinutes)
+    agendaCacheMinutes: clampInteger(raw.agendaCacheMinutes, 1, 30, DEFAULT_TASK_CALENDAR_SETTINGS.agendaCacheMinutes),
+    agendaCalendarNames: normalizeCalendarNames(raw.agendaCalendarNames),
+    showAllDayEvents: typeof raw.showAllDayEvents === "boolean" ? raw.showAllDayEvents : DEFAULT_TASK_CALENDAR_SETTINGS.showAllDayEvents
   };
 }
 
@@ -83,6 +89,15 @@ export function taskCalendarTasks(items: TaskIndexItem[], navigation: TaskCalend
     case "inbox":
       filtered = incomplete.filter((item) => !taskDate(item));
       break;
+    case "week":
+      {
+        const range = taskCalendarDateRange(date, "week");
+      filtered = incomplete.filter((item) => {
+        const itemDate = taskDate(item);
+        return Boolean(item.dueDate && item.dueDate < date) || (itemDate >= range.startDate && itemDate < range.endDate);
+      });
+      }
+      break;
     default:
       filtered = incomplete.filter((item) => matchesDate(item) || Boolean(item.dueDate && item.dueDate < date));
       break;
@@ -100,7 +115,23 @@ export function formatTaskCalendarDate(date: string, locale = "zh-CN"): string {
 }
 
 function normalizeNavigation(value: unknown, fallback: TaskCalendarNavigation): TaskCalendarNavigation {
-  return value === "inbox" || value === "all" || value === "completed" || value === "today" ? value : fallback;
+  return value === "tomorrow" || value === "week" || value === "inbox" || value === "all" || value === "completed" || value === "today" ? value : fallback;
+}
+
+function normalizeCalendarNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of value) {
+    if (typeof candidate !== "string") continue;
+    const name = candidate.trim();
+    const key = name.toLocaleLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+    if (names.length >= 20) break;
+  }
+  return names;
 }
 
 function normalizeInboxPath(value: unknown): string {

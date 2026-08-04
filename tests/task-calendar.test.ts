@@ -38,7 +38,9 @@ describe("Schedule and tasks state", () => {
       defaultView: "today",
       inboxPath: "我的资源/Memos/任务收件箱.md",
       viewMode: "day",
-      agendaCacheMinutes: 5
+      agendaCacheMinutes: 5,
+      agendaCalendarNames: [],
+      showAllDayEvents: true
     });
   });
 
@@ -47,12 +49,14 @@ describe("Schedule and tasks state", () => {
       defaultView: "unknown",
       inboxPath: " /Projects/Inbox ",
       viewMode: "month",
-      agendaCacheMinutes: 100
+      agendaCacheMinutes: 100,
+      agendaCalendarNames: ["Calendar", " calendar ", "Work", ""]
     })).toMatchObject({
       defaultView: "today",
       inboxPath: "Projects/Inbox.md",
       viewMode: "day",
-      agendaCacheMinutes: 30
+      agendaCacheMinutes: 30,
+      agendaCalendarNames: ["Calendar", "Work"]
     });
   });
 
@@ -83,6 +87,16 @@ describe("Schedule and tasks state", () => {
     expect(taskCalendarTasks(tasks, "all", "2026-08-05").map((item) => item.text)).toEqual(["逾期", "今天", "收件箱"]);
     expect(taskCalendarTasks(tasks, "completed", "2026-08-05").map((item) => item.text)).toEqual(["已完成"]);
   });
+
+  it("keeps tomorrow and week task views bounded to their intended dates", () => {
+    const tasks = [
+      task({ text: "逾期", dueDate: "2026-08-04" }),
+      task({ text: "周内", dueDate: "2026-08-09" }),
+      task({ text: "下周", dueDate: "2026-08-10" })
+    ];
+    expect(taskCalendarTasks(tasks, "tomorrow", "2026-08-06").map((item) => item.text)).toEqual(["逾期"]);
+    expect(taskCalendarTasks(tasks, "week", "2026-08-05").map((item) => item.text)).toEqual(["逾期", "周内"]);
+  });
 });
 
 describe("Schedule and tasks integration boundaries", () => {
@@ -91,7 +105,7 @@ describe("Schedule and tasks integration boundaries", () => {
   const mainSource = readFileSync("main.ts", "utf8");
 
   it("reads Apple Calendar only after the macOS guard and keeps agenda access separate from syncing", () => {
-    const guardIndex = agendaSource.indexOf("if (!isMacOsDesktopRuntime())");
+    const guardIndex = agendaSource.indexOf("if (!this.isAvailable())");
     const requireIndex = agendaSource.indexOf('require("node:child_process")');
     expect(guardIndex).toBeGreaterThan(-1);
     expect(requireIndex).toBeGreaterThan(guardIndex);
@@ -100,10 +114,11 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(agendaSource).not.toContain("tasks.json");
   });
 
-  it("gates agenda reads on the existing enabled Apple Calendar selection", () => {
-    expect(viewSource).toContain('settings.appleSyncTarget !== "calendar"');
-    expect(viewSource).toContain("settings.appleCalendarName.trim()");
+  it("keeps agenda sources independent from the writable Apple sync target", () => {
+    expect(viewSource).toContain("this.agenda.isAvailable()");
+    expect(viewSource).toContain("settings.taskCalendar.agendaCalendarNames");
     expect(viewSource).toContain("cacheMinutes: settings.taskCalendar.agendaCacheMinutes");
+    expect(viewSource).not.toContain("settings.appleSyncTarget !==");
   });
 
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {

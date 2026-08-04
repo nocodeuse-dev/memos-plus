@@ -17,6 +17,8 @@ export const MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE = "memos-plus-task-calendar-view
 
 const NAVIGATION: ReadonlyArray<{ id: TaskCalendarNavigation; icon: string; labelKey: Parameters<typeof t>[1] }> = [
   { id: "today", icon: "sun", labelKey: "taskCalendar.nav.today" },
+  { id: "tomorrow", icon: "sunrise", labelKey: "taskCalendar.nav.tomorrow" },
+  { id: "week", icon: "calendar-range", labelKey: "taskCalendar.nav.week" },
   { id: "inbox", icon: "inbox", labelKey: "taskCalendar.nav.inbox" },
   { id: "all", icon: "list-todo", labelKey: "taskCalendar.nav.all" },
   { id: "completed", icon: "check-circle-2", labelKey: "taskCalendar.nav.completed" }
@@ -76,7 +78,8 @@ export class TaskCalendarView extends ItemView {
   }
 
   openDefault(): void {
-    void this.updateState({ navigation: this.plugin.settings.taskCalendar.defaultView });
+    const navigation = this.plugin.settings.taskCalendar.defaultView;
+    void this.updateState({ navigation, viewMode: navigation === "week" ? "week" : this.plugin.settings.taskCalendar.viewMode });
   }
 
   private scheduleRender(): void {
@@ -135,11 +138,11 @@ export class TaskCalendarView extends ItemView {
       const button = navigation.createEl("button", { cls: `memos-plus-task-calendar-nav${state.navigation === item.id ? " is-active" : ""}`, attr: { type: "button", "data-nav": item.id } });
       setIcon(button, item.icon);
       button.createSpan({ text: t(lang, item.labelKey) });
-      button.addEventListener("click", () => void this.updateState({ navigation: item.id }));
+      button.addEventListener("click", () => void this.openNavigation(item.id));
     }
 
     const agenda = layout.createDiv({ cls: "memos-plus-task-calendar-agenda" });
-    this.renderAgenda(agenda, range.days, selectedDate);
+    this.renderAgenda(agenda, range.days, selectedDate, state.showAllDayEvents);
 
     const taskPane = layout.createDiv({ cls: "memos-plus-task-calendar-tasks" });
     const taskHeader = taskPane.createDiv({ cls: "memos-plus-task-calendar-pane-header" });
@@ -171,7 +174,7 @@ export class TaskCalendarView extends ItemView {
     }
   }
 
-  private renderAgenda(container: HTMLElement, days: string[], selectedDate: string): void {
+  private renderAgenda(container: HTMLElement, days: string[], selectedDate: string, showAllDayEvents: boolean): void {
     const lang = this.plugin.settings.language;
     const header = container.createDiv({ cls: "memos-plus-task-calendar-pane-header" });
     header.createEl("h3", { text: this.plugin.settings.taskCalendar.viewMode === "day" ? t(lang, "taskCalendar.todayAgenda") : t(lang, "taskCalendar.weekAgenda") });
@@ -187,7 +190,7 @@ export class TaskCalendarView extends ItemView {
       const daySection = container.createDiv({ cls: "memos-plus-task-calendar-day" });
       daySection.createDiv({ cls: "memos-plus-task-calendar-day-label", text: formatTaskCalendarDate(day, lang === "zh" ? "zh-CN" : "en-US") });
       if (day === todayTaskCalendarDate() && selectedDate === day) daySection.createDiv({ cls: "memos-plus-task-calendar-now", attr: { "aria-hidden": "true" } });
-      const allDay = dayEvents.filter((event) => event.allDay);
+      const allDay = showAllDayEvents ? dayEvents.filter((event) => event.allDay) : [];
       if (allDay.length > 0) {
         const allDayList = daySection.createDiv({ cls: "memos-plus-task-calendar-all-day" });
         allDayList.createSpan({ cls: "memos-plus-task-calendar-time", text: t(lang, "taskCalendar.allDay") });
@@ -226,9 +229,9 @@ export class TaskCalendarView extends ItemView {
 
   private async loadAgenda(startDate: string, endDate: string, force: boolean): Promise<void> {
     const settings = this.plugin.settings;
-    if (!settings.appleSyncEnabled || settings.appleSyncTarget !== "calendar" || !settings.appleCalendarName.trim()) {
+    if (!this.agenda.isAvailable()) {
       this.events = [];
-      this.agendaError = t(settings.language, "taskCalendar.calendarNotConfigured");
+      this.agendaError = t(settings.language, "taskCalendar.calendarUnavailable");
       this.agendaLoading = false;
       return;
     }
@@ -239,7 +242,12 @@ export class TaskCalendarView extends ItemView {
     this.agendaError = "";
     if (force) this.agenda.clearCache();
     try {
-      const result = await this.agenda.listEvents({ startDate, endDate, calendarNames: [settings.appleCalendarName], cacheMinutes: settings.taskCalendar.agendaCacheMinutes });
+      const result = await this.agenda.listEvents({
+        startDate,
+        endDate,
+        calendarNames: settings.taskCalendar.agendaCalendarNames,
+        cacheMinutes: settings.taskCalendar.agendaCacheMinutes
+      });
       if (version !== this.renderVersion || !this.contentEl.isConnected) return;
       this.events = result.events;
       this.loadedAgendaKey = agendaKey;
@@ -258,7 +266,23 @@ export class TaskCalendarView extends ItemView {
 
   private agendaKey(startDate: string, endDate: string): string {
     const settings = this.plugin.settings;
-    return `${startDate}:${endDate}:${settings.appleSyncEnabled}:${settings.appleSyncTarget}:${settings.appleCalendarName}`;
+    return `${startDate}:${endDate}:${settings.taskCalendar.agendaCalendarNames.join("\u0001")}:${settings.taskCalendar.showAllDayEvents}`;
+  }
+
+  private openNavigation(navigation: TaskCalendarNavigation): void {
+    if (navigation === "today") {
+      this.openToday();
+      return;
+    }
+    if (navigation === "tomorrow") {
+      void this.updateState({ navigation, selectedDate: shiftDate(todayTaskCalendarDate(), "day", 1), viewMode: "day" });
+      return;
+    }
+    if (navigation === "week") {
+      void this.updateState({ navigation, selectedDate: todayTaskCalendarDate(), viewMode: "week" });
+      return;
+    }
+    void this.updateState({ navigation });
   }
 
   private async updateState(change: Partial<TaskCalendarSettings>): Promise<void> {

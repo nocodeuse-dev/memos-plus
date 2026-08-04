@@ -4083,6 +4083,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addDropdown((dropdown) => {
         dropdown
           .addOption("today", t(lang, "taskCalendar.nav.today"))
+          .addOption("week", t(lang, "taskCalendar.nav.week"))
           .addOption("inbox", t(lang, "taskCalendar.nav.inbox"))
           .addOption("all", t(lang, "taskCalendar.nav.all"))
           .addOption("completed", t(lang, "taskCalendar.nav.completed"))
@@ -4091,6 +4092,24 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             this.plugin.settings.taskCalendar.defaultView = value === "inbox" || value === "all" || value === "completed" ? value : "today";
             await this.plugin.persistSettings();
           });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.taskCalendarCalendars"))
+      .setDesc(t(lang, "settings.taskCalendarCalendarsDesc"))
+      .addText((text) => {
+        text.setValue(state.agendaCalendarNames.join(", ")).onChange(async (value) => {
+          const agendaCalendarNames = value.split(",").map((name) => name.trim());
+          this.plugin.settings.taskCalendar = normalizeTaskCalendarSettings({ ...state, agendaCalendarNames });
+          await this.plugin.persistSettings();
+        });
+      });
+    new Setting(container)
+      .setName(t(lang, "settings.taskCalendarAllDay"))
+      .addToggle((toggle) => {
+        toggle.setValue(state.showAllDayEvents).onChange(async (value) => {
+          this.plugin.settings.taskCalendar.showAllDayEvents = value;
+          await this.plugin.persistSettings();
+        });
       });
     new Setting(container)
       .setName(t(lang, "settings.taskCalendarInboxPath"))
