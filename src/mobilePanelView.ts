@@ -26,6 +26,7 @@ import { findManagedTemplateForHeading, resolveTemplateTaskDecision, shouldPromp
 import type { ProjectTaskOptions, TaskContentMode } from "./tasksFormat";
 import type MemosPlusPlugin from "../main";
 import { logMemosPlusDiagnostic } from "./diagnostics";
+import { loadSmartSendRecommendations, type SmartSendRecommendations } from "./smartSend";
 
 export const MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE = "memos-plus-mobile-panel";
 
@@ -45,6 +46,7 @@ export class MemosPlusMobilePanelView extends ItemView {
   private fileTemplateTabs: FileTemplateTab[] = [];
   private readonly recentFilesCache = new Map<string, TaggedFileInfo[]>();
   private readonly searchFilesCache = new Map<string, TaggedFileInfo[]>();
+  private smartSendPromise: Promise<SmartSendRecommendations> | null = null;
   private readonly taggedFilesCache = new Map<string, TaggedFileInfo[]>();
   private readonly headingsCache = new Map<string, FileHeadingInfo[]>();
   private readonly tabSearchQueries = new Map<string, string>();
@@ -100,7 +102,8 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (this.fileTemplateTabs.length === 0 && options.customTagTabs) {
       this.fileTemplateTabs = legacyProjectSendTagsToFileTemplateTabs(options.customTagTabs);
     }
-    this.activeTabId = this.visibleTabIds()[0] ?? "search";
+    const visibleTabs = this.visibleTabIds();
+    this.activeTabId = visibleTabs.includes("smart") ? "smart" : visibleTabs[0] ?? "search";
     this.step = "chooseTarget";
     this.renderTargetPicker();
     return new Promise((resolve) => {
@@ -118,6 +121,7 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.fileTemplateTabs = [];
     this.recentFilesCache.clear();
     this.searchFilesCache.clear();
+    this.smartSendPromise = null;
     this.taggedFilesCache.clear();
     this.headingsCache.clear();
     this.tabSearchQueries.clear();
@@ -205,7 +209,15 @@ export class MemosPlusMobilePanelView extends ItemView {
     const body = this.getTargetBodyEl();
     searchArea.empty();
     body.empty();
-    if (this.activeTabId === "search") {
+    if (this.activeTabId === "smart") {
+      searchArea.addClass("is-hidden");
+      body.createDiv({ cls: "memos-plus-project-section-hint memos-plus-mobile-smart-send-hint", text: t(options.language, "common.loading") });
+      body.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results memos-plus-mobile-target-list" });
+      const list = this.getTargetListEl();
+      if (list) {
+        void this.renderSmartResults(list);
+      }
+    } else if (this.activeTabId === "search") {
       searchArea.removeClass("is-hidden");
       body.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results memos-plus-mobile-target-list" });
       const list = this.getTargetListEl();
@@ -322,16 +334,64 @@ export class MemosPlusMobilePanelView extends ItemView {
       return ["search"];
     }
     const hidden = new Set(options.hiddenTabs ?? []);
-    const allIds = ["search", ...this.fileTemplateTabs.filter((tab) => tab.type === "tag-filter").map((tab) => customTabId(tab.id))];
+    const allIds = ["smart", "search", ...this.fileTemplateTabs.filter((tab) => tab.type === "tag-filter").map((tab) => customTabId(tab.id))];
     const ordered = normalizeMobileTabOrder(options.tabOrder, allIds).filter((id) => !hidden.has(id));
     return ordered.length > 0 ? ordered : ["search"];
   }
 
   private tabLabel(id: string): string {
-    if (id === "search") {
-      return t(this.plugin.settings.language, "fileSend.mode.search");
+    if (id === "smart" || id === "search") {
+      return t(this.plugin.settings.language, `fileSend.mode.${id}`);
     }
     return this.fileTemplateTabs.find((tab) => customTabId(tab.id) === id)?.name ?? id;
+  }
+
+  private searchFilesCached(query: string): Promise<TaggedFileInfo[]> {
+    const options = this.options;
+    if (!options) {
+      return Promise.resolve([]);
+    }
+    const key = query.trim().toLowerCase();
+    const cached = this.searchFilesCache.get(key);
+    if (cached) {
+      return Promise.resolve(cached);
+    }
+    return options.onSearchFiles(query).then((files) => {
+      this.searchFilesCache.set(key, files);
+      return files;
+    });
+  }
+
+  private async renderSmartResults(list: HTMLElement): Promise<void> {
+    const options = this.options;
+    if (!options || this.step !== "chooseTarget") {
+      return;
+    }
+    const token = this.nextRenderToken();
+    this.smartSendPromise ??= loadSmartSendRecommendations(options.content, (query) => this.searchFilesCached(query));
+    let recommendations: SmartSendRecommendations;
+    try {
+      recommendations = await this.smartSendPromise;
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load mobile smart send recommendations", error);
+      recommendations = { analysis: { sourceTexts: [], phrases: [], keywords: [] }, files: [] };
+    }
+    if (!this.isRenderCurrent(token, list) || this.activeTabId !== "smart") {
+      return;
+    }
+    const hint = this.getTargetBodyEl().querySelector<HTMLElement>(".memos-plus-mobile-smart-send-hint");
+    const keywords = recommendations.analysis.keywords;
+    hint?.setText(
+      keywords.length > 0
+        ? t(options.language, "fileSend.smartKeywords").replace("{keywords}", keywords.join(" · "))
+        : t(options.language, "fileSend.smartNoKeywords")
+    );
+    list.empty();
+    if (recommendations.files.length === 0) {
+      list.createDiv({ cls: "memos-plus-project-empty", text: t(options.language, "fileSend.smartNoFiles") });
+      return;
+    }
+    this.renderFileOptions(list, recommendations.files.slice(0, MOBILE_RESULT_LIMIT));
   }
 
   private async renderSearchResults(list: HTMLElement): Promise<void> {
@@ -496,11 +556,11 @@ export class MemosPlusMobilePanelView extends ItemView {
     if (!options) {
       return;
     }
-    const isSearch = this.activeTabId === "search";
-    const tab = isSearch ? undefined : this.fileTemplateTabs.find((item) => customTabId(item.id) === this.activeTabId);
-    const initialTitle = isSearch ? this.fileQuery.trim() : this.tabSearchQueries.get(this.activeTabId)?.trim() ?? "";
+    const isFixedTab = this.activeTabId === "smart" || this.activeTabId === "search";
+    const tab = isFixedTab ? undefined : this.fileTemplateTabs.find((item) => customTabId(item.id) === this.activeTabId);
+    const initialTitle = this.activeTabId === "search" ? this.fileQuery.trim() : isFixedTab ? "" : this.tabSearchQueries.get(this.activeTabId)?.trim() ?? "";
     const tag = tab?.type === "tag-filter" ? tab.tags[0] ?? "" : options.defaultFileTag;
-    await this.renderTemplatePicker(initialTitle, tag, isSearch ? "" : this.preferredTemplatePathForActiveTab());
+    await this.renderTemplatePicker(initialTitle, tag, isFixedTab ? "" : this.preferredTemplatePathForActiveTab());
   }
 
   private preferredTemplatePathForActiveTab(): string {
@@ -971,7 +1031,11 @@ function normalizeMobileTabOrder(order: string[], available: string[]): string[]
   const normalized = order.filter((id) => availableSet.has(id));
   for (const id of available) {
     if (!normalized.includes(id)) {
-      normalized.push(id);
+      if (id === "smart") {
+        normalized.unshift(id);
+      } else {
+        normalized.push(id);
+      }
     }
   }
   return normalized;

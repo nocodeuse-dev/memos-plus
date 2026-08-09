@@ -16,7 +16,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - 左侧栏：固定 `全部笔记`，其余目录、分组、筛选项通过 `sidebarItems` 自定义。
 - 标签 / 筛选器 / 检索式：支持 memo 范围和 vault 范围的 Saved Search。
 - 项目投递：支持发送到带项目标签的项目文件，并读取目标文件真实 Markdown 标题后选择插入位置。
-- 发送到文件：支持按标签、最近文件、全库文件名/路径搜索选择 Markdown 文件，再选择标题插入。
+- 发送到文件：支持智能发送、按标签及全库文件名/路径搜索选择 Markdown 文件，再选择标题插入；智能发送只从待发送文字提取轻量关键词并复用现有搜索缓存，不访问网页、不调用 AI 或建立新索引。
 - 添加项目：项目投递弹窗内支持新建项目文件。
 - 发送规则管理：设置页管理 Memos Plus 输入框内容的投递规则；旧发送到项目设置会迁移成默认发送规则“发送到项目”，发送弹窗按内部规则决定目标来源和写入规则。
 - 新建文件模板库：搜索不到目标文件时，可从独立 Markdown 模板库选择文件骨架模板创建新文件，再把当前输入内容插入到新文件中。
@@ -445,6 +445,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
    - `fixed-file`：直接进入固定文件标题选择。
    - `default-memo`：只显示“默认发送”，调用普通 memo 保存。
 8. 弹窗支持模式：
+   - 智能发送：`src/smartSend.ts` 优先提取 Markdown 链接显示文字中的短语和关键词，通过既有 `onSearchFiles()` 搜索文件名/路径并按完整短语、多关键词、单关键词排序，结果继续进入 `renderHeadingPicker()`。
    - 项目：`renderProjectList()`。
    - 标签文件：`renderTagPicker()` -> `renderTaggedFiles()` -> `renderHeadingPicker()`。
    - 最近：`renderRecentFiles()`。

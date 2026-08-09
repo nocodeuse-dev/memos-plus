@@ -6,6 +6,7 @@ const viewSource = readFileSync("src/view.ts", "utf8");
 const deliverySource = readFileSync("src/projectDelivery.ts", "utf8");
 const composerActionsSource = readFileSync("src/composerActions.ts", "utf8");
 const mobilePanelSource = readFileSync("src/mobilePanelView.ts", "utf8");
+const smartSendSource = readFileSync("src/smartSend.ts", "utf8");
 const stylesSource = readFileSync("styles.css", "utf8");
 const i18nSource = readFileSync("src/i18n.ts", "utf8");
 
@@ -157,11 +158,16 @@ describe("project send modal source", () => {
     expect(deliverySource).toContain("createFileFromLibraryTemplate");
   });
 
-  it("keeps new file creation in the search results footer instead of adding a top tab", () => {
+  it("adds smart send beside search while keeping new file creation in the results footer", () => {
     const fileSearchSource = modalSource.slice(modalSource.indexOf("private async renderFileSearch()"), modalSource.indexOf("private async renderFileSearchContent"));
     const modeTabsSource = modalSource.slice(modalSource.indexOf("private renderModeTabs"), modalSource.indexOf("private visibleTabIds"));
 
-    expect(modalSource).toContain('const FIXED_SEND_TABS: SendMode[] = ["search"];');
+    expect(modalSource).toContain('const FIXED_SEND_TABS: SendMode[] = ["smart", "search"];');
+    expect(modalSource).toContain("loadSmartSendRecommendations(this.options.content");
+    expect(modalSource).toContain("this.renderFileListItems(list, recommendations.files");
+    expect(mobilePanelSource).toContain("loadSmartSendRecommendations(options.content");
+    expect(mobilePanelSource).toContain("this.renderFileOptions(list, recommendations.files");
+    expect(smartSendSource).not.toMatch(/fetch\(|embedding|openai|vault\.read/i);
     expect(modalSource).not.toContain('"project", "tag", "recent", "search"');
     expect(modalSource).not.toContain("renderProjectList");
     expect(modalSource).not.toContain("renderTagPicker");

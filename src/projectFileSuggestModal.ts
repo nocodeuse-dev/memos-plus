@@ -43,11 +43,12 @@ import {
   type TemplateTaskDecision
 } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
+import { loadSmartSendRecommendations, type SmartSendRecommendations } from "./smartSend";
 
 export type ProjectSendInitialMode = "project" | "tag" | "recent" | "search";
-type SendMode = "search" | "custom-tag";
+type SendMode = "smart" | "search" | "custom-tag";
 
-const FIXED_SEND_TABS: SendMode[] = ["search"];
+const FIXED_SEND_TABS: SendMode[] = ["smart", "search"];
 const CUSTOM_TAB_PREFIX = "custom:";
 const MOBILE_EMPTY_SEARCH_RECENT_FILE_LIMIT = 10;
 
@@ -636,6 +637,7 @@ export class ProjectSendModal extends Modal {
   private readonly taggedFilesCache = new Map<string, TaggedFileInfo[]>();
   private recentFilesCache: TaggedFileInfo[] | null = null;
   private readonly fileSearchCache = new Map<string, TaggedFileInfo[]>();
+  private smartSendPromise: Promise<SmartSendRecommendations> | null = null;
   private readonly fileHeadingsCache = new Map<string, FileHeadingInfo[]>();
   private readonly tabSearchQueries = new Map<string, string>();
   private draggedTabId = "";
@@ -644,7 +646,7 @@ export class ProjectSendModal extends Modal {
 
   constructor(app: App, private readonly options: ProjectSendModalOptions) {
     super(app);
-    this.mode = "search";
+    this.mode = options.enableFileTargets ? "smart" : "search";
     this.currentTemplateId = options.initialTemplateId ?? options.templates[0]?.id ?? "";
     this.tagQuery = options.defaultFileTag;
     this.fileTemplateTabs = normalizeFileTemplateTabs(options.fileTemplateTabs);
@@ -671,6 +673,7 @@ export class ProjectSendModal extends Modal {
     this.taggedFilesCache.clear();
     this.recentFilesCache = null;
     this.fileSearchCache.clear();
+    this.smartSendPromise = null;
     this.fileHeadingsCache.clear();
     this.contentEl.empty();
     if (!this.settled) {
@@ -744,6 +747,10 @@ export class ProjectSendModal extends Modal {
     this.ensureActiveTabVisible();
     if (this.mode === "custom-tag" && this.activeFileTemplateTabId) {
       void this.renderFileTemplateTab(this.activeFileTemplateTabId);
+      return;
+    }
+    if (this.mode === "smart") {
+      void this.renderSmartSend();
       return;
     }
     void this.renderFileSearch();
@@ -831,7 +838,7 @@ export class ProjectSendModal extends Modal {
   private visibleTabIds(): string[] {
     const hidden = new Set(this.hiddenTabs);
     const ids = normalizeTabOrder(this.tabOrder, this.fileTemplateTabs).filter((id) => !hidden.has(id));
-    const available = ids.filter((id) => id === "search" || getCustomTabFromTabId(id, this.fileTemplateTabs));
+    const available = ids.filter((id) => isFixedSendMode(id) || getCustomTabFromTabId(id, this.fileTemplateTabs));
     return available.length > 0 ? available : ["search"];
   }
 
@@ -866,7 +873,7 @@ export class ProjectSendModal extends Modal {
       this.activeFileTemplateTabId = customTab.id;
       return;
     }
-    this.mode = "search";
+    this.mode = isFixedSendMode(fallback) ? fallback : "search";
     this.activeFileTemplateTabId = "";
   }
 
@@ -881,7 +888,7 @@ export class ProjectSendModal extends Modal {
     }
     this.mode = id;
     this.activeFileTemplateTabId = "";
-    void this.renderFileSearch();
+    this.renderCurrentMode();
   }
 
   private startTabDrag(event: DragEvent, id: string, button: HTMLButtonElement): void {
@@ -1078,6 +1085,42 @@ export class ProjectSendModal extends Modal {
       text: [item.category, item.tags.map((tag) => `#${tag}`).join(" "), formatUpdatedAt(item.updatedAt, this.options.language)].filter(Boolean).join(" · ")
     });
     return row;
+  }
+
+  private smartSendRecommendationsCached(): Promise<SmartSendRecommendations> {
+    this.smartSendPromise ??= loadSmartSendRecommendations(this.options.content, (query) => this.searchFilesCached(query));
+    return this.smartSendPromise;
+  }
+
+  private async renderSmartSend(): Promise<void> {
+    const lang = this.options.language;
+    const contentEl = this.renderShell();
+    const hint = contentEl.createDiv({ cls: "memos-plus-project-section-hint", text: t(lang, "common.loading") });
+    const list = contentEl.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results" });
+    this.renderQuickCreateFooter(contentEl);
+    const renderToken = this.nextRenderToken();
+    let recommendations: SmartSendRecommendations;
+    try {
+      recommendations = await this.smartSendRecommendationsCached();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to load smart send recommendations", error);
+      recommendations = { analysis: { sourceTexts: [], phrases: [], keywords: [] }, files: [] };
+    }
+    if (!this.isRenderTokenCurrent(renderToken, list) || this.mode !== "smart") {
+      return;
+    }
+    const keywords = recommendations.analysis.keywords;
+    hint.setText(
+      keywords.length > 0
+        ? t(lang, "fileSend.smartKeywords").replace("{keywords}", keywords.join(" · "))
+        : t(lang, "fileSend.smartNoKeywords")
+    );
+    list.empty();
+    if (recommendations.files.length === 0) {
+      list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.smartNoFiles") });
+      return;
+    }
+    this.renderFileListItems(list, recommendations.files, () => void this.renderSmartSend(), undefined, "", false);
   }
 
   private async renderFileSearch(): Promise<void> {
@@ -1494,9 +1537,10 @@ export class ProjectSendModal extends Modal {
 
   private openQuickCreateForActiveTab(): void {
     const activeTabId = this.activeTabId();
-    const tab = activeTabId === "search" ? undefined : getCustomTabFromTabId(activeTabId, this.fileTemplateTabs);
+    const isFixedTab = isFixedSendMode(activeTabId);
+    const tab = isFixedTab ? undefined : getCustomTabFromTabId(activeTabId, this.fileTemplateTabs);
     const tag = tab?.type === "tag-filter" ? tab.tags[0] ?? "" : "";
-    const preferredPath = activeTabId === "search" ? "" : this.preferredTemplatePathForActiveTab();
+    const preferredPath = isFixedTab ? "" : this.preferredTemplatePathForActiveTab();
     this.openFileTemplateLibraryModal(tag, preferredPath);
   }
 
@@ -1755,7 +1799,11 @@ function normalizeTabOrder(value: string[], customTabs: FileTemplateTab[]): stri
   });
   for (const id of validIds) {
     if (!seen.has(id)) {
-      order.push(id);
+      if (id === "smart") {
+        order.unshift(id);
+      } else {
+        order.push(id);
+      }
     }
   }
   return order;

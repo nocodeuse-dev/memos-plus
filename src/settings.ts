@@ -389,7 +389,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   sendToFileDefaultTag: "",
   sendToFileCommonTags: DEFAULT_SEND_TO_FILE_COMMON_TAGS,
   projectSendTagTabs: [],
-  projectSendTabOrder: ["search"],
+  projectSendTabOrder: ["smart", "search"],
   projectSendHiddenTabs: [],
   managedTemplates: [],
   fileTemplateLibraryFolder: DEFAULT_FILE_TEMPLATE_LIBRARY_FOLDER,
@@ -4581,7 +4581,7 @@ function normalizeProjectSendTagTabs(value: unknown): string[] {
   });
 }
 
-const PROJECT_SEND_FIXED_TAB_IDS = ["search"] as const;
+const PROJECT_SEND_FIXED_TAB_IDS = ["smart", "search"] as const;
 const PROJECT_SEND_CUSTOM_TAB_PREFIX = "custom:";
 
 function normalizeProjectSendTabOrder(value: unknown, customTabs: FileTemplateTab[]): string[] {
@@ -4601,7 +4601,11 @@ function normalizeProjectSendTabOrder(value: unknown, customTabs: FileTemplateTa
   });
   for (const id of validIds) {
     if (!seen.has(id)) {
-      order.push(id);
+      if (id === "smart") {
+        order.unshift(id);
+      } else {
+        order.push(id);
+      }
     }
   }
   return order;
