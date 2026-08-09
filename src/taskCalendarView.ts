@@ -57,7 +57,7 @@ export class TaskCalendarView extends ItemView {
   private taskProjects: TaskCalendarProjectFilter[] = [];
   private taskProjectsLoading = false;
   private visibleTaskCount = Platform.isMobile ? 40 : 80;
-  private opened = false;
+  private viewActive = false;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
     super(leaf);
@@ -76,7 +76,7 @@ export class TaskCalendarView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    this.opened = true;
+    this.viewActive = true;
     this.contentEl.addClass("memos-plus-task-calendar-view");
     this.unsubscribeTasks = this.plugin.taskIndex.onChange(() => this.scheduleRender());
     this.render();
@@ -84,7 +84,7 @@ export class TaskCalendarView extends ItemView {
   }
 
   async onClose(): Promise<void> {
-    this.opened = false;
+    this.viewActive = false;
     this.unsubscribeTasks?.();
     this.unsubscribeTasks = null;
     if (this.renderTimer !== null) window.clearTimeout(this.renderTimer);
@@ -190,7 +190,7 @@ export class TaskCalendarView extends ItemView {
   }
 
   private render(): void {
-    if (!this.opened) return;
+    if (!this.viewActive) return;
     try {
       this.renderContent();
     } catch (error) {
@@ -584,17 +584,17 @@ export class TaskCalendarView extends ItemView {
         excludeGeneratedCalendars,
         cacheMinutes: settings.taskCalendar.agendaCacheMinutes
       });
-      if (version !== this.renderVersion || !this.opened) return;
+      if (version !== this.renderVersion || !this.viewActive) return;
       this.events = result.events;
       this.availableCalendars = uniqueCalendarChoices(result.calendars);
       this.loadedAgendaKey = agendaKey;
     } catch (error) {
-      if (version !== this.renderVersion || !this.opened) return;
+      if (version !== this.renderVersion || !this.viewActive) return;
       this.events = [];
       this.agendaError = error instanceof Error ? error.message : String(error);
       this.loadedAgendaKey = agendaKey;
     } finally {
-      if (version === this.renderVersion && this.opened) {
+      if (version === this.renderVersion && this.viewActive) {
         this.agendaLoading = false;
         this.render();
       }

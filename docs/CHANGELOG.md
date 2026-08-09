@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.268 - Unreleased
+
+- 修复 0.1.267 中工作台状态字段误用 `opened`，与 Obsidian `ItemView` 的内部生命周期字段同名，导致框架把“日程与任务”View 留在未打开状态：标签存在，但 `onOpen()` 从未执行，内容节点未接入 DOM 并保持 0 × 0。
+- 插件自己的渲染守卫改为无冲突的 `viewActive`，并新增回归检查禁止再次声明 `private opened`。Apple Calendar、Reminders 或单条任务异常仍不会参与 View 挂载，不能再阻断基础页面。
+
 ## 0.1.267 - Unreleased
 
 - 紧急修复“日程与任务”工作台打开后整个内容区空白：工作台首次打开或插件重新加载时，即使 Obsidian 尚未把内容节点接入页面，也会立即完成基础界面渲染，不再因挂载时序而跳过首次渲染。
