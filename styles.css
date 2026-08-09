@@ -2319,206 +2319,6 @@
   transform: translateY(8px);
 }
 
-.memos-plus-task-manager-modal-shell {
-  --dialog-width: min(820px, calc(100vw - 32px));
-  width: min(820px, calc(100vw - 32px));
-  max-width: min(820px, calc(100vw - 32px));
-}
-
-.memos-plus-task-manager-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: min(620px, 72vh);
-  max-height: min(760px, 82vh);
-  overflow: hidden;
-}
-
-.memos-plus-task-manager-header,
-.memos-plus-task-manager-header-actions,
-.memos-plus-task-manager-controls,
-.memos-plus-task-manager-filters,
-.memos-plus-task-manager-row-actions,
-.memos-plus-task-manager-task-meta {
-  display: flex;
-  align-items: center;
-}
-
-.memos-plus-task-manager-header {
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.memos-plus-task-manager-header h2 {
-  margin: 0;
-}
-
-.memos-plus-task-manager-header-actions {
-  flex: 0 0 auto;
-  gap: 6px;
-}
-
-.memos-plus-task-manager-status {
-  margin-top: 3px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.memos-plus-task-manager-refresh.is-loading svg {
-  animation: memos-plus-task-manager-spin 900ms linear infinite;
-}
-
-@keyframes memos-plus-task-manager-spin {
-  to { transform: rotate(360deg); }
-}
-
-.memos-plus-task-manager-toolbar {
-  display: grid;
-  flex: 0 0 auto;
-  gap: 8px;
-  min-width: 0;
-}
-
-.memos-plus-task-manager-controls {
-  flex: 0 0 auto;
-  gap: 8px;
-  min-width: 0;
-}
-
-.memos-plus-task-manager-search {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.memos-plus-task-manager-priority {
-  flex: 0 0 142px;
-}
-
-.memos-plus-task-manager-filters {
-  flex: 0 0 auto;
-  gap: 6px;
-  min-height: 32px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-}
-
-.memos-plus-task-manager-filter {
-  flex: 0 0 auto;
-  height: auto;
-  min-height: 28px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 999px;
-  padding: 5px 10px;
-  background: var(--background-secondary);
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.memos-plus-task-manager-filter.is-active {
-  border-color: var(--interactive-accent);
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-}
-
-.memos-plus-task-manager-results {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-right: 2px;
-}
-
-.memos-plus-task-manager-row {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  min-height: 58px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 9px;
-  padding: 8px 9px;
-  background: var(--background-primary-alt);
-}
-
-.memos-plus-task-manager-checkbox {
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-}
-
-.memos-plus-task-manager-task {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  flex: 1 1 auto;
-  width: 100%;
-  height: auto;
-  min-height: 0;
-  min-width: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--text-normal);
-  text-align: left;
-}
-
-.memos-plus-task-manager-task:hover {
-  background: transparent;
-  color: var(--text-accent);
-}
-
-.memos-plus-task-manager-task-title {
-  display: block;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.memos-plus-task-manager-task-title.is-empty {
-  color: var(--text-faint);
-  font-style: italic;
-  font-weight: 500;
-}
-
-.memos-plus-task-manager-task-meta {
-  width: 100%;
-  gap: 8px;
-  min-width: 0;
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.memos-plus-task-manager-task-meta span:first-child {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.memos-plus-task-manager-row-actions {
-  flex: 0 0 auto;
-  gap: 3px;
-}
-
-.memos-plus-task-manager-empty {
-  margin: auto 0;
-}
-
 .memos-plus-project-file-title {
   font-weight: 600;
   color: var(--text-normal);
@@ -3400,48 +3200,6 @@
     padding: 12px;
   }
 
-  .memos-plus-task-manager-modal-shell {
-    --dialog-width: calc(100vw - 16px);
-    width: calc(100vw - 16px);
-    max-width: calc(100vw - 16px);
-    margin: 8px;
-  }
-
-  .memos-plus-task-manager-modal {
-    min-height: min(620px, calc(100dvh - 64px));
-    max-height: calc(100dvh - 64px);
-    gap: 10px;
-  }
-
-  .memos-plus-task-manager-controls {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .memos-plus-task-manager-priority {
-    flex-basis: auto;
-    width: 100%;
-  }
-
-  .memos-plus-task-manager-row {
-    grid-template-columns: 18px minmax(0, 1fr) auto;
-    min-height: 54px;
-    border-radius: var(--memos-plus-mobile-list-item-radius);
-    box-shadow: none;
-    filter: none;
-  }
-
-  .memos-plus-task-manager-task-meta span:nth-child(2) {
-    display: none;
-  }
-
-  .memos-plus-task-manager-task-title {
-    display: -webkit-box;
-    white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-  }
-
   .memos-plus-main-header {
     grid-template-columns: 1fr;
   }
@@ -3569,14 +3327,6 @@
   .memos-plus-saved-search-tag-suggestions,
   .memos-plus-mobile-panel-tabs .memos-plus-project-send-tab,
   .memos-plus-mobile-template-tabs .memos-plus-file-template-tab {
-    box-shadow: none;
-    filter: none;
-    background-image: none;
-    transition: none;
-  }
-
-  .memos-plus-task-manager-row,
-  .memos-plus-task-manager-filter {
     box-shadow: none;
     filter: none;
     background-image: none;
@@ -3886,10 +3636,32 @@
   color: var(--text-normal);
 }
 
+.memos-plus-task-calendar-task-controls {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(92px, auto);
+  gap: 6px;
+}
+
+.memos-plus-task-calendar-task-search,
+.memos-plus-task-calendar-task-priority,
+.memos-plus-task-calendar-task-project {
+  min-width: 0;
+  height: 30px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.memos-plus-task-calendar-task-search { padding: 4px 7px; }
+.memos-plus-task-calendar-task-project { grid-column: 1 / -1; }
+.memos-plus-task-calendar-task-results { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .memos-plus-task-calendar-task-list { display: flex; flex-direction: column; gap: 3px; overflow: auto; }
 .memos-plus-task-calendar-task { gap: 7px; padding: 6px 4px; border-radius: 4px; }
 .memos-plus-task-calendar-task input { margin: 0; flex: 0 0 auto; }
 .memos-plus-task-calendar-task-body { min-width: 0; flex: 1; border: 0; padding: 0; background: transparent; color: var(--text-normal); text-align: left; cursor: pointer; }
+.memos-plus-task-calendar-task-edit { flex: 0 0 auto; }
+.memos-plus-task-calendar-load-more { width: 100%; }
 .memos-plus-task-calendar-task.is-completed { opacity: .62; }
 .memos-plus-task-calendar-task.is-completed .memos-plus-task-calendar-task-title { text-decoration: line-through; }
 
@@ -3994,4 +3766,8 @@
   .memos-plus-task-calendar.is-mobile .memos-plus-task-calendar-tasks { display: block; }
   .memos-plus-task-calendar.is-mobile[data-mobile-tab="tasks"] .memos-plus-task-calendar-agenda,
   .memos-plus-task-calendar.is-mobile[data-mobile-tab="calendar"] .memos-plus-task-calendar-tasks { display: none; }
+  .memos-plus-task-calendar-task-controls { grid-template-columns: minmax(0, 1fr) 104px; }
+  .memos-plus-task-calendar-task-search,
+  .memos-plus-task-calendar-task-priority,
+  .memos-plus-task-calendar-task-project { min-height: 36px; }
 }

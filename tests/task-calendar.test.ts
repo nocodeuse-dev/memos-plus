@@ -9,6 +9,7 @@ import {
   taskCalendarDefaultAgendaNames,
   taskCalendarDateRange,
   taskCalendarMonthDays,
+  taskCalendarOpenOptionsForOrganizer,
   taskCalendarTasks
 } from "../src/taskCalendar";
 import { normalizeAppleCalendarAgendaError } from "../src/appleCalendarAgenda";
@@ -120,6 +121,28 @@ describe("Schedule and tasks state", () => {
     expect(taskCalendarTasks(tasks, "completed", "2026-08-05").map((item) => item.text)).toEqual(["已完成"]);
   });
 
+  it("supports overdue, text, priority and project context in the unified task list", () => {
+    const tasks = [
+      task({ text: "项目甲高优先级", line: "- [ ] 项目甲高优先级 #项目/甲", priority: "high", dueDate: "2026-08-04" }),
+      task({ text: "项目甲普通", line: "- [ ] 项目甲普通 #项目/甲", filePath: "项目/甲.md" }),
+      task({ text: "项目乙", line: "- [ ] 项目乙 #项目/乙", priority: "high" })
+    ];
+    expect(taskCalendarTasks(tasks, "overdue", "2026-08-05").map((item) => item.text)).toEqual(["项目甲高优先级"]);
+    expect(taskCalendarTasks(tasks, "all", "2026-08-05", { query: "普通" }).map((item) => item.text)).toEqual(["项目甲普通"]);
+    expect(taskCalendarTasks(tasks, "all", "2026-08-05", { priority: "high" }).map((item) => item.text)).toEqual(["项目甲高优先级", "项目乙"]);
+    expect(taskCalendarTasks(tasks, "all", "2026-08-05", { project: { label: "甲", filePath: "项目/甲.md", tag: "项目/甲" } }).map((item) => item.text)).toEqual([
+      "项目甲高优先级",
+      "项目甲普通"
+    ]);
+  });
+
+  it("maps organizer task entries to the matching workspace context", () => {
+    expect(taskCalendarOpenOptionsForOrganizer("tasks")).toEqual({ navigation: "all" });
+    expect(taskCalendarOpenOptionsForOrganizer("task-overdue")).toEqual({ navigation: "overdue" });
+    expect(taskCalendarOpenOptionsForOrganizer("task-priority-high")).toEqual({ navigation: "all", priority: "high" });
+    expect(taskCalendarOpenOptionsForOrganizer("today")).toBeNull();
+  });
+
   it("keeps tomorrow and week task views bounded to their intended dates", () => {
     const tasks = [
       task({ text: "逾期", dueDate: "2026-08-04" }),
@@ -175,7 +198,8 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("calendarEventLocalDate(event.start)");
     expect(viewSource).toContain("createTaskCalendarInboxTask(eventTaskText(selectedEvent), calendarEventLocalDate(selectedEvent.start))");
     expect(viewSource).toContain("refreshScheduleAndTasks");
-    expect(viewSource).toContain("this.plugin.syncAppleNow(false)");
+    expect(viewSource).toContain("this.plugin.refreshTaskCalendarTasks()");
+    expect(mainSource).toContain("await this.syncAppleNow(false)");
   });
 
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {
@@ -193,7 +217,7 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("showHomeEntry");
     expect(viewSource).toContain("showMobileQuickActions");
     expect(viewSource).toContain("memos-plus-mobile-quick-actions");
-    expect(viewSource).toContain("view.focusQuickTaskInput()");
+    expect(viewSource).toContain("this.plugin.openTaskCalendar({ focusQuickTask: true })");
     expect(viewSource).toContain("view.openEventComposer()");
     expect(viewSource).toContain("openQuickCaptureFromMobileFab");
   });

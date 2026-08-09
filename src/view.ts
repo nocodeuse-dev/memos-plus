@@ -41,8 +41,7 @@ import {
 } from "./sidebar";
 import { computeMemoStats, type MemoStats } from "./stats";
 import { tagColorSlot } from "./tagColor";
-import { filterTaskIndexItems, getTaskIndexOrganizerCounts, type TaskIndexItem, type TaskIndexStatus } from "./taskIndex";
-import { openIndexedTask } from "./taskNavigation";
+import { getTaskIndexOrganizerCounts, type TaskIndexStatus } from "./taskIndex";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
 import { taskCalendarTasks, todayTaskCalendarDate } from "./taskCalendar";
 import { TaskCalendarView } from "./taskCalendarView";
@@ -544,7 +543,7 @@ export class MemosPlusView extends ItemView {
     });
     entry.createSpan({ cls: "memos-plus-task-calendar-home-entry-arrow", text: "→", attr: { "aria-hidden": "true" } });
     entry.addEventListener("click", () => {
-      void this.plugin.activateTaskCalendarView();
+      void this.plugin.openTaskCalendar({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" });
     });
   }
 
@@ -693,10 +692,6 @@ export class MemosPlusView extends ItemView {
         return;
       }
       const organizerSection = this.activeOrganizerSection();
-      if (this.shouldUseTaskIndexForOrganizer(organizerSection)) {
-        this.renderTaskIndexResults(main, organizerSection);
-        return;
-      }
       const filtered = this.currentFilteredMemos();
       const shown = filtered.slice(0, this.visibleCount);
 
@@ -1035,6 +1030,10 @@ export class MemosPlusView extends ItemView {
   }
 
   private selectOrganizerSection(id: OrganizerFilterId): void {
+    if (id === "tasks" || isOrganizerTaskBranchId(id)) {
+      void this.plugin.openTaskCalendarFromOrganizer(id);
+      return;
+    }
     this.mode = "all";
     this.year = "";
     this.tag = "";
@@ -1365,14 +1364,6 @@ export class MemosPlusView extends ItemView {
     return count;
   }
 
-  private shouldUseTaskIndexForOrganizer(filterId: OrganizerFilterId | ""): filterId is OrganizerFilterId {
-    return (
-      this.plugin.settings.taskVaultFilterEnabled &&
-      this.plugin.settings.taskIndexEnabled &&
-      (filterId === "tasks" || isOrganizerTaskBranchId(filterId))
-    );
-  }
-
   private formatTaskIndexCount(count: number, status: TaskIndexStatus | null): number | string {
     if (!status || status.updating || !status.updatedAt) {
       return "…";
@@ -1665,71 +1656,6 @@ export class MemosPlusView extends ItemView {
     }
   }
 
-  private renderTaskIndexResults(main: Element, filterId: OrganizerFilterId): void {
-    const lang = this.plugin.settings.language;
-    const status = this.plugin.taskIndex.getStatus();
-    if (!status.updatedAt && !status.updating) {
-      this.plugin.taskIndex.scheduleBuild(0);
-    }
-    const filtered = filterTaskIndexItems(this.plugin.taskIndex.getItems(), filterId, todayString());
-    const shown = filtered.slice(0, this.visibleCount);
-
-    const meta = main.createDiv({ cls: "memos-plus-list-meta" });
-    meta.createSpan({ text: `${filtered.length} ${t(lang, "taskIndex.tasks")}` });
-    meta.createSpan({ text: t(lang, organizerFilterLabelKey(filterId)) });
-    if (status.updating || !status.updatedAt) {
-      meta.createSpan({ text: t(lang, "taskIndex.updating") });
-    } else {
-      meta.createSpan({ text: t(lang, "taskIndex.updatedAt").replace("{time}", formatDateTime(Date.parse(status.updatedAt))) });
-    }
-
-    const list = main.createDiv({ cls: "memos-plus-list memos-plus-task-index-results" });
-    if (shown.length === 0) {
-      list.createDiv({ cls: "memos-plus-empty", text: status.updating ? t(lang, "taskIndex.updating") : t(lang, "empty.noMemos") });
-      return;
-    }
-
-    for (const item of shown) {
-      this.renderTaskIndexCard(list, item, lang);
-    }
-
-    if (shown.length < filtered.length) {
-      const more = main.createEl("button", { cls: "memos-plus-load-more", text: `${filtered.length - shown.length}` });
-      more.addEventListener("click", () => {
-        this.visibleCount += this.pageSize();
-        void this.renderTimelineOnly();
-      });
-    }
-  }
-
-  private renderTaskIndexCard(list: Element, item: TaskIndexItem, lang: Language): void {
-    const card = list.createDiv({ cls: "memos-plus-card memos-plus-task-index-result" });
-    card.setAttr("role", "button");
-    card.setAttr("tabindex", "0");
-    card.setAttr("data-line-number", String(item.lineNumber));
-    const open = () => {
-      void this.openTaskIndexItem(item);
-    };
-    card.addEventListener("click", open);
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        open();
-      }
-    });
-
-    const header = card.createDiv({ cls: "memos-plus-card-header" });
-    header.createDiv({ cls: "memos-plus-card-time", text: item.capturedAt || formatDateTime(item.mtime) });
-    const body = card.createDiv({ cls: "memos-plus-card-body" });
-    body.createDiv({ cls: "memos-plus-vault-result-title", text: item.text });
-    body.createDiv({ cls: "memos-plus-vault-result-path", text: item.filePath });
-    body.createDiv({ cls: "memos-plus-vault-result-excerpt", text: formatTaskIndexSummary(item, lang) });
-  }
-
-  private async openTaskIndexItem(item: TaskIndexItem): Promise<void> {
-    await openIndexedTask(this.app, item);
-  }
-
   private renderMemoMoreAction(container: Element, label: string, onClick: (event: MouseEvent) => void): void {
     const button = container.createEl("button", {
       cls: "memos-plus-icon-button memos-plus-card-more",
@@ -1963,10 +1889,7 @@ export class MemosPlusView extends ItemView {
       });
     };
     addAction("check-square", t(lang, "taskCalendar.quickAction.task"), () => {
-      void this.plugin.activateTaskCalendarView().then((leaf) => {
-        const view = leaf?.view;
-        if (view instanceof TaskCalendarView) view.focusQuickTaskInput();
-      });
+      void this.plugin.openTaskCalendar({ focusQuickTask: true });
     });
     addAction("calendar-plus", t(lang, "taskCalendar.quickAction.event"), () => {
       void this.plugin.activateTaskCalendarView().then((leaf) => {
@@ -2232,20 +2155,6 @@ function formatVaultTaskSummary(task: NonNullable<VaultSearchResult["task"]>, la
     t(lang, `savedSearch.taskStatus.${task.completed ? "completed" : "open"}`),
     task.priority !== "none" ? t(lang, `savedSearch.taskPriority.${task.priority}`) : "",
     task.dueDate ? `📅 ${task.dueDate}` : ""
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function formatTaskIndexSummary(task: TaskIndexItem, lang: Language): string {
-  return [
-    task.priority !== "none" ? t(lang, `savedSearch.taskPriority.${task.priority}`) : t(lang, "savedSearch.taskPriority.none"),
-    task.dueDate ? `📅 ${task.dueDate}` : "",
-    task.scheduledDate ? `⏳ ${task.scheduledDate}` : "",
-    task.startDate ? `🛫 ${task.startDate}` : "",
-    task.createdDate ? `➕ ${task.createdDate}` : "",
-    task.recurring ? "🔁" : "",
-    t(lang, "taskIndex.lineNumber").replace("{line}", String(task.lineNumber))
   ]
     .filter(Boolean)
     .join(" · ");

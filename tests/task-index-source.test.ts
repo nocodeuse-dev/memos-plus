@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const mainSource = readFileSync("main.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
+const taskCalendarViewSource = readFileSync("src/taskCalendarView.ts", "utf8");
 const taskNavigationSource = readFileSync("src/taskNavigation.ts", "utf8");
 const settingsSource = readFileSync("src/settings.ts", "utf8");
 const stylesSource = readFileSync("styles.css", "utf8");
@@ -26,21 +27,17 @@ describe("TaskIndex source integration", () => {
     expect(invalidationBlock.indexOf("this.taskIndex.invalidate")).toBeLessThan(invalidationBlock.indexOf("this.taskIndex.scheduleBuild"));
   });
 
-  it("uses the task index for organizer task counts and cached vault task results", () => {
+  it("uses the task index for organizer counts and routes task results into the unified workspace", () => {
     const organizerBlock = viewSource.slice(viewSource.indexOf("private renderOrganizerDirectory"), viewSource.indexOf("private renderOrganizerTaskToggle"));
-    const taskSourceGuard = viewSource.slice(viewSource.indexOf("private shouldUseTaskIndexForOrganizer"), viewSource.indexOf("private formatTaskIndexCount"));
-    const openTaskIndexItemBlock = viewSource.slice(viewSource.indexOf("private async openTaskIndexItem"), viewSource.indexOf("private renderMemoMoreAction"));
     expect(viewSource).toContain("getTaskIndexOrganizerCounts");
-    expect(viewSource).toContain("filterTaskIndexItems");
-    expect(viewSource).toContain("renderTaskIndexResults");
-    expect(viewSource).toContain("this.plugin.taskIndex.getItems()");
+    expect(viewSource).toContain("this.plugin.openTaskCalendarFromOrganizer(id)");
+    expect(viewSource).not.toContain("renderTaskIndexResults");
     expect(viewSource).toContain("this.plugin.taskIndex.getStatus()");
-    expect(openTaskIndexItemBlock).toContain("openIndexedTask(this.app, item)");
+    expect(taskCalendarViewSource).toContain("this.plugin.taskIndex.getItems()");
+    expect(taskCalendarViewSource).toContain("this.plugin.openTaskCalendarTask(task)");
     expect(taskNavigationSource).toContain("openFile(file, { state: { line: item.lineNumber - 1 } })");
     expect(taskNavigationSource).toContain("view.editor.setSelection({ line, ch: 0 }, { line, ch: item.line.length })");
     expect(taskNavigationSource).toContain("view.editor.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: item.line.length } }, true)");
-    expect(taskSourceGuard).toContain("taskVaultFilterEnabled");
-    expect(taskSourceGuard).toContain("taskIndexEnabled");
     expect(organizerBlock).not.toContain("vault.read");
     expect(organizerBlock).not.toContain("getMarkdownFiles");
   });

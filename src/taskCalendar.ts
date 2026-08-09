@@ -1,8 +1,29 @@
 import type { TaskIndexItem } from "./taskIndex";
+import type { OrganizerFilterId } from "./organizerPanel";
+import type { TaskPriorityFilterValue } from "./taskSearch";
 
 export type TaskCalendarViewMode = "day" | "week";
-export type TaskCalendarNavigation = "today" | "tomorrow" | "week" | "inbox" | "all" | "completed";
+export type TaskCalendarNavigation = "today" | "tomorrow" | "week" | "inbox" | "overdue" | "all" | "completed";
 export type TaskCalendarMobileTab = "today" | "tasks" | "calendar";
+
+export interface TaskCalendarProjectFilter {
+  label: string;
+  filePath?: string;
+  tag?: string;
+}
+
+export interface TaskCalendarTaskFilters {
+  query?: string;
+  priority?: TaskPriorityFilterValue | "all";
+  project?: TaskCalendarProjectFilter | null;
+}
+
+export interface TaskCalendarOpenOptions extends TaskCalendarTaskFilters {
+  navigation?: TaskCalendarNavigation;
+  selectedDate?: string;
+  viewMode?: TaskCalendarViewMode;
+  focusQuickTask?: boolean;
+}
 
 export interface TaskCalendarSettings {
   showRibbon: boolean;
@@ -139,7 +160,12 @@ function isGeneratedSystemCalendar(name: string): boolean {
   ].includes(normalized) || normalized.endsWith(" holidays");
 }
 
-export function taskCalendarTasks(items: TaskIndexItem[], navigation: TaskCalendarNavigation, selectedDate: string): TaskIndexItem[] {
+export function taskCalendarTasks(
+  items: TaskIndexItem[],
+  navigation: TaskCalendarNavigation,
+  selectedDate: string,
+  filters: TaskCalendarTaskFilters = {}
+): TaskIndexItem[] {
   const date = normalizeDate(selectedDate) || todayTaskCalendarDate();
   const incomplete = items.filter((item) => !item.completed);
   const matchesDate = (item: TaskIndexItem) => taskDate(item) === date;
@@ -154,6 +180,9 @@ export function taskCalendarTasks(items: TaskIndexItem[], navigation: TaskCalend
     case "inbox":
       filtered = incomplete.filter((item) => !taskDate(item));
       break;
+    case "overdue":
+      filtered = incomplete.filter((item) => Boolean(item.dueDate && item.dueDate < date));
+      break;
     case "week":
       {
         const range = taskCalendarDateRange(date, "week");
@@ -167,7 +196,50 @@ export function taskCalendarTasks(items: TaskIndexItem[], navigation: TaskCalend
       filtered = incomplete.filter((item) => matchesDate(item) || Boolean(item.dueDate && item.dueDate < date));
       break;
   }
+  const priority = filters.priority ?? "all";
+  if (priority !== "all") {
+    filtered = filtered.filter((item) => item.priority === priority);
+  }
+  const query = filters.query?.trim().toLocaleLowerCase() ?? "";
+  if (query) {
+    filtered = filtered.filter((item) => `${item.text} ${item.fileName} ${item.filePath}`.toLocaleLowerCase().includes(query));
+  }
+  const project = filters.project;
+  if (project) {
+    const filePath = project.filePath?.trim().replace(/^\/+/, "") ?? "";
+    const tag = normalizeTaskCalendarTag(project.tag);
+    filtered = filtered.filter((item) =>
+      Boolean(filePath && item.filePath === filePath) || Boolean(tag && taskLineHasTag(item.line, tag))
+    );
+  }
   return [...filtered].sort((left, right) => taskSortKey(left, date) - taskSortKey(right, date) || left.text.localeCompare(right.text));
+}
+
+export function taskCalendarOpenOptionsForOrganizer(filterId: OrganizerFilterId): TaskCalendarOpenOptions | null {
+  switch (filterId) {
+    case "tasks":
+      return { navigation: "all" };
+    case "task-overdue":
+      return { navigation: "overdue" };
+    case "task-due-today":
+      return { navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" };
+    case "task-due-this-week":
+      return { navigation: "week", selectedDate: todayTaskCalendarDate(), viewMode: "week" };
+    case "task-priority-highest":
+      return { navigation: "all", priority: "highest" };
+    case "task-priority-high":
+      return { navigation: "all", priority: "high" };
+    case "task-priority-medium":
+      return { navigation: "all", priority: "medium" };
+    case "task-priority-low":
+      return { navigation: "all", priority: "low" };
+    case "task-priority-lowest":
+      return { navigation: "all", priority: "lowest" };
+    case "task-priority-none":
+      return { navigation: "all", priority: "none" };
+    default:
+      return null;
+  }
 }
 
 export function taskDate(item: Pick<TaskIndexItem, "dueDate" | "scheduledDate" | "startDate">): string {
@@ -180,7 +252,16 @@ export function formatTaskCalendarDate(date: string, locale = "zh-CN"): string {
 }
 
 function normalizeNavigation(value: unknown, fallback: TaskCalendarNavigation): TaskCalendarNavigation {
-  return value === "tomorrow" || value === "week" || value === "inbox" || value === "all" || value === "completed" || value === "today" ? value : fallback;
+  return value === "tomorrow" || value === "week" || value === "inbox" || value === "overdue" || value === "all" || value === "completed" || value === "today" ? value : fallback;
+}
+
+function normalizeTaskCalendarTag(value: unknown): string {
+  return typeof value === "string" ? value.trim().replace(/^#+/, "") : "";
+}
+
+function taskLineHasTag(line: string, tag: string): boolean {
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|\\s)#${escaped}(?=$|\\s|[.,，。;；:：!?！？)])`, "iu").test(line);
 }
 
 function normalizeCalendarNames(value: unknown): string[] {

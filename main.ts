@@ -13,7 +13,6 @@ import type { QuickCaptureInitialContentMode } from "./src/quickCaptureContent";
 import { TaskIndex } from "./src/taskIndex";
 import type { TaskIndexItem } from "./src/taskIndex";
 import { editIndexedTaskWithTasksApi, getTasksApi, toggleIndexedTask } from "./src/taskActions";
-import { showTaskMutationFailure, TaskManagementModal } from "./src/taskManagementModal";
 import { openIndexedTask } from "./src/taskNavigation";
 import { confirmWithModal } from "./src/confirmModal";
 import { importClipboardImageWithConfirmation } from "./src/clipboardImageImport";
@@ -33,6 +32,12 @@ import { SerialTaskQueue } from "./src/serialTaskQueue";
 import { MacOsAppleSyncBridge } from "./src/appleSyncBridge";
 import { AppleSyncService } from "./src/appleSyncService";
 import { MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE, TaskCalendarView } from "./src/taskCalendarView";
+import {
+  taskCalendarOpenOptionsForOrganizer,
+  todayTaskCalendarDate,
+  type TaskCalendarOpenOptions
+} from "./src/taskCalendar";
+import type { OrganizerFilterId } from "./src/organizerPanel";
 import { buildTasksMarkdownLine } from "./src/tasksFormat";
 import { normalizeAppleSyncTag, shouldSyncTask } from "./src/appleSync";
 
@@ -146,37 +151,25 @@ export default class MemosPlusPlugin extends Plugin {
     this.addCommand({
       id: "open-task-manager",
       name: t(this.settings.language, "taskManager.open"),
-      callback: () => this.openTaskManagement()
+      callback: () => this.runAsyncOperation("open all tasks", () => this.openTaskCalendar({ navigation: "all" }))
     });
 
     this.addCommand({
       id: "open-task-calendar",
       name: t(this.settings.language, "command.openTaskCalendar"),
-      callback: () => this.runAsyncOperation("open task calendar", async () => {
-        const leaf = await this.activateTaskCalendarView();
-        const view = leaf?.view;
-        if (view instanceof TaskCalendarView) view.openDefault();
-      })
+      callback: () => this.runAsyncOperation("open task calendar", () => this.openTaskCalendar())
     });
 
     this.addCommand({
       id: "open-task-calendar-today",
       name: t(this.settings.language, "command.openTaskCalendarToday"),
-      callback: () => this.runAsyncOperation("open task calendar today", async () => {
-        const leaf = await this.activateTaskCalendarView();
-        const view = leaf?.view;
-        if (view instanceof TaskCalendarView) view.openToday();
-      })
+      callback: () => this.runAsyncOperation("open task calendar today", () => this.openTaskCalendar({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" }))
     });
 
     this.addCommand({
       id: "quick-add-task",
       name: t(this.settings.language, "command.quickAddTask"),
-      callback: () => this.runAsyncOperation("focus task calendar quick task", async () => {
-        const leaf = await this.activateTaskCalendarView();
-        const view = leaf?.view;
-        if (view instanceof TaskCalendarView) view.focusQuickTaskInput();
-      })
+      callback: () => this.runAsyncOperation("focus task calendar quick task", () => this.openTaskCalendar({ focusQuickTask: true }))
     });
 
     this.addCommand({
@@ -184,19 +177,14 @@ export default class MemosPlusPlugin extends Plugin {
       name: t(this.settings.language, "command.quickAddCalendarEvent"),
       callback: () => this.runAsyncOperation("open calendar event composer", async () => {
         const leaf = await this.activateTaskCalendarView();
-        const view = leaf?.view;
-        if (view instanceof TaskCalendarView) view.openEventComposer();
+        if (leaf?.view instanceof TaskCalendarView) leaf.view.openEventComposer();
       })
     });
 
     this.addCommand({
       id: "open-task-calendar-inbox",
       name: t(this.settings.language, "command.openTaskCalendarInbox"),
-      callback: () => this.runAsyncOperation("open task calendar inbox", async () => {
-        const leaf = await this.activateTaskCalendarView();
-        const view = leaf?.view;
-        if (view instanceof TaskCalendarView) view.openInbox();
-      })
+      callback: () => this.runAsyncOperation("open task calendar inbox", () => this.openTaskCalendar({ navigation: "inbox", focusQuickTask: true }))
     });
 
     this.addCommand({
@@ -315,6 +303,18 @@ export default class MemosPlusPlugin extends Plugin {
     await leaf.setViewState({ type: MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
     return leaf;
+  }
+
+  async openTaskCalendar(options?: TaskCalendarOpenOptions): Promise<void> {
+    const leaf = await this.activateTaskCalendarView();
+    if (!(leaf?.view instanceof TaskCalendarView)) return;
+    if (options) leaf.view.open(options);
+    else leaf.view.openDefault();
+  }
+
+  async openTaskCalendarFromOrganizer(filterId: OrganizerFilterId): Promise<void> {
+    const options = taskCalendarOpenOptionsForOrganizer(filterId);
+    if (options) await this.openTaskCalendar(options);
   }
 
   async activateQuickInputView(options: { focusComposer?: boolean; useModalFallback?: boolean } = {}): Promise<WorkspaceLeaf | null> {
@@ -502,7 +502,7 @@ export default class MemosPlusPlugin extends Plugin {
       "aria-label": t(this.settings.language, "taskManager.open")
     });
     setIcon(item, "list-todo");
-    const open = () => this.openTaskManagement();
+    const open = () => this.runAsyncOperation("open task calendar from status bar", () => this.openTaskCalendar({ navigation: "all" }));
     item.addEventListener("click", open);
     item.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
@@ -517,11 +517,7 @@ export default class MemosPlusPlugin extends Plugin {
     this.taskCalendarRibbonEl = null;
     if (!visible) return;
     this.taskCalendarRibbonEl = this.addRibbonIcon("calendar-days", t(this.settings.language, "command.openTaskCalendar"), () => {
-      this.runAsyncOperation("activate task calendar from ribbon", async () => {
-        const leaf = await this.activateTaskCalendarView();
-        const view = leaf?.view;
-        if (view instanceof TaskCalendarView) view.openDefault();
-      });
+      this.runAsyncOperation("activate task calendar from ribbon", () => this.openTaskCalendar());
     });
   }
 
@@ -573,16 +569,23 @@ export default class MemosPlusPlugin extends Plugin {
     await openIndexedTask(this.app, item);
   }
 
-  private openTaskManagement(): void {
-    new TaskManagementModal(this.app, {
-      language: this.settings.language,
-      taskIndex: this.taskIndex,
-      canEditWithTasksApi: Boolean(getTasksApi(this.app)?.editTaskLineModal),
-      onQuickCapture: () => this.openQuickCaptureWithContentSource("auto"),
-      onOpenTask: (item) => openIndexedTask(this.app, item),
-      onToggleTask: (item) => this.toggleTaskIndexItem(item),
-      onEditTask: (item) => this.editTaskIndexItem(item)
-    }).open();
+  openTaskCalendarQuickCapture(): void {
+    this.openQuickCaptureWithContentSource("auto");
+  }
+
+  canEditTaskCalendarTask(): boolean {
+    return Boolean(getTasksApi(this.app)?.editTaskLineModal);
+  }
+
+  async editTaskCalendarTask(item: TaskIndexItem): Promise<boolean> {
+    return this.editTaskIndexItem(item);
+  }
+
+  async refreshTaskCalendarTasks(): Promise<void> {
+    await this.taskIndex.rebuild({ force: true });
+    if (this.settings.appleSyncEnabled && this.appleSync.isAvailable()) {
+      await this.syncAppleNow(false);
+    }
   }
 
   private async toggleTaskIndexItem(item: TaskIndexItem): Promise<boolean> {
@@ -928,6 +931,10 @@ export default class MemosPlusPlugin extends Plugin {
     };
   }
 
+}
+
+function showTaskMutationFailure(language: Parameters<typeof t>[0]): void {
+  new Notice(t(language, "taskManager.updateFailed"));
 }
 
 async function ensureTaskCalendarParentFolders(app: MemosPlusPlugin["app"], filePath: string): Promise<void> {

@@ -12,6 +12,8 @@ import {
   taskCalendarTasks,
   todayTaskCalendarDate,
   type TaskCalendarNavigation,
+  type TaskCalendarOpenOptions,
+  type TaskCalendarProjectFilter,
   type TaskCalendarSettings,
   type TaskCalendarViewMode
 } from "./taskCalendar";
@@ -22,6 +24,7 @@ import {
   taskCalendarGridPlacement
 } from "./taskCalendarAgendaGrid";
 import type { TaskIndexItem } from "./taskIndex";
+import type { TaskPriorityFilterValue } from "./taskSearch";
 import { TaskCalendarEventModal } from "./taskCalendarEventModal";
 import { TaskCalendarEventDetailModal } from "./taskCalendarEventDetailModal";
 import { QuickCaptureModal } from "./modal";
@@ -33,6 +36,7 @@ const NAVIGATION: ReadonlyArray<{ id: TaskCalendarNavigation; icon: string; labe
   { id: "tomorrow", icon: "sunrise", labelKey: "taskCalendar.nav.tomorrow" },
   { id: "week", icon: "calendar-range", labelKey: "taskCalendar.nav.week" },
   { id: "inbox", icon: "inbox", labelKey: "taskCalendar.nav.inbox" },
+  { id: "overdue", icon: "alarm-clock", labelKey: "taskCalendar.nav.overdue" },
   { id: "all", icon: "list-todo", labelKey: "taskCalendar.nav.all" },
   { id: "completed", icon: "check-circle-2", labelKey: "taskCalendar.nav.completed" }
 ];
@@ -47,6 +51,12 @@ export class TaskCalendarView extends ItemView {
   private unsubscribeTasks: (() => void) | null = null;
   private renderTimer: number | null = null;
   private renderVersion = 0;
+  private taskQuery = "";
+  private taskPriority: TaskPriorityFilterValue | "all" = "all";
+  private taskProject: TaskCalendarProjectFilter | null = null;
+  private taskProjects: TaskCalendarProjectFilter[] = [];
+  private taskProjectsLoading = false;
+  private visibleTaskCount = Platform.isMobile ? 40 : 80;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
     super(leaf);
@@ -68,6 +78,7 @@ export class TaskCalendarView extends ItemView {
     this.contentEl.addClass("memos-plus-task-calendar-view");
     this.unsubscribeTasks = this.plugin.taskIndex.onChange(() => this.scheduleRender());
     this.render();
+    void this.loadTaskProjects();
   }
 
   async onClose(): Promise<void> {
@@ -84,16 +95,39 @@ export class TaskCalendarView extends ItemView {
   }
 
   openToday(): void {
-    void this.updateState({ navigation: "today", selectedDate: todayTaskCalendarDate() });
+    this.open({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" });
   }
 
   openInbox(): void {
-    void this.updateState({ navigation: "inbox" }).then(() => this.focusQuickTaskInput());
+    this.open({ navigation: "inbox", focusQuickTask: true });
   }
 
   openDefault(): void {
     const navigation = this.plugin.settings.taskCalendar.defaultView;
-    void this.updateState({ navigation, viewMode: navigation === "week" ? "week" : this.plugin.settings.taskCalendar.viewMode });
+    this.open({ navigation, viewMode: navigation === "week" ? "week" : this.plugin.settings.taskCalendar.viewMode });
+  }
+
+  openAll(): void {
+    this.open({ navigation: "all" });
+  }
+
+  open(options: TaskCalendarOpenOptions = {}): void {
+    this.taskQuery = options.query?.trim().toLocaleLowerCase() ?? "";
+    this.taskPriority = options.priority ?? "all";
+    this.taskProject = options.project ?? null;
+    this.visibleTaskCount = Platform.isMobile ? 40 : 80;
+    const change: Partial<TaskCalendarSettings> = {};
+    if (options.navigation) change.navigation = options.navigation;
+    if (options.selectedDate) change.selectedDate = options.selectedDate;
+    if (options.viewMode) change.viewMode = options.viewMode;
+    if (Object.keys(change).length === 0) {
+      this.render();
+      if (options.focusQuickTask) window.requestAnimationFrame(() => this.focusQuickTaskInput());
+      return;
+    }
+    void this.updateState(change).then(() => {
+      if (options.focusQuickTask) this.focusQuickTaskInput();
+    });
   }
 
   openEventComposer(): void {
@@ -158,7 +192,6 @@ export class TaskCalendarView extends ItemView {
     const state = this.plugin.settings.taskCalendar;
     const selectedDate = state.selectedDate || todayTaskCalendarDate();
     const items = this.plugin.taskIndex.getItems();
-    const tasks = taskCalendarTasks(items, state.navigation, selectedDate);
     const range = taskCalendarDateRange(selectedDate, state.viewMode);
     const root = this.contentEl;
     root.empty();
@@ -190,6 +223,7 @@ export class TaskCalendarView extends ItemView {
         if (state.viewMode !== modeId) void this.updateState({ viewMode: modeId });
       });
     }
+    this.iconButton(headerActions, "message-square-plus", t(lang, "command.quickCapture"), () => this.plugin.openTaskCalendarQuickCapture());
     this.iconButton(headerActions, "calendar-plus", t(lang, "taskCalendar.newEvent"), () => this.openEventComposer());
     this.iconButton(headerActions, "refresh-cw", t(lang, "taskCalendar.refresh"), () => void this.refreshScheduleAndTasks(
       range.startDate,
@@ -224,7 +258,9 @@ export class TaskCalendarView extends ItemView {
 
     const taskPane = layout.createDiv({ cls: "memos-plus-task-calendar-tasks" });
     const taskHeader = taskPane.createDiv({ cls: "memos-plus-task-calendar-pane-header" });
-    taskHeader.createEl("h3", { text: t(lang, `taskCalendar.nav.${state.navigation}`) });
+    taskHeader.createEl("h3", {
+      text: [t(lang, `taskCalendar.nav.${state.navigation}`), this.taskProject?.label].filter(Boolean).join(" · ")
+    });
     const hideTasks = this.iconButton(taskHeader, state.tasksPaneHidden ? "panel-right-open" : "panel-right-close", t(lang, "taskCalendar.toggleTasks"), () => void this.updateState({ tasksPaneHidden: !state.tasksPaneHidden }));
     hideTasks.addClass("memos-plus-task-calendar-tasks-toggle");
     const quick = taskPane.createEl("input", { cls: "memos-plus-task-calendar-quick-input", attr: { type: "text", placeholder: t(lang, "taskCalendar.quickTask"), "aria-label": t(lang, "taskCalendar.quickTask") } });
@@ -233,19 +269,14 @@ export class TaskCalendarView extends ItemView {
       event.preventDefault();
       const text = quick.value.trim();
       if (!text) return;
+      const projectTag = this.taskProject?.tag?.replace(/^#+/, "").trim() ?? "";
+      const taskText = projectTag && !taskLineContainsTag(text, projectTag) ? `${text} #${projectTag}` : text;
       quick.disabled = true;
-      void this.plugin.createTaskCalendarInboxTask(text, state.navigation === "today" ? selectedDate : "").then((created) => {
+      void this.plugin.createTaskCalendarInboxTask(taskText, state.navigation === "today" ? selectedDate : "").then((created) => {
         if (created) quick.value = "";
       }).finally(() => { if (quick.isConnected) quick.disabled = false; });
     });
-    taskPane.createDiv({ cls: "memos-plus-task-calendar-task-summary", text: t(lang, "taskCalendar.taskCount").replace("{count}", String(tasks.length)) });
-    const taskList = taskPane.createDiv({ cls: "memos-plus-task-calendar-task-list" });
-    if (tasks.length === 0) {
-      taskList.createDiv({ cls: "memos-plus-empty", text: t(lang, "taskCalendar.emptyTasks") });
-    } else {
-      for (const task of tasks.slice(0, Platform.isMobile ? 40 : 80)) this.renderTask(taskList, task, selectedDate);
-      if (tasks.length > (Platform.isMobile ? 40 : 80)) taskList.createDiv({ cls: "memos-plus-task-calendar-more", text: t(lang, "taskCalendar.moreTasks").replace("{count}", String(tasks.length - (Platform.isMobile ? 40 : 80))) });
-    }
+    this.renderTaskControls(taskPane, items, state.navigation, selectedDate);
     const calendarNames = state.agendaCalendarNames;
     const agendaKey = this.agendaKey(range.startDate, range.endDate, calendarNames);
     if (this.loadedAgendaKey !== agendaKey && !this.agendaLoading) {
@@ -389,6 +420,108 @@ export class TaskCalendarView extends ItemView {
     eventEl.addEventListener("click", () => this.openEventDetails(event));
   }
 
+  private renderTaskControls(
+    container: HTMLElement,
+    items: TaskIndexItem[],
+    navigation: TaskCalendarNavigation,
+    selectedDate: string
+  ): void {
+    const lang = this.plugin.settings.language;
+    const controls = container.createDiv({ cls: "memos-plus-task-calendar-task-controls" });
+    const search = controls.createEl("input", {
+      cls: "memos-plus-task-calendar-task-search",
+      value: this.taskQuery,
+      attr: {
+        type: "search",
+        placeholder: t(lang, "taskManager.searchPlaceholder"),
+        "aria-label": t(lang, "taskManager.searchPlaceholder")
+      }
+    });
+    const priority = controls.createEl("select", {
+      cls: "memos-plus-task-calendar-task-priority",
+      attr: { "aria-label": t(lang, "taskManager.priority") }
+    });
+    const priorityOptions: Array<[TaskPriorityFilterValue | "all", Parameters<typeof t>[1]]> = [
+      ["all", "taskManager.priority.all"],
+      ["highest", "taskPriority.highest"],
+      ["high", "taskPriority.high"],
+      ["medium", "taskPriority.medium"],
+      ["low", "taskPriority.low"],
+      ["lowest", "taskPriority.lowest"],
+      ["none", "taskPriority.none"]
+    ];
+    for (const [value, labelKey] of priorityOptions) {
+      const option = priority.createEl("option", { value, text: t(lang, labelKey) });
+      option.selected = value === this.taskPriority;
+    }
+
+    const projects = this.taskProjects;
+    const project = controls.createEl("select", {
+      cls: "memos-plus-task-calendar-task-project",
+      attr: { "aria-label": t(lang, "taskCalendar.projectFilter") }
+    });
+    project.createEl("option", { value: "", text: t(lang, "taskCalendar.allProjects") });
+    for (const [index, candidate] of projects.entries()) {
+      const option = project.createEl("option", { value: String(index), text: candidate.label });
+      option.selected = sameProjectFilter(candidate, this.taskProject);
+    }
+    if (this.taskProject && !projects.some((candidate) => sameProjectFilter(candidate, this.taskProject))) {
+      const option = project.createEl("option", { value: "active", text: this.taskProject.label });
+      option.selected = true;
+    }
+
+    const results = container.createDiv({ cls: "memos-plus-task-calendar-task-results" });
+    const renderResults = (): void => {
+      results.empty();
+      const tasks = taskCalendarTasks(items, navigation, selectedDate, {
+        query: this.taskQuery,
+        priority: this.taskPriority,
+        project: this.taskProject
+      });
+      results.createDiv({
+        cls: "memos-plus-task-calendar-task-summary",
+        text: t(lang, "taskCalendar.taskCount").replace("{count}", String(tasks.length))
+      });
+      const taskList = results.createDiv({ cls: "memos-plus-task-calendar-task-list" });
+      if (tasks.length === 0) {
+        taskList.createDiv({ cls: "memos-plus-empty", text: t(lang, "taskCalendar.emptyTasks") });
+        return;
+      }
+      for (const task of tasks.slice(0, this.visibleTaskCount)) this.renderTask(taskList, task, selectedDate);
+      if (tasks.length > this.visibleTaskCount) {
+        const more = results.createEl("button", {
+          cls: "memos-plus-load-more memos-plus-task-calendar-load-more",
+          text: t(lang, "taskCalendar.loadMore").replace("{count}", String(tasks.length - this.visibleTaskCount)),
+          attr: { type: "button" }
+        });
+        more.addEventListener("click", () => {
+          this.visibleTaskCount += Platform.isMobile ? 40 : 80;
+          renderResults();
+        });
+      }
+    };
+
+    search.addEventListener("input", () => {
+      this.taskQuery = search.value.trim().toLocaleLowerCase();
+      this.visibleTaskCount = Platform.isMobile ? 40 : 80;
+      renderResults();
+    });
+    priority.addEventListener("change", () => {
+      this.taskPriority = priority.value as TaskPriorityFilterValue | "all";
+      this.visibleTaskCount = Platform.isMobile ? 40 : 80;
+      renderResults();
+    });
+    project.addEventListener("change", () => {
+      if (project.value === "active") return;
+      const index = project.value === "" ? -1 : Number(project.value);
+      this.taskProject = Number.isInteger(index) && index >= 0 ? projects[index] ?? null : null;
+      this.visibleTaskCount = Platform.isMobile ? 40 : 80;
+      renderResults();
+      taskHeaderTitle(container, navigation, this.taskProject?.label ?? "", lang);
+    });
+    renderResults();
+  }
+
   private renderTask(container: HTMLElement, task: TaskIndexItem, selectedDate: string): void {
     const item = container.createDiv({ cls: `memos-plus-task-calendar-task${task.completed ? " is-completed" : ""}` });
     const checkbox = item.createEl("input", { type: "checkbox", attr: { "aria-label": task.text } });
@@ -400,8 +533,18 @@ export class TaskCalendarView extends ItemView {
     const body = item.createEl("button", { cls: "memos-plus-task-calendar-task-body", attr: { type: "button" } });
     body.createDiv({ cls: "memos-plus-task-calendar-task-title", text: task.text || t(this.plugin.settings.language, "taskCalendar.untitledTask") });
     const date = task.dueDate || task.scheduledDate || task.startDate;
-    body.createDiv({ cls: "memos-plus-task-calendar-task-meta", text: [date && (date < selectedDate ? t(this.plugin.settings.language, "taskCalendar.overdue") : date), priorityLabel(task.priority)].filter(Boolean).join(" · ") });
+    body.createDiv({
+      cls: "memos-plus-task-calendar-task-meta",
+      text: [date && (date < selectedDate ? t(this.plugin.settings.language, "taskCalendar.overdue") : date), priorityLabel(task.priority), task.filePath].filter(Boolean).join(" · ")
+    });
     body.addEventListener("click", () => void this.plugin.openTaskCalendarTask(task));
+    if (this.plugin.canEditTaskCalendarTask()) {
+      const edit = this.iconButton(item, "pencil", t(this.plugin.settings.language, "common.edit"), () => {
+        edit.disabled = true;
+        void this.plugin.editTaskCalendarTask(task).finally(() => { if (edit.isConnected) edit.disabled = false; });
+      });
+      edit.addClass("memos-plus-task-calendar-task-edit");
+    }
   }
 
   private async loadAgenda(startDate: string, endDate: string, calendarNames: string[], excludeGeneratedCalendars: boolean, force: boolean): Promise<void> {
@@ -445,11 +588,31 @@ export class TaskCalendarView extends ItemView {
   }
 
   private async refreshScheduleAndTasks(startDate: string, endDate: string, calendarNames: string[], excludeGeneratedCalendars: boolean): Promise<void> {
-    const operations: Promise<unknown>[] = [this.loadAgenda(startDate, endDate, calendarNames, excludeGeneratedCalendars, true)];
-    if (this.plugin.settings.appleSyncEnabled && this.plugin.appleSync.isAvailable()) {
-      operations.push(this.plugin.syncAppleNow(false));
-    }
+    const operations: Promise<unknown>[] = [
+      this.loadAgenda(startDate, endDate, calendarNames, excludeGeneratedCalendars, true),
+      this.plugin.refreshTaskCalendarTasks()
+    ];
     await Promise.allSettled(operations);
+  }
+
+  private async loadTaskProjects(): Promise<void> {
+    if (this.taskProjectsLoading) return;
+    this.taskProjectsLoading = true;
+    try {
+      const projects = await this.plugin.store.getProjects();
+      this.taskProjects = projects.map((project) => ({
+        label: project.name,
+        filePath: project.file.path,
+        tag: `${this.plugin.settings.projectTag}/${project.name}`
+      }));
+      if (!this.contentEl.querySelector(".memos-plus-task-calendar-quick-input:focus, .memos-plus-task-calendar-task-controls :focus")) {
+        this.scheduleRender();
+      }
+    } catch (error) {
+      console.warn("[Memos Plus] Failed to load task project filters", error);
+    } finally {
+      this.taskProjectsLoading = false;
+    }
   }
 
   private effectiveAgendaCalendarNames(): string[] {
@@ -464,8 +627,9 @@ export class TaskCalendarView extends ItemView {
   }
 
   private openNavigation(navigation: TaskCalendarNavigation): void {
+    this.resetTaskFilters();
     if (navigation === "today") {
-      this.openToday();
+      void this.updateState({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" });
       return;
     }
     if (navigation === "tomorrow") {
@@ -477,6 +641,13 @@ export class TaskCalendarView extends ItemView {
       return;
     }
     void this.updateState({ navigation });
+  }
+
+  private resetTaskFilters(): void {
+    this.taskQuery = "";
+    this.taskPriority = "all";
+    this.taskProject = null;
+    this.visibleTaskCount = Platform.isMobile ? 40 : 80;
   }
 
   private async updateState(change: Partial<TaskCalendarSettings>): Promise<void> {
@@ -533,6 +704,20 @@ function uniqueCalendarChoices(values: Array<string | { name: string; writable: 
 function sameCalendarNames(left: string[], right: string[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((name, index) => name === right[index]);
+}
+
+function sameProjectFilter(left: TaskCalendarProjectFilter, right: TaskCalendarProjectFilter | null): boolean {
+  return Boolean(right) && left.label === right?.label && left.filePath === right?.filePath && left.tag === right?.tag;
+}
+
+function taskLineContainsTag(line: string, tag: string): boolean {
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|\\s)#${escaped}(?=$|\\s|[.,，。;；:：!?！？)])`, "iu").test(line);
+}
+
+function taskHeaderTitle(container: HTMLElement, navigation: TaskCalendarNavigation, project: string, lang: "zh" | "en"): void {
+  const heading = container.querySelector<HTMLElement>(":scope > .memos-plus-task-calendar-pane-header h3");
+  if (heading) heading.setText([t(lang, `taskCalendar.nav.${navigation}`), project].filter(Boolean).join(" · "));
 }
 
 function priorityLabel(priority: TaskIndexItem["priority"]): string {
