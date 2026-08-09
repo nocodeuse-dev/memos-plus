@@ -57,6 +57,7 @@ export class TaskCalendarView extends ItemView {
   private taskProjects: TaskCalendarProjectFilter[] = [];
   private taskProjectsLoading = false;
   private visibleTaskCount = Platform.isMobile ? 40 : 80;
+  private opened = false;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
     super(leaf);
@@ -75,6 +76,7 @@ export class TaskCalendarView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    this.opened = true;
     this.contentEl.addClass("memos-plus-task-calendar-view");
     this.unsubscribeTasks = this.plugin.taskIndex.onChange(() => this.scheduleRender());
     this.render();
@@ -82,6 +84,7 @@ export class TaskCalendarView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.opened = false;
     this.unsubscribeTasks?.();
     this.unsubscribeTasks = null;
     if (this.renderTimer !== null) window.clearTimeout(this.renderTimer);
@@ -187,7 +190,18 @@ export class TaskCalendarView extends ItemView {
   }
 
   private render(): void {
-    if (!this.contentEl.isConnected) return;
+    if (!this.opened) return;
+    try {
+      this.renderContent();
+    } catch (error) {
+      console.error("[Memos Plus] Failed to render Schedule and Tasks", error);
+      this.contentEl.empty();
+      this.contentEl.addClass("memos-plus-task-calendar", Platform.isMobile ? "is-mobile" : "is-desktop");
+      this.contentEl.createDiv({ cls: "memos-plus-task-calendar-agenda-message", text: t(this.plugin.settings.language, "taskCalendar.unavailable") });
+    }
+  }
+
+  private renderContent(): void {
     const lang = this.plugin.settings.language;
     const state = this.plugin.settings.taskCalendar;
     const selectedDate = state.selectedDate || todayTaskCalendarDate();
@@ -570,17 +584,17 @@ export class TaskCalendarView extends ItemView {
         excludeGeneratedCalendars,
         cacheMinutes: settings.taskCalendar.agendaCacheMinutes
       });
-      if (version !== this.renderVersion || !this.contentEl.isConnected) return;
+      if (version !== this.renderVersion || !this.opened) return;
       this.events = result.events;
       this.availableCalendars = uniqueCalendarChoices(result.calendars);
       this.loadedAgendaKey = agendaKey;
     } catch (error) {
-      if (version !== this.renderVersion || !this.contentEl.isConnected) return;
+      if (version !== this.renderVersion || !this.opened) return;
       this.events = [];
       this.agendaError = error instanceof Error ? error.message : String(error);
       this.loadedAgendaKey = agendaKey;
     } finally {
-      if (version === this.renderVersion && this.contentEl.isConnected) {
+      if (version === this.renderVersion && this.opened) {
         this.agendaLoading = false;
         this.render();
       }

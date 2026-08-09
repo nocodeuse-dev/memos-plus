@@ -202,6 +202,17 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(mainSource).toContain("await this.syncAppleNow(false)");
   });
 
+  it("renders the workspace immediately even when its content element is not connected yet", () => {
+    const openMethod = viewSource.slice(viewSource.indexOf("async onOpen"), viewSource.indexOf("async onClose"));
+    const renderMethod = viewSource.slice(viewSource.indexOf("private render(): void"), viewSource.indexOf("private renderContent(): void"));
+    expect(openMethod.indexOf("this.opened = true")).toBeLessThan(openMethod.indexOf("this.render()"));
+    expect(openMethod.indexOf("this.render()")).toBeLessThan(openMethod.indexOf("this.loadTaskProjects()"));
+    expect(renderMethod).toContain("if (!this.opened) return");
+    expect(renderMethod).not.toContain("this.contentEl.isConnected");
+    expect(renderMethod).toContain("this.renderContent()");
+    expect(renderMethod).toContain("Failed to render Schedule and Tasks");
+  });
+
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {
     expect(mainSource).toContain("MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE");
     expect(mainSource).toContain('id: "open-task-calendar"');
