@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.263 - Unreleased
+
+- “日程与任务”的任务同步固定使用 Apple Reminders，日程继续独立使用 Apple Calendar；旧设置即使曾选择 Calendar，也不会再把 Markdown 任务写成日历事件。
+- Apple 提醒事项双向同步补齐标题、日期、`⏰ HH:mm` 时间、优先级、完成状态和删除。只有已通过隐藏本地 ID 与 Apple Reminder 唯一 ID 建立关联的项目才允许互删；移除 `#Apple同步` 只暂停同步，不会被当成删除。
+- 工作台顶部刷新现在并行刷新 Apple Calendar 日程和 Apple Reminders；工作台快速新建的任务在同步已启用时自动加入同步标签并立即推送。Apple 新项目继续导入现有 Markdown 收集文件，已有本地任务保持不变。
+- 新增真实桥接与自动化往返覆盖：Apple 新建、Obsidian 新建、双方修改/完成/删除以及重复刷新去重。
+
 ## 0.1.262 - Unreleased
 
 - 智能发送新增可排序的“优先标签”设置，默认包含“病、解剖结构”；可继续添加、删除或上下调整标签，越靠前排序权重越高。

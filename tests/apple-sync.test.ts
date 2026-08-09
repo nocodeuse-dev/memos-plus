@@ -37,6 +37,7 @@ const remoteReminder: AppleSyncRemoteItem = {
   title: "Apple 修改后的任务",
   completed: true,
   dueDate: "2026-08-08",
+  dueTime: "14:30",
   priority: 1,
   modifiedAt: "2026-08-01T02:00:00.000Z",
   notes: "memos-plus-id:local-1"
@@ -85,7 +86,7 @@ describe("Apple sync safety and merge helpers", () => {
   it("pulls completion, title, date and priority while preserving unrelated task metadata", () => {
     const line = "- [ ] 旧标题 🔽 ⏳ 2026-08-02 #项目/测试 #Apple同步 <!-- memos-plus-apple-id:local-1 -->";
     const updated = updateTaskLineFromApple(line, remoteReminder, "#Apple同步", "local-1");
-    expect(updated).toContain("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08");
+    expect(updated).toContain("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30");
     expect(updated).toContain("⏳ 2026-08-02");
     expect(updated).toContain("#项目/测试");
     expect(updated.match(/memos-plus-apple-id/g)).toHaveLength(1);
@@ -93,7 +94,7 @@ describe("Apple sync safety and merge helpers", () => {
 
   it("formats remote-only items as tagged Markdown tasks", () => {
     const line = formatImportedAppleTask(remoteReminder, "#Apple同步", "new-local");
-    expect(line).toBe("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 #Apple同步 <!-- memos-plus-apple-id:new-local -->");
+    expect(line).toBe("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30 #Apple同步 <!-- memos-plus-apple-id:new-local -->");
   });
 
   it("keeps state records keyed by target and local id", () => {
@@ -119,12 +120,13 @@ describe("Apple sync source integration", () => {
   const serviceSource = readFileSync("src/appleSyncService.ts", "utf8");
   const mainSource = readFileSync("main.ts", "utf8");
 
-  it("uses execFile without a shell and never propagates deletes", () => {
+  it("uses execFile without a shell and limits deletion to linked reminders", () => {
     expect(bridgeSource).toContain('execFile(\n        "/usr/bin/osascript"');
     expect(bridgeSource).toContain('require("node:child_process")');
     expect(bridgeSource).not.toContain('await import("node:child_process")');
     expect(bridgeSource).not.toContain("shell: true");
-    expect(bridgeSource).not.toContain("deleteReminder");
+    expect(bridgeSource).toContain('request.kind !== "reminders"');
+    expect(bridgeSource).toContain("app.delete(matches[0])");
     expect(bridgeSource).not.toContain("deleteEvent");
   });
 
@@ -147,7 +149,8 @@ describe("Apple sync source integration", () => {
       probe: vi.fn(),
       createContainer: vi.fn(),
       list: vi.fn(),
-      upsert: vi.fn()
+      upsert: vi.fn(),
+      remove: vi.fn()
     };
     const rebuild = vi.fn();
     const service = new AppleSyncService({
@@ -180,6 +183,13 @@ describe("Apple sync source integration", () => {
     const ensureIdsIndex = serviceSource.indexOf("localTasks = await this.ensureLocalIds(localTasks)");
     expect(remoteListIndex).toBeGreaterThan(-1);
     expect(ensureIdsIndex).toBeGreaterThan(remoteListIndex);
+  });
+
+  it("keeps task sync on Reminders while Calendar remains an agenda concern", () => {
+    expect(serviceSource).toContain('const kind = "reminders" as const');
+    expect(serviceSource).toContain("const container = settings.appleRemindersList");
+    expect(serviceSource).not.toContain("const kind = settings.appleSyncTarget");
+    expect(serviceSource).toContain("this.options.bridge.remove(kind, container, remote.id)");
   });
 
   it("registers manual sync and connection-test commands", () => {

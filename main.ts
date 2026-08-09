@@ -34,6 +34,7 @@ import { MacOsAppleSyncBridge } from "./src/appleSyncBridge";
 import { AppleSyncService } from "./src/appleSyncService";
 import { MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE, TaskCalendarView } from "./src/taskCalendarView";
 import { buildTasksMarkdownLine } from "./src/tasksFormat";
+import { normalizeAppleSyncTag, shouldSyncTask } from "./src/appleSync";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -446,6 +447,7 @@ export default class MemosPlusPlugin extends Plugin {
             .replace("{pushed}", String(result.pushed))
             .replace("{pulled}", String(result.pulled))
             .replace("{imported}", String(result.imported))
+            .replace("{deleted}", String(result.deletedLocal + result.deletedRemote))
         );
       }
     } catch (error) {
@@ -458,21 +460,15 @@ export default class MemosPlusPlugin extends Plugin {
   async testAppleSyncConnection(): Promise<void> {
     const lang = this.settings.language;
     try {
-      const target = this.settings.appleSyncTarget;
+      const target = "reminders" as const;
       const probe = await this.appleSync.probe(target);
-      const selected = target === "reminders" ? this.settings.appleRemindersList : this.settings.appleCalendarName;
-      const available =
-        target === "reminders"
-          ? probe.reminderLists.includes(selected)
-          : probe.calendars.some((calendar) => calendar.name === selected && calendar.writable);
+      const selected = this.settings.appleRemindersList;
+      const available = probe.reminderLists.includes(selected);
       if (available) {
         new Notice(t(lang, "notice.appleSyncConnectionOk").replace("{name}", selected));
         return;
       }
-      const candidates =
-        target === "reminders"
-          ? probe.reminderLists
-          : probe.calendars.filter((calendar) => calendar.writable).map((calendar) => calendar.name);
+      const candidates = probe.reminderLists;
       new Notice(
         t(lang, "notice.appleSyncContainerMissing")
           .replace("{name}", selected)
@@ -485,14 +481,10 @@ export default class MemosPlusPlugin extends Plugin {
 
   async createAppleSyncContainer(): Promise<void> {
     const lang = this.settings.language;
-    const target = this.settings.appleSyncTarget;
+    const target = "reminders" as const;
     try {
       const name = await this.appleSync.createContainer(target, "Memos Plus");
-      if (target === "calendar") {
-        this.settings.appleCalendarName = name;
-      } else {
-        this.settings.appleRemindersList = name;
-      }
+      this.settings.appleRemindersList = name;
       await this.persistSettings();
       new Notice(t(lang, "notice.appleSyncContainerCreated").replace("{name}", name));
     } catch (error) {
@@ -538,7 +530,11 @@ export default class MemosPlusPlugin extends Plugin {
     if (!text) return false;
     const path = normalizePath(this.settings.taskCalendar.inboxPath.trim().replace(/^\/+/, ""));
     if (!path) return false;
-    const line = buildTasksMarkdownLine(text, {
+    const syncTag = normalizeAppleSyncTag(this.settings.appleSyncTag);
+    const taskText = this.settings.appleSyncEnabled && !shouldSyncTask({ line: text }, syncTag)
+      ? `${text} ${syncTag}`
+      : text;
+    const line = buildTasksMarkdownLine(taskText, {
       dueDate,
       priority: this.settings.taskDefaultPriority,
       addCreatedDate: this.settings.taskAddCreatedDate
@@ -555,6 +551,7 @@ export default class MemosPlusPlugin extends Plugin {
         throw new Error("Task inbox path is occupied by a folder");
       }
       if (file instanceof TFile) await this.taskIndex.updateFile(file);
+      if (this.settings.appleSyncEnabled) await this.syncAppleNow(false);
       new Notice(t(this.settings.language, "notice.taskCalendarTaskCreated"));
       return true;
     } catch (error) {
@@ -565,7 +562,11 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   async toggleTaskCalendarTask(item: TaskIndexItem): Promise<boolean> {
-    return this.toggleTaskIndexItem(item);
+    const updated = await this.toggleTaskIndexItem(item);
+    if (updated && this.settings.appleSyncEnabled && item.line.includes(normalizeAppleSyncTag(this.settings.appleSyncTag))) {
+      await this.syncAppleNow(false);
+    }
+    return updated;
   }
 
   async openTaskCalendarTask(item: TaskIndexItem): Promise<void> {

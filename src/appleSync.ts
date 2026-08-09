@@ -11,6 +11,7 @@ export interface AppleSyncRemoteItem {
   title: string;
   completed: boolean;
   dueDate: string;
+  dueTime: string;
   priority: number;
   modifiedAt: string;
   notes: string;
@@ -39,7 +40,7 @@ export const DEFAULT_APPLE_SYNC_STATE: AppleSyncState = {
 
 const APPLE_SYNC_ID_RE = /<!--\s*memos-plus-apple-id:([a-zA-Z0-9_-]+)\s*-->/;
 const TASK_PREFIX_RE = /^(\s*(?:[-*+]|\d+[.)])\s+\[)[^\]](\]\s+)/;
-const TASK_METADATA_RE = /(?:🔺|⏫|🔼|🔽|⏬|📅\s*\d{4}-\d{2}-\d{2}|⏳\s*\d{4}-\d{2}-\d{2}|🛫\s*\d{4}-\d{2}-\d{2}|➕\s*\d{4}-\d{2}-\d{2}|✅\s*\d{4}-\d{2}-\d{2}|🔁|#[^\s#]+|<!--)/u;
+const TASK_METADATA_RE = /(?:🔺|⏫|🔼|🔽|⏬|📅\s*\d{4}-\d{2}-\d{2}|⏰\s*\d{1,2}:\d{2}|⏳\s*\d{4}-\d{2}-\d{2}|🛫\s*\d{4}-\d{2}-\d{2}|➕\s*\d{4}-\d{2}-\d{2}|✅\s*\d{4}-\d{2}-\d{2}|🔁|#[^\s#]+|<!--)/u;
 
 export function normalizeAppleSyncTarget(value: unknown): AppleSyncTarget {
   return value === "calendar" ? "calendar" : "reminders";
@@ -121,6 +122,7 @@ export function taskTitleForApple(task: Pick<TaskIndexItem, "text">, tag: string
     .replace(new RegExp(`(^|\\s)${escapeRegExp(normalizeAppleSyncTag(tag))}(?=\\s|$)`, "gu"), " ")
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
     .replace(/(?:📅|⏳|🛫|➕|✅)\s*\d{4}-\d{2}-\d{2}/gu, " ")
+    .replace(/⏰\s*\d{1,2}:\d{2}/gu, " ")
     .replace(/🔁\s*[^#<]*/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -131,6 +133,7 @@ export function localAppleSyncSignature(task: TaskIndexItem, tag: string, kind: 
     title: appleTitleForKind(taskTitleForApple(task, tag), task.completed, kind),
     completed: task.completed,
     dueDate: task.dueDate || task.scheduledDate || "",
+    dueTime: taskTimeForApple(task),
     priority: taskPriorityToApple(task.priority)
   });
 }
@@ -140,6 +143,7 @@ export function remoteAppleSyncSignature(item: AppleSyncRemoteItem): string {
     title: item.title.trim(),
     completed: item.completed,
     dueDate: item.dueDate,
+    dueTime: item.dueTime,
     priority: item.priority
   });
 }
@@ -191,6 +195,7 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
     .replace(new RegExp(`(^|\\s)${escapeRegExp(normalizeAppleSyncTag(tag))}(?=\\s|$)`, "gu"), " ")
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
     .replace(/📅\s*\d{4}-\d{2}-\d{2}/gu, " ")
+    .replace(/⏰\s*\d{1,2}:\d{2}/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
   const title = normalizeRemoteTitle(item.title, item.kind);
@@ -201,6 +206,9 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
   }
   if (item.dueDate) {
     parts.push(`📅 ${item.dueDate}`);
+    if (item.dueTime) {
+      parts.push(`⏰ ${item.dueTime}`);
+    }
   }
   if (preserved) {
     parts.push(preserved);
@@ -218,6 +226,9 @@ export function formatImportedAppleTask(item: AppleSyncRemoteItem, tag: string, 
   }
   if (item.dueDate) {
     parts.push(`📅 ${item.dueDate}`);
+    if (item.dueTime) {
+      parts.push(`⏰ ${item.dueTime}`);
+    }
   }
   parts.push(normalizeAppleSyncTag(tag), `<!-- memos-plus-apple-id:${localId} -->`);
   return parts.join(" ");
@@ -239,6 +250,15 @@ export function taskPriorityToApple(priority: TaskIndexItem["priority"]): number
     return 9;
   }
   return 0;
+}
+
+export function taskTimeForApple(task: Pick<TaskIndexItem, "line">): string {
+  const match = task.line.match(/⏰\s*(\d{1,2}):(\d{2})/u);
+  if (!match) return "";
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || hours < 0 || hours > 23 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) return "";
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 function normalizeRemoteTitle(title: string, kind: AppleSyncTarget): string {

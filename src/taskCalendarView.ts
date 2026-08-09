@@ -191,7 +191,12 @@ export class TaskCalendarView extends ItemView {
       });
     }
     this.iconButton(headerActions, "calendar-plus", t(lang, "taskCalendar.newEvent"), () => this.openEventComposer());
-    this.iconButton(headerActions, "refresh-cw", t(lang, "taskCalendar.refresh"), () => void this.loadAgenda(range.startDate, range.endDate, state.agendaCalendarNames, state.agendaCalendarNames.length === 0, true));
+    this.iconButton(headerActions, "refresh-cw", t(lang, "taskCalendar.refresh"), () => void this.refreshScheduleAndTasks(
+      range.startDate,
+      range.endDate,
+      state.agendaCalendarNames,
+      state.agendaCalendarNames.length === 0
+    ));
 
     if (Platform.isMobile) {
       const tabs = root.createDiv({ cls: "memos-plus-task-calendar-mobile-tabs", attr: { role: "tablist" } });
@@ -437,6 +442,14 @@ export class TaskCalendarView extends ItemView {
         this.render();
       }
     }
+  }
+
+  private async refreshScheduleAndTasks(startDate: string, endDate: string, calendarNames: string[], excludeGeneratedCalendars: boolean): Promise<void> {
+    const operations: Promise<unknown>[] = [this.loadAgenda(startDate, endDate, calendarNames, excludeGeneratedCalendars, true)];
+    if (this.plugin.settings.appleSyncEnabled && this.plugin.appleSync.isAvailable()) {
+      operations.push(this.plugin.syncAppleNow(false));
+    }
+    await Promise.allSettled(operations);
   }
 
   private effectiveAgendaCalendarNames(): string[] {

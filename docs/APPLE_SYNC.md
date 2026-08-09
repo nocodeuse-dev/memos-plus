@@ -1,18 +1,18 @@
-# Apple 日历与提醒事项同步
+# Apple 提醒事项与日程
 
-Memos Plus 在 macOS Obsidian 桌面端提供可选的 Apple 提醒事项或 Apple 日历双向同步。实现使用本机 `/usr/bin/osascript` 运行 JXA，直接调用系统应用；不连接第三方服务器，也不保存 Apple ID、CalDAV 地址或应用专用密码。
+Memos Plus 在 macOS Obsidian 桌面端把两类数据明确分开：Markdown 任务与 Apple Reminders 双向同步，日程工作台继续读取和创建 Apple Calendar 事件。实现使用本机 `/usr/bin/osascript` 运行 JXA，直接调用系统应用；不连接第三方服务器，也不保存 Apple ID、CalDAV 地址或应用专用密码。
 
 桌面子进程模块只在确认运行于 macOS Obsidian Desktop 后通过 CommonJS 加载；生产构建会拒绝可能被 `app://` 页面当作网络模块请求的动态 Node 导入。移动端不会加载该模块。
 
 ## 启用前准备
 
-1. 在 Apple 提醒事项或 Apple 日历中先创建一个独立的、可写的 `Memos Plus` 列表/日历。
-2. 打开 Memos Plus 设置 > 任务管理 > Apple 日历与提醒事项。
-3. 选择目标，确认列表/日历名称，保持默认同步标签 `#Apple同步` 或改成自己的标签。
+1. 在 Apple 提醒事项中先创建一个独立的、可写的 `Memos Plus` 列表，或在设置中明确点击“创建并选择 Memos Plus”。
+2. 打开 Memos Plus 设置 > 任务管理 > Apple 提醒事项同步。
+3. 确认提醒事项列表名称，保持默认同步标签 `#Apple同步` 或改成自己的标签。
 4. 点击“测试连接”。macOS 首次使用时可能要求允许 Obsidian 访问提醒事项或日历。
 5. 开启同步，再点击“立即同步”。
 
-建议使用独立列表或日历。Apple 目标中没有 Memos Plus 标识的现有项目会被视为 Apple 侧新项目，并导入到设置的 Apple 导入文件。
+建议使用独立列表。所选列表中没有 Memos Plus 标识的现有提醒事项会被视为 Apple 侧新项目，并导入到设置的 Apple 导入文件。
 
 ## Markdown 格式
 
@@ -37,13 +37,11 @@ Apple 提醒事项：
 - 标题
 - 完成/未完成
 - 截止日期；没有截止日期时使用计划日期
+- 时间，以可读的 `⏰ HH:mm` 保存在 Markdown 中
 - 高、中、低优先级映射
+- 已建立唯一映射后的双向删除
 
-Apple 日历：
-
-- 只导出有截止日期或计划日期的任务
-- 使用全天事件同步标题和日期
-- 已完成任务在日历标题前显示 `✓`；在日历中添加或移除这个前缀可同步完成状态
+Apple 日历不再作为任务同步目标。它只用于“日程与任务”中间的日/周日程，以及用户明确创建的日历事件。
 
 Apple 侧没有 Memos Plus ID 的项目会被导入为带同步标签的 Markdown 任务。导入目标默认为 `我的资源/Memos/Apple 同步.md`。
 
@@ -57,7 +55,9 @@ Apple 侧没有 Memos Plus ID 的项目会被导入为带同步标签的 Markdow
 - Markdown 优先
 - Apple 优先
 
-Memos Plus 不自动传播删除。如果 Markdown 任务、Apple 提醒事项或日历事件被删除，另一侧不会被自动删除。这样可以避免一次错误筛选或配置切换造成批量数据丢失。
+删除只对已经同时保存本地隐藏 ID 和 Apple Reminder 唯一 ID 的项目传播：删除 Markdown 任务会删除对应提醒事项，删除对应提醒事项会删除那一条 Markdown 任务。没有建立映射的历史本地任务不会被删除；移除同步标签只会暂停同步，也不会触发删除。Apple Calendar 事件不参与任务删除。
+
+工作台快速新增任务在同步已启用时会自动加入同步标签。顶部刷新按钮会同时刷新 Calendar 日程和 Reminders 任务；两个请求保持独立，任何一边失败都不会把任务写成日历事件。
 
 ## 桌面与移动端
 

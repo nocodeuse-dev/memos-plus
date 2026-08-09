@@ -19,6 +19,7 @@ export interface AppleSyncUpsertInput {
   title: string;
   completed: boolean;
   dueDate: string;
+  dueTime: string;
   priority: number;
 }
 
@@ -27,10 +28,11 @@ export interface AppleSyncBridge {
   createContainer(kind: AppleSyncTarget, name: string): Promise<AppleSyncContainerResult>;
   list(kind: AppleSyncTarget, container: string): Promise<AppleSyncRemoteItem[]>;
   upsert(input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem>;
+  remove(kind: AppleSyncTarget, container: string, remoteId: string): Promise<boolean>;
 }
 
 interface JxaRequest {
-  operation: "probe" | "create-container" | "list" | "upsert";
+  operation: "probe" | "create-container" | "list" | "upsert" | "remove";
   kind?: AppleSyncTarget;
   container?: string;
   remoteId?: string;
@@ -38,6 +40,7 @@ interface JxaRequest {
   title?: string;
   completed?: boolean;
   dueDate?: string;
+  dueTime?: string;
   priority?: number;
 }
 
@@ -48,6 +51,7 @@ function run(argv) {
   if (request.operation === "create-container") return JSON.stringify(createContainer(request));
   if (request.operation === "list") return JSON.stringify(listItems(request));
   if (request.operation === "upsert") return JSON.stringify(upsertItem(request));
+  if (request.operation === "remove") return JSON.stringify(removeItem(request));
   throw new Error("Unsupported Memos Plus Apple sync operation");
 }
 
@@ -121,6 +125,16 @@ function upsertItem(request) {
   return request.kind === "calendar" ? upsertCalendarItem(request) : upsertReminderItem(request);
 }
 
+function removeItem(request) {
+  if (request.kind !== "reminders") throw new Error("Memos Plus deletes tasks only from Apple Reminders");
+  const app = Application("Reminders");
+  const list = requiredCollection(app.lists.whose({ name: String(request.container || "") })(), "Reminders list", request.container);
+  const matches = list.reminders.whose({ id: String(request.remoteId || "") })();
+  if (matches.length === 0) return false;
+  app.delete(matches[0]);
+  return true;
+}
+
 function upsertReminderItem(request) {
   const app = Application("Reminders");
   const list = requiredCollection(app.lists.whose({ name: String(request.container || "") })(), "Reminders list", request.container);
@@ -138,9 +152,14 @@ function upsertReminderItem(request) {
   reminder.priority = Number(request.priority || 0);
   reminder.body = withLocalMarker(safeGet(function () { return reminder.body(); }), request.localId);
   if (request.dueDate) {
-    reminder.dueDate = localDate(request.dueDate);
+    reminder.alldayDueDate = localDate(request.dueDate);
+    if (request.dueTime) reminder.dueDate = localDateTime(request.dueDate, request.dueTime);
+    else {
+      try { reminder.dueDate = null; } catch (_) {}
+    }
   } else {
     try { reminder.dueDate = null; } catch (_) {}
+    try { reminder.alldayDueDate = null; } catch (_) {}
   }
   return reminderRecord(reminder, list.name());
 }
@@ -180,13 +199,15 @@ function upsertCalendarItem(request) {
 
 function reminderRecord(item, containerName) {
   const due = safeDate(function () { return item.dueDate(); });
+  const allDayDue = safeDate(function () { return item.alldayDueDate(); });
   return {
     kind: "reminders",
     id: String(item.id()),
     localId: localIdFromNotes(safeGet(function () { return item.body(); })),
     title: safeGet(function () { return item.name(); }),
     completed: Boolean(item.completed()),
-    dueDate: due ? localDateString(due) : "",
+    dueDate: allDayDue ? localDateString(allDayDue) : (due ? localDateString(due) : ""),
+    dueTime: due ? localTimeString(due) : "",
     priority: Number(item.priority() || 0),
     modifiedAt: safeIso(function () { return item.modificationDate(); }),
     notes: safeGet(function () { return item.body(); }),
@@ -204,6 +225,7 @@ function calendarRecord(item, containerName) {
     title: title,
     completed: /^✓\s*/.test(title),
     dueDate: start ? localDateString(start) : "",
+    dueTime: "",
     priority: 0,
     modifiedAt: safeIso(function () { return item.stampDate(); }),
     notes: safeGet(function () { return item.description(); }),
@@ -240,8 +262,18 @@ function localDate(value) {
   return new Date(parts[0], parts[1] - 1, parts[2], 9, 0, 0, 0);
 }
 
+function localDateTime(dateValue, timeValue) {
+  const date = String(dateValue).split("-").map(Number);
+  const time = String(timeValue || "").split(":").map(Number);
+  return new Date(date[0], date[1] - 1, date[2], time[0] || 0, time[1] || 0, 0, 0);
+}
+
 function localDateString(value) {
   return [value.getFullYear(), pad(value.getMonth() + 1), pad(value.getDate())].join("-");
+}
+
+function localTimeString(value) {
+  return [pad(value.getHours()), pad(value.getMinutes())].join(":");
 }
 
 function pad(value) { return String(value).padStart(2, "0"); }
@@ -275,6 +307,10 @@ export class MacOsAppleSyncBridge implements AppleSyncBridge {
 
   async upsert(input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem> {
     return this.run<AppleSyncRemoteItem>({ operation: "upsert", ...input });
+  }
+
+  async remove(kind: AppleSyncTarget, container: string, remoteId: string): Promise<boolean> {
+    return this.run<boolean>({ operation: "remove", kind, container, remoteId });
   }
 
   private async run<T>(request: JxaRequest): Promise<T> {

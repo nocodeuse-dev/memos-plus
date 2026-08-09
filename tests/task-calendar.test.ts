@@ -174,6 +174,8 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("renderMiniCalendar");
     expect(viewSource).toContain("calendarEventLocalDate(event.start)");
     expect(viewSource).toContain("createTaskCalendarInboxTask(eventTaskText(selectedEvent), calendarEventLocalDate(selectedEvent.start))");
+    expect(viewSource).toContain("refreshScheduleAndTasks");
+    expect(viewSource).toContain("this.plugin.syncAppleNow(false)");
   });
 
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {
