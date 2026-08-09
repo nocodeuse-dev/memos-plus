@@ -308,7 +308,7 @@ export default class MemosPlusPlugin extends Plugin {
   async openTaskCalendar(options?: TaskCalendarOpenOptions): Promise<void> {
     const leaf = await this.activateTaskCalendarView();
     if (!(leaf?.view instanceof TaskCalendarView)) return;
-    if (options) leaf.view.open(options);
+    if (options) leaf.view.applyOpenOptions(options);
     else leaf.view.openDefault();
   }
 

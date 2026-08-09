@@ -214,6 +214,12 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(renderMethod).toContain("Failed to render Schedule and Tasks");
   });
 
+  it("does not override Obsidian View.open when applying unified task navigation", () => {
+    expect(viewSource).not.toMatch(/\n\s*open\(options:\s*TaskCalendarOpenOptions/);
+    expect(viewSource).toContain("applyOpenOptions(options: TaskCalendarOpenOptions = {})");
+    expect(mainSource).toContain("leaf.view.applyOpenOptions(options)");
+  });
+
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {
     expect(mainSource).toContain("MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE");
     expect(mainSource).toContain('id: "open-task-calendar"');

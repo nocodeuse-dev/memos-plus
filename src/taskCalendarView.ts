@@ -98,23 +98,23 @@ export class TaskCalendarView extends ItemView {
   }
 
   openToday(): void {
-    this.open({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" });
+    this.applyOpenOptions({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" });
   }
 
   openInbox(): void {
-    this.open({ navigation: "inbox", focusQuickTask: true });
+    this.applyOpenOptions({ navigation: "inbox", focusQuickTask: true });
   }
 
   openDefault(): void {
     const navigation = this.plugin.settings.taskCalendar.defaultView;
-    this.open({ navigation, viewMode: navigation === "week" ? "week" : this.plugin.settings.taskCalendar.viewMode });
+    this.applyOpenOptions({ navigation, viewMode: navigation === "week" ? "week" : this.plugin.settings.taskCalendar.viewMode });
   }
 
   openAll(): void {
-    this.open({ navigation: "all" });
+    this.applyOpenOptions({ navigation: "all" });
   }
 
-  open(options: TaskCalendarOpenOptions = {}): void {
+  applyOpenOptions(options: TaskCalendarOpenOptions = {}): void {
     this.taskQuery = options.query?.trim().toLocaleLowerCase() ?? "";
     this.taskPriority = options.priority ?? "all";
     this.taskProject = options.project ?? null;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.269 - Unreleased
+
+- 修复“日程与任务”工作台只出现标签页、整个内容区空白的问题：任务入口统一时新增的 `TaskCalendarView.open(options)` 覆盖了 Obsidian View 自身的 `open()` 生命周期方法，导致 View 一直处于未加载状态，`onOpen()` 和页面渲染均未执行。导航方法现已改为独立命名，不再阻断桌面端与移动端的 View 装载流程。
+- 保留日历与提醒事项的隔离式加载：Apple Calendar 或 Reminders 不可用时只显示对应状态，不影响工作台主体、任务列表和空状态渲染。
+
 ## 0.1.268 - Unreleased
 
 - 修复 0.1.267 中工作台状态字段误用 `opened`，与 Obsidian `ItemView` 的内部生命周期字段同名，导致框架把“日程与任务”View 留在未打开状态：标签存在，但 `onOpen()` 从未执行，内容节点未接入 DOM 并保持 0 × 0。
