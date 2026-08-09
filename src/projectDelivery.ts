@@ -95,6 +95,7 @@ export async function selectProjectTarget(
   const modalOptions: ProjectSendModalOptions = {
     language: host.settings.language,
     content,
+    smartSendPriorityTags: host.settings.smartSendPriorityTags,
     defaultHeading: host.settings.defaultProjectSection,
     initialMode,
     taskSettings: {

@@ -163,10 +163,15 @@ describe("project send modal source", () => {
     const modeTabsSource = modalSource.slice(modalSource.indexOf("private renderModeTabs"), modalSource.indexOf("private visibleTabIds"));
 
     expect(modalSource).toContain('const FIXED_SEND_TABS: SendMode[] = ["smart", "search"];');
-    expect(modalSource).toContain("loadSmartSendRecommendations(this.options.content");
-    expect(modalSource).toContain("this.renderFileListItems(list, recommendations.files");
-    expect(mobilePanelSource).toContain("loadSmartSendRecommendations(options.content");
+    expect(modalSource).toContain("loadSmartSendRecommendations(");
+    expect(modalSource).toContain("recommendations.files,");
+    expect(modalSource).toContain("this.options.smartSendPriorityTags");
+    expect(modalSource).toContain("getSmartSendMatchedPriorityTags(info, priorityTags)");
+    expect(mobilePanelSource).toContain("loadSmartSendRecommendations(");
     expect(mobilePanelSource).toContain("this.renderFileOptions(list, recommendations.files");
+    expect(mobilePanelSource).toContain("options.smartSendPriorityTags");
+    expect(mobilePanelSource).toContain("getSmartSendMatchedPriorityTags(info, priorityTags)");
+    expect(deliverySource).toContain("smartSendPriorityTags: host.settings.smartSendPriorityTags");
     expect(smartSendSource).not.toMatch(/fetch\(|embedding|openai|vault\.read/i);
     expect(modalSource).not.toContain('"project", "tag", "recent", "search"');
     expect(modalSource).not.toContain("renderProjectList");

@@ -43,7 +43,7 @@ import {
   type TemplateTaskDecision
 } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
-import { loadSmartSendRecommendations, type SmartSendRecommendations } from "./smartSend";
+import { getSmartSendMatchedPriorityTags, loadSmartSendRecommendations, type SmartSendRecommendations } from "./smartSend";
 
 export type ProjectSendInitialMode = "project" | "tag" | "recent" | "search";
 type SendMode = "smart" | "search" | "custom-tag";
@@ -80,6 +80,7 @@ export interface ProjectSendTaskSettings {
 export interface ProjectSendModalOptions {
   language: Language;
   content: string;
+  smartSendPriorityTags: string[];
   defaultHeading: string;
   initialMode?: ProjectSendInitialMode;
   taskSettings: ProjectSendTaskSettings;
@@ -1088,7 +1089,11 @@ export class ProjectSendModal extends Modal {
   }
 
   private smartSendRecommendationsCached(): Promise<SmartSendRecommendations> {
-    this.smartSendPromise ??= loadSmartSendRecommendations(this.options.content, (query) => this.searchFilesCached(query));
+    this.smartSendPromise ??= loadSmartSendRecommendations(
+      this.options.content,
+      (query) => this.searchFilesCached(query),
+      this.options.smartSendPriorityTags
+    );
     return this.smartSendPromise;
   }
 
@@ -1120,7 +1125,15 @@ export class ProjectSendModal extends Modal {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.smartNoFiles") });
       return;
     }
-    this.renderFileListItems(list, recommendations.files, () => void this.renderSmartSend(), undefined, "", false);
+    this.renderFileListItems(
+      list,
+      recommendations.files,
+      () => void this.renderSmartSend(),
+      undefined,
+      "",
+      false,
+      this.options.smartSendPriorityTags
+    );
   }
 
   private async renderFileSearch(): Promise<void> {
@@ -1226,7 +1239,15 @@ export class ProjectSendModal extends Modal {
     this.renderFileListItems(list, files, refresh, back, createTag);
   }
 
-  private renderFileListItems(list: HTMLElement, files: TaggedFileInfo[], refresh: () => void, back?: () => void, createTag = "", showInlineCreate = true): void {
+  private renderFileListItems(
+    list: HTMLElement,
+    files: TaggedFileInfo[],
+    refresh: () => void,
+    back?: () => void,
+    createTag = "",
+    showInlineCreate = true,
+    priorityTags: string[] = []
+  ): void {
     const lang = this.options.language;
     if (files.length === 0) {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "fileSend.noFiles") });
@@ -1235,16 +1256,17 @@ export class ProjectSendModal extends Modal {
       }
     }
     for (const info of files.slice(0, this.modalResultLimit())) {
-      const button = this.renderFileInfoOption(list, info);
+      const button = this.renderFileInfoOption(list, info, priorityTags);
       button.addEventListener("click", () => void withMobileClickLock(button, () => this.renderHeadingPicker(info, refresh, back)));
     }
   }
 
-  private renderFileInfoOption(container: HTMLElement, info: TaggedFileInfo): HTMLButtonElement {
+  private renderFileInfoOption(container: HTMLElement, info: TaggedFileInfo, priorityTags: string[] = []): HTMLButtonElement {
+    const matchedTags = getSmartSendMatchedPriorityTags(info, priorityTags).map((tag) => `#${tag}`);
     return this.renderSendListOption(container, {
       title: info.name,
       icon: "file-text",
-      metaParts: this.fileMetaParts(info),
+      metaParts: [...matchedTags, ...this.fileMetaParts(info)],
       titleAttr: info.path
     });
   }

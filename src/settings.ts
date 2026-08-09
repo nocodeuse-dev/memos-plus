@@ -140,6 +140,7 @@ import type { MemoDefaultPrefix } from "./prefix";
 import { normalizeProjectTag } from "./projectSend";
 import { normalizeSavedSearches, type SavedSearch } from "./savedSearch";
 import { normalizeSidebarItems, type SidebarItem } from "./sidebar";
+import { DEFAULT_SMART_SEND_PRIORITY_TAGS, normalizeSmartSendPriorityTags } from "./smartSend";
 import { normalizeTaskDate, normalizeTaskPriority, normalizeTaskRecurrence, type TaskPriority, type TaskRecurrence } from "./tasksFormat";
 import { DEFAULT_TASK_CALENDAR_SETTINGS, normalizeTaskCalendarSettings, type TaskCalendarSettings } from "./taskCalendar";
 import type { TaskIndexStatus } from "./taskIndex";
@@ -251,6 +252,7 @@ export interface MemosPlusSettings {
   sendToFileEnabled: boolean;
   sendToFileDefaultTag: string;
   sendToFileCommonTags: string[];
+  smartSendPriorityTags: string[];
   projectSendTagTabs: string[];
   projectSendTabOrder: string[];
   projectSendHiddenTabs: string[];
@@ -388,6 +390,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   sendToFileEnabled: true,
   sendToFileDefaultTag: "",
   sendToFileCommonTags: DEFAULT_SEND_TO_FILE_COMMON_TAGS,
+  smartSendPriorityTags: DEFAULT_SMART_SEND_PRIORITY_TAGS,
   projectSendTagTabs: [],
   projectSendTabOrder: ["smart", "search"],
   projectSendHiddenTabs: [],
@@ -675,6 +678,9 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     sendToFileEnabled: typeof raw.sendToFileEnabled === "boolean" ? raw.sendToFileEnabled : DEFAULT_SETTINGS.sendToFileEnabled,
     sendToFileDefaultTag: normalizeFileTag(raw.sendToFileDefaultTag),
     sendToFileCommonTags: normalizeSendToFileCommonTags(raw.sendToFileCommonTags),
+    smartSendPriorityTags: raw.smartSendPriorityTags === undefined
+      ? [...DEFAULT_SMART_SEND_PRIORITY_TAGS]
+      : normalizeSmartSendPriorityTags(raw.smartSendPriorityTags),
     projectSendTagTabs,
     projectSendTabOrder: normalizeProjectSendTabOrder(raw.projectSendTabOrder, fileTemplateTabs),
     projectSendHiddenTabs: normalizeProjectSendHiddenTabs(raw.projectSendHiddenTabs, fileTemplateTabs),
@@ -3238,6 +3244,69 @@ export class MemosPlusSettingTab extends PluginSettingTab {
             await this.plugin.persistSettings();
           });
       });
+    this.renderSmartSendPriorityTagSettings(container);
+  }
+
+  private renderSmartSendPriorityTagSettings(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    this.renderSectionHeader(container, "settings.smartSend", "settings.smartSendDesc");
+    const tags = normalizeSmartSendPriorityTags(this.plugin.settings.smartSendPriorityTags);
+    for (const [index, tag] of tags.entries()) {
+      const setting = new Setting(container)
+        .setName(`#${tag}`)
+        .setDesc(t(lang, "settings.smartSendPriorityRank").replace("{rank}", String(index + 1)));
+      setting.addButton((button) => {
+        button.setButtonText("↑").setDisabled(index === 0).onClick(async () => {
+          await this.moveSmartSendPriorityTag(index, -1);
+        });
+      });
+      setting.addButton((button) => {
+        button.setButtonText("↓").setDisabled(index === tags.length - 1).onClick(async () => {
+          await this.moveSmartSendPriorityTag(index, 1);
+        });
+      });
+      setting.addButton((button) => {
+        button.setButtonText(t(lang, "settings.projectSendTabDelete")).onClick(async () => {
+          this.plugin.settings.smartSendPriorityTags = tags.filter((_, itemIndex) => itemIndex !== index);
+          await this.plugin.persistSettings();
+          this.display();
+        });
+      });
+    }
+
+    let addInput: HTMLInputElement | null = null;
+    new Setting(container)
+      .setName(t(lang, "settings.smartSendPriorityTags"))
+      .setDesc(t(lang, "settings.smartSendPriorityTagsDesc"))
+      .addText((text) => {
+        text.setPlaceholder(t(lang, "settings.smartSendPriorityTagPlaceholder"));
+        addInput = text.inputEl;
+      })
+      .addButton((button) => {
+        button.setButtonText(t(lang, "settings.projectSendTabAddButton")).onClick(async () => {
+          const nextTags = normalizeSmartSendPriorityTags([...tags, addInput?.value ?? ""]);
+          if (nextTags.length === tags.length) {
+            return;
+          }
+          this.plugin.settings.smartSendPriorityTags = nextTags;
+          await this.plugin.persistSettings();
+          this.display();
+        });
+      });
+  }
+
+  private async moveSmartSendPriorityTag(index: number, delta: number): Promise<void> {
+    const tags = normalizeSmartSendPriorityTags(this.plugin.settings.smartSendPriorityTags);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= tags.length) {
+      return;
+    }
+    const next = [...tags];
+    const [tag] = next.splice(index, 1);
+    next.splice(target, 0, tag);
+    this.plugin.settings.smartSendPriorityTags = next;
+    await this.plugin.persistSettings();
+    this.display();
   }
 
   private renderProjectSendTabSettings(container: HTMLElement): void {

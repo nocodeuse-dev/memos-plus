@@ -2,17 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 import type { TaggedFileInfo } from "../src/fileSend";
 import {
   analyzeSmartSendContent,
+  getSmartSendMatchedPriorityTags,
   loadSmartSendRecommendations,
+  normalizeSmartSendPriorityTags,
   rankSmartSendFileInfos,
   type SmartSendAnalysis
 } from "../src/smartSend";
 
-function file(name: string, path = `${name}.md`, updatedAt = 0): TaggedFileInfo {
+function file(name: string, path = `${name}.md`, updatedAt = 0, tags: string[] = []): TaggedFileInfo {
   return {
     file: { path, basename: name } as never,
     name,
     path,
-    tags: [],
+    tags,
     matchTags: [],
     updatedAt
   };
@@ -45,6 +47,47 @@ describe("smart send", () => {
         analysis
       ).map((item) => item.name)
     ).toEqual(["内侧半月板撕裂", "半月板-囊肿归档", "半月板资料"]);
+  });
+
+  it("uses ordered priority tags only as a boost among relevant files", () => {
+    const analysis: SmartSendAnalysis = {
+      sourceTexts: [],
+      phrases: [],
+      keywords: ["半月板"]
+    };
+    const ranked = rankSmartSendFileInfos(
+      [
+        file("半月板普通资料"),
+        file("半月板解剖资料", "解剖/半月板解剖资料.md", 0, ["解剖结构"]),
+        file("半月板疾病资料", "疾病/半月板疾病资料.md", 0, ["病/膝关节"]),
+        file("肩袖损伤", "疾病/肩袖损伤.md", 0, ["病"])
+      ],
+      analysis,
+      ["病", "解剖结构"]
+    );
+
+    expect(ranked.map((item) => item.name)).toEqual(["半月板疾病资料", "半月板解剖资料", "半月板普通资料"]);
+    expect(getSmartSendMatchedPriorityTags(ranked[0], ["病", "解剖结构"])).toEqual(["病"]);
+  });
+
+  it("keeps stronger filename relevance ahead of a weaker tagged match", () => {
+    const analysis: SmartSendAnalysis = {
+      sourceTexts: [],
+      phrases: ["内侧半月板撕裂"],
+      keywords: ["半月板", "撕裂"]
+    };
+
+    expect(
+      rankSmartSendFileInfos(
+        [file("内侧半月板撕裂"), file("半月板普通资料", "疾病/半月板普通资料.md", 0, ["病"])],
+        analysis,
+        ["病"]
+      ).map((item) => item.name)
+    ).toEqual(["内侧半月板撕裂", "半月板普通资料"]);
+  });
+
+  it("normalizes editable priority tags while preserving their order", () => {
+    expect(normalizeSmartSendPriorityTags("#病\n 解剖结构\n病\n治疗")).toEqual(["病", "解剖结构", "治疗"]);
   });
 
   it("reuses the provided filename/path search callback and deduplicates its results", async () => {

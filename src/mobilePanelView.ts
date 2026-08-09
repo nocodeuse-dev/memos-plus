@@ -26,7 +26,7 @@ import { findManagedTemplateForHeading, resolveTemplateTaskDecision, shouldPromp
 import type { ProjectTaskOptions, TaskContentMode } from "./tasksFormat";
 import type MemosPlusPlugin from "../main";
 import { logMemosPlusDiagnostic } from "./diagnostics";
-import { loadSmartSendRecommendations, type SmartSendRecommendations } from "./smartSend";
+import { getSmartSendMatchedPriorityTags, loadSmartSendRecommendations, type SmartSendRecommendations } from "./smartSend";
 
 export const MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE = "memos-plus-mobile-panel";
 
@@ -368,7 +368,11 @@ export class MemosPlusMobilePanelView extends ItemView {
       return;
     }
     const token = this.nextRenderToken();
-    this.smartSendPromise ??= loadSmartSendRecommendations(options.content, (query) => this.searchFilesCached(query));
+    this.smartSendPromise ??= loadSmartSendRecommendations(
+      options.content,
+      (query) => this.searchFilesCached(query),
+      options.smartSendPriorityTags
+    );
     let recommendations: SmartSendRecommendations;
     try {
       recommendations = await this.smartSendPromise;
@@ -391,7 +395,7 @@ export class MemosPlusMobilePanelView extends ItemView {
       list.createDiv({ cls: "memos-plus-project-empty", text: t(options.language, "fileSend.smartNoFiles") });
       return;
     }
-    this.renderFileOptions(list, recommendations.files.slice(0, MOBILE_RESULT_LIMIT));
+    this.renderFileOptions(list, recommendations.files.slice(0, MOBILE_RESULT_LIMIT), options.smartSendPriorityTags);
   }
 
   private async renderSearchResults(list: HTMLElement): Promise<void> {
@@ -516,14 +520,15 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.renderFileOptions(list, shown);
   }
 
-  private renderFileOptions(list: HTMLElement, files: TaggedFileInfo[]): void {
+  private renderFileOptions(list: HTMLElement, files: TaggedFileInfo[], priorityTags: string[] = []): void {
     for (const info of files) {
       const button = list.createEl("button", { cls: "memos-plus-project-option", attr: { type: "button" } });
       button.setAttr("title", `${info.name}\n${info.path}`);
       const title = button.createDiv({ cls: "memos-plus-project-option-title" });
       setIcon(title.createSpan({ cls: "memos-plus-file-target-icon" }), "file-text");
       title.createSpan({ cls: "memos-plus-project-option-title-text", text: info.name });
-      const meta = [info.status ?? "", compactFilePath(info.path), formatUpdatedAt(info.updatedAt)].filter(Boolean);
+      const matchedTags = getSmartSendMatchedPriorityTags(info, priorityTags).map((tag) => `#${tag}`);
+      const meta = [...matchedTags, info.status ?? "", compactFilePath(info.path), formatUpdatedAt(info.updatedAt)].filter(Boolean);
       if (meta.length > 0) {
         title.createSpan({ cls: "memos-plus-project-option-meta-inline", text: meta.join(" · ") });
       }

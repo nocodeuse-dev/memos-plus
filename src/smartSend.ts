@@ -2,6 +2,7 @@ import type { TaggedFileInfo } from "./fileSend";
 
 const MAX_SMART_SEND_KEYWORDS = 8;
 const MAX_SMART_SEND_RESULTS = 50;
+export const DEFAULT_SMART_SEND_PRIORITY_TAGS = ["病", "解剖结构"];
 const GENERIC_PHRASES = new Set([
   "典型病例",
   "病例",
@@ -67,7 +68,8 @@ export function analyzeSmartSendContent(content: string): SmartSendAnalysis {
 
 export async function loadSmartSendRecommendations(
   content: string,
-  searchFiles: (query: string) => Promise<TaggedFileInfo[]>
+  searchFiles: (query: string) => Promise<TaggedFileInfo[]>,
+  priorityTags: string[] = []
 ): Promise<SmartSendRecommendations> {
   const analysis = analyzeSmartSendContent(content);
   if (analysis.keywords.length === 0) {
@@ -80,13 +82,18 @@ export async function loadSmartSendRecommendations(
   }
   return {
     analysis,
-    files: rankSmartSendFileInfos([...byPath.values()], analysis).slice(0, MAX_SMART_SEND_RESULTS)
+    files: rankSmartSendFileInfos([...byPath.values()], analysis, priorityTags).slice(0, MAX_SMART_SEND_RESULTS)
   };
 }
 
-export function rankSmartSendFileInfos(files: TaggedFileInfo[], analysis: SmartSendAnalysis): TaggedFileInfo[] {
+export function rankSmartSendFileInfos(
+  files: TaggedFileInfo[],
+  analysis: SmartSendAnalysis,
+  priorityTags: string[] = []
+): TaggedFileInfo[] {
   const keywords = analysis.keywords.map(normalizeForMatch).filter(Boolean);
   const phrases = analysis.phrases.map(normalizeForMatch).filter(Boolean);
+  const normalizedPriorityTags = normalizeSmartSendPriorityTags(priorityTags);
   return files
     .map((file) => {
       const name = normalizeForMatch(file.name);
@@ -94,15 +101,23 @@ export function rankSmartSendFileInfos(files: TaggedFileInfo[], analysis: SmartS
       const matchedKeywords = keywords.filter((keyword) => target.includes(keyword));
       const matchedPhrases = phrases.filter((phrase) => target.includes(phrase));
       const exactNamePhrase = matchedPhrases.some((phrase) => name === phrase);
+      const exactNameKeyword = matchedKeywords.some((keyword) => name === keyword);
       const longestPhrase = matchedPhrases.reduce((max, phrase) => Math.max(max, phrase.length), 0);
       const tier = matchedPhrases.length > 0 ? 3 : matchedKeywords.length > 1 ? 2 : matchedKeywords.length === 1 ? 1 : 0;
-      return { file, tier, exactNamePhrase, longestPhrase, matchedCount: matchedKeywords.length };
+      const matchedPriorityTags = getSmartSendMatchedPriorityTags(file, normalizedPriorityTags);
+      const priorityWeight = matchedPriorityTags.length > 0
+        ? normalizedPriorityTags.length - normalizedPriorityTags.indexOf(matchedPriorityTags[0])
+        : 0;
+      return { file, tier, exactNamePhrase, exactNameKeyword, longestPhrase, matchedCount: matchedKeywords.length, matchedPriorityTags, priorityWeight };
     })
     .filter((item) => item.tier > 0)
     .sort(
       (left, right) =>
         right.tier - left.tier ||
         Number(right.exactNamePhrase) - Number(left.exactNamePhrase) ||
+        Number(right.exactNameKeyword) - Number(left.exactNameKeyword) ||
+        right.priorityWeight - left.priorityWeight ||
+        right.matchedPriorityTags.length - left.matchedPriorityTags.length ||
         right.longestPhrase - left.longestPhrase ||
         right.matchedCount - left.matchedCount ||
         right.file.updatedAt - left.file.updatedAt ||
@@ -110,6 +125,29 @@ export function rankSmartSendFileInfos(files: TaggedFileInfo[], analysis: SmartS
         left.file.path.localeCompare(right.file.path)
     )
     .map((item) => item.file);
+}
+
+export function normalizeSmartSendPriorityTags(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,，]+/) : [];
+  const tags: string[] = [];
+  for (const item of source) {
+    if (typeof item !== "string") {
+      continue;
+    }
+    const tag = item.trim().replace(/^#+/, "").replace(/\s+/g, "");
+    if (tag && !tags.includes(tag)) {
+      tags.push(tag);
+    }
+  }
+  return tags;
+}
+
+export function getSmartSendMatchedPriorityTags(file: TaggedFileInfo, priorityTags: string[]): string[] {
+  const fileTags = file.tags.map(normalizeTagForMatch).filter(Boolean);
+  return normalizeSmartSendPriorityTags(priorityTags).filter((priorityTag) => {
+    const normalizedPriority = normalizeTagForMatch(priorityTag);
+    return fileTags.some((fileTag) => fileTag === normalizedPriority || fileTag.startsWith(`${normalizedPriority}/`));
+  });
 }
 
 function extractMarkdownLinkLabels(content: string): string[] {
@@ -179,6 +217,10 @@ function isUsefulPhrase(value: string): boolean {
 
 function normalizeForMatch(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase().replace(/[\s_./\\-]+/g, "");
+}
+
+function normalizeTagForMatch(value: string): string {
+  return value.normalize("NFKC").toLocaleLowerCase().trim().replace(/^#+/, "").replace(/\s+/g, "");
 }
 
 function uniqueStrings(values: string[]): string[] {

@@ -212,6 +212,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `sendToFileEnabled`：发送到文件功能开关。
 - `sendToFileDefaultTag`：发送到文件默认标签。
 - `sendToFileCommonTags`：发送到文件常用标签。
+- `smartSendPriorityTags`：智能发送排序加权标签，按数组顺序从高到低；只使用 `TaggedFileInfo.tags` 中已有的 metadataCache 标签，不过滤候选文件。
 - `sendToFileDefaultInsertPosition`：默认插入位置。
 - `sendToFileNoHeadingBehavior`：无标题文件处理方式。
 - `recentFileTargetPaths`：最近投递文件路径。
@@ -445,7 +446,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
    - `fixed-file`：直接进入固定文件标题选择。
    - `default-memo`：只显示“默认发送”，调用普通 memo 保存。
 8. 弹窗支持模式：
-   - 智能发送：`src/smartSend.ts` 优先提取 Markdown 链接显示文字中的短语和关键词，通过既有 `onSearchFiles()` 搜索文件名/路径并按完整短语、多关键词、单关键词排序，结果继续进入 `renderHeadingPicker()`。
+   - 智能发送：`src/smartSend.ts` 优先提取 Markdown 链接显示文字中的短语和关键词，通过既有 `onSearchFiles()` 搜索文件名/路径并按完整短语、多关键词、单关键词排序；同一相关性层级再按 `smartSendPriorityTags` 与候选文件已有标签加权，结果继续进入 `renderHeadingPicker()`。
    - 项目：`renderProjectList()`。
    - 标签文件：`renderTagPicker()` -> `renderTaggedFiles()` -> `renderHeadingPicker()`。
    - 最近：`renderRecentFiles()`。

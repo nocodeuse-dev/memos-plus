@@ -238,6 +238,8 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.sendToFileEnabled).toBe(true);
     expect(DEFAULT_SETTINGS.sendToFileDefaultTag).toBe("");
     expect(DEFAULT_SETTINGS.sendToFileCommonTags).toEqual(["病", "插件", "病例", "医学", "康复", "资料"]);
+    expect(DEFAULT_SETTINGS.smartSendPriorityTags).toEqual(["病", "解剖结构"]);
+    expect(normalizeSettings({ smartSendPriorityTags: [] }).smartSendPriorityTags).toEqual([]);
     expect(DEFAULT_SETTINGS.projectSendTagTabs).toEqual([]);
     expect(DEFAULT_SETTINGS.projectSendTabOrder).toEqual(["smart", "search"]);
     expect(DEFAULT_SETTINGS.projectSendHiddenTabs).toEqual([]);
@@ -651,6 +653,7 @@ describe("normalizeSettings", () => {
         sendToFileEnabled: false,
         sendToFileDefaultTag: " 病 ",
         sendToFileCommonTags: ["#病", " 插件 ", "", "#医学/疾病"],
+        smartSendPriorityTags: ["#治疗", " 检查 ", "治疗", "康复"],
         projectSendTagTabs: ["#病", " 插件 ", "", "#病", "#医学/疾病"],
         projectSendTabOrder: ["search", "custom:插件", "project", "bad", "tag", "search"],
         projectSendHiddenTabs: ["recent", "custom:医学/疾病", "bad", "recent"],
@@ -695,6 +698,7 @@ describe("normalizeSettings", () => {
       sendToFileEnabled: false,
       sendToFileDefaultTag: "病",
       sendToFileCommonTags: ["病", "插件", "医学/疾病"],
+      smartSendPriorityTags: ["治疗", "检查", "康复"],
       projectSendTagTabs: ["病", "插件", "医学/疾病"],
       projectSendTabOrder: ["smart", "search", "custom:tag-medical", "custom:group-common", "custom:group-收藏"],
       projectSendHiddenTabs: [],
@@ -940,6 +944,16 @@ describe("normalizeSettings", () => {
       taskDefaultRecurrence: "none"
     });
     expect(normalizeSettings({}).taskPromptOnCreate).toBe(true);
+  });
+});
+
+describe("smart send priority tag settings", () => {
+  it("renders ordered add, move, and delete controls", () => {
+    expect(settingsSource).toContain("private renderSmartSendPriorityTagSettings");
+    expect(settingsSource).toContain("private async moveSmartSendPriorityTag");
+    expect(settingsSource).toContain('button.setButtonText("↑")');
+    expect(settingsSource).toContain('button.setButtonText("↓")');
+    expect(settingsSource).toContain('setName(t(lang, "settings.smartSendPriorityTags"))');
   });
 });
 
