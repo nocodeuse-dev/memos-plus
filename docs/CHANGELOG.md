@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.264 - Unreleased
+
+- 轻量强化 Obsidian 右下角“任务管理”状态栏入口：保留现有 `list-todo` 图标与工具栏风格，增加低饱和强调色背景、边框以及明确的悬停、键盘聚焦和按下状态。
+- 桌面端点击热区扩大到约 34 × 30px，触屏设备扩大到约 42 × 38px，并使用布局补偿避免明显抬高状态栏；不添加阴影、动画或 JavaScript 视觉逻辑。
+
 ## 0.1.263 - Unreleased
 
 - “日程与任务”的任务同步固定使用 Apple Reminders，日程继续独立使用 Apple Calendar；旧设置即使曾选择 Calendar，也不会再把 Markdown 任务写成日历事件。

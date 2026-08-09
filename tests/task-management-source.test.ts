@@ -17,6 +17,22 @@ describe("task management floating entry source integration", () => {
     expect(viewSource).not.toContain("renderFloatingActions");
   });
 
+  it("keeps the status-bar entry lightweight, emphasized and touch friendly", () => {
+    const start = stylesSource.indexOf(".status-bar-item.memos-plus-task-status-item {");
+    const end = stylesSource.indexOf(".memos-plus-shell.is-composer-focused", start);
+    const entryStyles = stylesSource.slice(start, end);
+    expect(entryStyles).toContain("min-width: 34px;");
+    expect(entryStyles).toContain("min-height: 30px;");
+    expect(entryStyles).toContain("background-color: color-mix");
+    expect(entryStyles).toContain(".status-bar-item.memos-plus-task-status-item:active");
+    expect(entryStyles).toContain("@media (pointer: coarse)");
+    expect(entryStyles).toContain("min-width: 42px;");
+    expect(entryStyles).toContain("min-height: 38px;");
+    expect(entryStyles).not.toContain("box-shadow");
+    expect(entryStyles).not.toContain("transition:");
+    expect(entryStyles).not.toContain("animation:");
+  });
+
   it("uses the existing task index with bounded rendering and mobile modal cleanup", () => {
     expect(modalSource).toContain("options.taskIndex.getItems()");
     expect(modalSource).toContain("filtered.slice(0, this.visibleCount)");
