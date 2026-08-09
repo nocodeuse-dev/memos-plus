@@ -3158,6 +3158,15 @@
   margin-top: 14px;
 }
 
+.memos-plus-task-target-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.memos-plus-task-target-fields.is-hidden {
+  display: none;
+}
+
 .memos-plus-task-option-field {
   display: grid;
   grid-template-columns: minmax(96px, 0.45fr) minmax(0, 1fr);

@@ -9,14 +9,17 @@ import {
   normalizeAppleSyncState,
   remoteAppleSyncSignature,
   resolveAppleSyncDirection,
+  shouldSyncCalendarTask,
   shouldSyncTask,
   taskPriorityToApple,
   taskTimeForApple,
+  taskReminderForApple,
   taskTitleForApple,
   updateTaskLineFromApple,
   type AppleSyncRecord,
   type AppleSyncRemoteItem
 } from "./appleSync";
+import { parseMemosPlusTaskMetadata } from "./tasksFormat";
 import { isMacOsDesktopRuntime, type AppleSyncBridge, type AppleSyncProbeResult } from "./appleSyncBridge";
 import type { MemosPlusSettings } from "./settings";
 import type { TaskIndex, TaskIndexItem } from "./taskIndex";
@@ -99,7 +102,7 @@ export class AppleSyncService {
 
       await this.options.taskIndex.rebuild();
       let localTasks = this.options.taskIndex.getItems().filter((task) => shouldSyncTask(task, settings.appleSyncTag));
-      localTasks = await this.ensureLocalIds(localTasks);
+      localTasks = await this.ensureLocalIds(localTasks, (task) => shouldSyncTask(task, settings.appleSyncTag));
 
       let allLocalById = localTasksById(this.options.taskIndex.getItems());
       const indexStatus = this.options.taskIndex.getStatus();
@@ -204,12 +207,18 @@ export class AppleSyncService {
           completed: remote.completed,
           dueDate: remote.dueDate,
           dueTime: remote.dueTime,
+          reminderDate: remote.reminderDate,
+          reminderTime: remote.reminderTime,
+          reminderMinutesBefore: remote.reminderMinutesBefore,
+          allDay: remote.allDay,
           priority: remote.priority
         });
         const signature = remoteAppleSyncSignature(linkedRemote);
         state.records[appleSyncRecordKey(kind, localId)] = syncedRecord(localId, linkedRemote, signature);
         result.imported += 1;
       }
+
+      await this.syncCalendarTasks(state, result);
 
       state.lastSyncAt = new Date().toISOString();
       state.lastError = "";
@@ -225,7 +234,7 @@ export class AppleSyncService {
     }
   }
 
-  private async ensureLocalIds(tasks: TaskIndexItem[]): Promise<TaskIndexItem[]> {
+  private async ensureLocalIds(tasks: TaskIndexItem[], predicate: (task: TaskIndexItem) => boolean): Promise<TaskIndexItem[]> {
     const seen = new Set<string>();
     const changes = new Map<string, Array<{ lineNumber: number; line: string; replacement: string }>>();
     for (const task of tasks) {
@@ -259,12 +268,13 @@ export class AppleSyncService {
       });
       await this.options.taskIndex.updateFile(file);
     }
-    return this.options.taskIndex.getItems().filter((task) => shouldSyncTask(task, this.options.getSettings().appleSyncTag));
+    return this.options.taskIndex.getItems().filter(predicate);
   }
 
   private async pushTask(task: TaskIndexItem, localId: string, remoteId: string | undefined): Promise<AppleSyncRemoteItem> {
     const settings = this.options.getSettings();
     const kind = "reminders" as const;
+    const reminder = taskReminderForApple(task);
     return this.options.bridge.upsert({
       kind,
       container: settings.appleRemindersList,
@@ -274,8 +284,52 @@ export class AppleSyncService {
       completed: task.completed,
       dueDate: task.dueDate || task.scheduledDate || "",
       dueTime: taskTimeForApple(task),
+      reminderDate: reminder.reminderDate,
+      reminderTime: reminder.reminderTime,
+      reminderMinutesBefore: reminder.reminderMinutesBefore,
+      allDay: reminder.allDay,
       priority: taskPriorityToApple(task.priority)
     });
+  }
+
+  private async syncCalendarTasks(state: ReturnType<typeof normalizeAppleSyncState>, result: AppleSyncResult): Promise<void> {
+    const settings = this.options.getSettings();
+    let tasks = this.options.taskIndex.getItems().filter(shouldSyncCalendarTask);
+    tasks = await this.ensureLocalIds(tasks, shouldSyncCalendarTask);
+    for (const task of tasks) {
+      const localId = extractAppleSyncId(task.line);
+      const metadata = parseMemosPlusTaskMetadata(task.line);
+      const startDate = task.startDate || task.scheduledDate || task.dueDate;
+      if (!localId || !metadata || !startDate) {
+        result.skipped += 1;
+        continue;
+      }
+      const key = appleSyncRecordKey("calendar", localId);
+      const record = state.records[key];
+      const localSignature = localAppleSyncSignature(task, settings.appleSyncTag, "calendar");
+      if (record?.localSignature === localSignature) {
+        result.unchanged += 1;
+        continue;
+      }
+      const remote = await this.options.bridge.upsert({
+        kind: "calendar",
+        container: settings.appleCalendarName,
+        remoteId: record?.remoteId,
+        localId,
+        title: appleTitleForKind(taskTitleForApple(task, settings.appleSyncTag), task.completed, "calendar"),
+        completed: task.completed,
+        dueDate: startDate,
+        dueTime: metadata.startTime ?? "",
+        endDate: metadata.endDate || startDate,
+        endTime: metadata.endTime ?? "",
+        reminderMinutesBefore: metadata.reminderMinutesBefore,
+        allDay: metadata.allDay === true,
+        recurrence: metadata.recurrence,
+        priority: 0
+      });
+      state.records[key] = syncedRecord(localId, remote, localSignature);
+      result.pushed += 1;
+    }
   }
 
   private async pullTask(task: TaskIndexItem, remote: AppleSyncRemoteItem, localId: string): Promise<boolean> {

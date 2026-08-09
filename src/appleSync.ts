@@ -1,4 +1,5 @@
 import type { TaskIndexItem } from "./taskIndex";
+import { attachMemosPlusTaskMetadata, parseMemosPlusTaskMetadata, stripMemosPlusTaskMetadata } from "./tasksFormat";
 
 export type AppleSyncTarget = "reminders" | "calendar";
 export type AppleSyncConflictPolicy = "remote-wins" | "local-wins" | "newest";
@@ -12,6 +13,13 @@ export interface AppleSyncRemoteItem {
   completed: boolean;
   dueDate: string;
   dueTime: string;
+  reminderDate?: string;
+  reminderTime?: string;
+  reminderMinutesBefore?: number;
+  allDay?: boolean;
+  endDate?: string;
+  endTime?: string;
+  recurrence?: string;
   priority: number;
   modifiedAt: string;
   notes: string;
@@ -113,12 +121,18 @@ export function attachAppleSyncId(line: string, id: string): string {
 }
 
 export function shouldSyncTask(task: Pick<TaskIndexItem, "line">, tag: string): boolean {
-  return containsTag(task.line, normalizeAppleSyncTag(tag));
+  const target = parseMemosPlusTaskMetadata(task.line)?.target;
+  return target !== "calendar" && containsTag(task.line, normalizeAppleSyncTag(tag));
+}
+
+export function shouldSyncCalendarTask(task: Pick<TaskIndexItem, "line">): boolean {
+  return parseMemosPlusTaskMetadata(task.line)?.target === "calendar";
 }
 
 export function taskTitleForApple(task: Pick<TaskIndexItem, "text">, tag: string): string {
   return task.text
     .replace(APPLE_SYNC_ID_RE, "")
+    .replace(/<!--\s*memos-plus-task-meta:[^\s>]+\s*-->/gu, "")
     .replace(new RegExp(`(^|\\s)${escapeRegExp(normalizeAppleSyncTag(tag))}(?=\\s|$)`, "gu"), " ")
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
     .replace(/(?:📅|⏳|🛫|➕|✅)\s*\d{4}-\d{2}-\d{2}/gu, " ")
@@ -129,13 +143,60 @@ export function taskTitleForApple(task: Pick<TaskIndexItem, "text">, tag: string
 }
 
 export function localAppleSyncSignature(task: TaskIndexItem, tag: string, kind: AppleSyncTarget): string {
+  const metadata = parseMemosPlusTaskMetadata(task.line);
+  const reminder = canonicalLocalReminder(task, metadata);
   return JSON.stringify({
     title: appleTitleForKind(taskTitleForApple(task, tag), task.completed, kind),
     completed: task.completed,
-    dueDate: task.dueDate || task.scheduledDate || "",
-    dueTime: taskTimeForApple(task),
-    priority: taskPriorityToApple(task.priority)
+    dueDate: kind === "calendar" ? task.startDate || task.scheduledDate || task.dueDate || "" : task.dueDate || task.scheduledDate || "",
+    dueTime: kind === "calendar" ? metadata?.startTime ?? "" : taskTimeForApple(task),
+    reminderDate: kind === "reminders" ? reminder.date : "",
+    reminderTime: kind === "reminders" ? reminder.time : "",
+    reminderMinutesBefore: kind === "reminders" ? reminder.minutesBefore ?? null : metadata?.reminderMinutesBefore ?? null,
+    allDay: metadata?.allDay === true,
+    endDate: kind === "calendar" ? metadata?.endDate ?? "" : "",
+    endTime: kind === "calendar" ? metadata?.endTime ?? "" : "",
+    recurrence: kind === "calendar" ? metadata?.recurrence ?? "" : "",
+    priority: kind === "calendar" ? 0 : taskPriorityToApple(task.priority)
   });
+}
+
+function canonicalLocalReminder(task: TaskIndexItem, metadata: ReturnType<typeof parseMemosPlusTaskMetadata>): { date: string; time: string; minutesBefore?: number } {
+  const dueDate = task.dueDate || task.scheduledDate || "";
+  const dueTime = taskTimeForApple(task);
+  if (metadata?.reminderDate && metadata.reminderTime) {
+    return {
+      date: metadata.reminderDate,
+      time: metadata.reminderTime,
+      minutesBefore: minutesBetween(dueDate, dueTime, metadata.reminderDate, metadata.reminderTime)
+    };
+  }
+  if (dueDate && dueTime && metadata?.reminderMinutesBefore !== undefined) {
+    const due = localDateTime(dueDate, dueTime);
+    due.setMinutes(due.getMinutes() - metadata.reminderMinutesBefore);
+    return { date: localDateString(due), time: localTimeString(due), minutesBefore: metadata.reminderMinutesBefore };
+  }
+  return { date: "", time: "" };
+}
+
+function minutesBetween(dueDate: string, dueTime: string, reminderDate: string, reminderTime: string): number | undefined {
+  if (!dueDate || !dueTime) return undefined;
+  const difference = localDateTime(dueDate, dueTime).getTime() - localDateTime(reminderDate, reminderTime).getTime();
+  return difference >= 0 ? Math.round(difference / 60_000) : undefined;
+}
+
+function localDateTime(date: string, time: string): Date {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+}
+
+function localDateString(date: Date): string {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+}
+
+function localTimeString(date: Date): string {
+  return [String(date.getHours()).padStart(2, "0"), String(date.getMinutes()).padStart(2, "0")].join(":");
 }
 
 export function remoteAppleSyncSignature(item: AppleSyncRemoteItem): string {
@@ -144,6 +205,13 @@ export function remoteAppleSyncSignature(item: AppleSyncRemoteItem): string {
     completed: item.completed,
     dueDate: item.dueDate,
     dueTime: item.dueTime,
+    reminderDate: item.kind === "reminders" ? item.reminderDate ?? "" : "",
+    reminderTime: item.kind === "reminders" ? item.reminderTime ?? "" : "",
+    reminderMinutesBefore: item.reminderMinutesBefore ?? null,
+    allDay: item.allDay === true,
+    endDate: item.kind === "calendar" ? item.endDate ?? "" : "",
+    endTime: item.kind === "calendar" ? item.endTime ?? "" : "",
+    recurrence: item.kind === "calendar" ? item.recurrence ?? "" : "",
     priority: item.priority
   });
 }
@@ -187,7 +255,8 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
   if (!prefix) {
     return line;
   }
-  const content = line.replace(TASK_PREFIX_RE, "");
+  const originalMetadata = parseMemosPlusTaskMetadata(line);
+  const content = stripMemosPlusTaskMetadata(line).replace(TASK_PREFIX_RE, "");
   const metadataIndex = content.search(TASK_METADATA_RE);
   const suffix = metadataIndex >= 0 ? content.slice(metadataIndex) : "";
   const preserved = suffix
@@ -214,7 +283,16 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
     parts.push(preserved);
   }
   parts.push(normalizeAppleSyncTag(tag), `<!-- memos-plus-apple-id:${localId} -->`);
-  return `${prefix[1]}${item.completed ? "x" : " "}${prefix[2]}${parts.join(" ")}`;
+  const updated = `${prefix[1]}${item.completed ? "x" : " "}${prefix[2]}${parts.join(" ")}`;
+  return attachMemosPlusTaskMetadata(updated, {
+    target: "reminders",
+    dueTime: item.dueTime,
+    reminderDate: item.reminderDate,
+    reminderTime: item.reminderTime,
+    reminderMinutesBefore: originalMetadata?.reminderMinutesBefore,
+    allDay: item.allDay,
+    recurrence: originalMetadata?.recurrence
+  });
 }
 
 export function formatImportedAppleTask(item: AppleSyncRemoteItem, tag: string, localId: string): string {
@@ -231,7 +309,13 @@ export function formatImportedAppleTask(item: AppleSyncRemoteItem, tag: string, 
     }
   }
   parts.push(normalizeAppleSyncTag(tag), `<!-- memos-plus-apple-id:${localId} -->`);
-  return parts.join(" ");
+  return attachMemosPlusTaskMetadata(parts.join(" "), {
+    target: "reminders",
+    dueTime: item.dueTime,
+    reminderDate: item.reminderDate,
+    reminderTime: item.reminderTime,
+    allDay: item.allDay
+  });
 }
 
 export function appleTitleForKind(title: string, completed: boolean, kind: AppleSyncTarget): string {
@@ -253,12 +337,29 @@ export function taskPriorityToApple(priority: TaskIndexItem["priority"]): number
 }
 
 export function taskTimeForApple(task: Pick<TaskIndexItem, "line">): string {
+  const metadataTime = parseMemosPlusTaskMetadata(task.line)?.dueTime;
+  if (metadataTime) return metadataTime;
   const match = task.line.match(/⏰\s*(\d{1,2}):(\d{2})/u);
   if (!match) return "";
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
   if (!Number.isInteger(hours) || hours < 0 || hours > 23 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) return "";
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+export function taskReminderForApple(task: Pick<TaskIndexItem, "line">): {
+  reminderDate: string;
+  reminderTime: string;
+  reminderMinutesBefore?: number;
+  allDay: boolean;
+} {
+  const metadata = parseMemosPlusTaskMetadata(task.line);
+  return {
+    reminderDate: metadata?.reminderDate ?? "",
+    reminderTime: metadata?.reminderTime ?? "",
+    reminderMinutesBefore: metadata?.reminderMinutesBefore,
+    allDay: metadata?.allDay === true
+  };
 }
 
 function normalizeRemoteTitle(title: string, kind: AppleSyncTarget): string {

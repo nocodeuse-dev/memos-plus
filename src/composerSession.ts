@@ -288,7 +288,9 @@ async function openComposerTaskOptions(host: ComposerSessionHost, content: strin
       defaultDueDate: host.settings.taskDefaultDueDate,
       defaultScheduledDate: host.settings.taskDefaultScheduledDate,
       defaultRecurrence: host.settings.taskDefaultRecurrence,
-      addCreatedDate: host.settings.taskAddCreatedDate
+      addCreatedDate: host.settings.taskAddCreatedDate,
+      appleSyncEnabled: host.settings.appleSyncEnabled,
+      appleSyncTag: host.settings.appleSyncTag
     },
     defaultAsTask: true,
     allowPlain: false

@@ -1,6 +1,7 @@
 export type TaskPriority = "none" | "highest" | "high" | "medium" | "low" | "lowest";
 export type TaskRecurrence = "none" | "daily" | "weekly" | "monthly" | "yearly" | "custom";
 export type TaskContentMode = "task-with-detail" | "task-only" | "ask";
+export type TaskSyncTarget = "tasks" | "reminders" | "calendar";
 type LooseTaskPriority = TaskPriority | (string & {});
 type LooseTaskRecurrence = TaskRecurrence | (string & {});
 
@@ -15,7 +16,32 @@ export interface TasksMarkdownOptions {
   addCreatedDate?: boolean;
   createdDate?: string;
   doneDate?: string;
+  syncTarget?: TaskSyncTarget;
+  syncTag?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+  dueTime?: string;
+  reminderDate?: string;
+  reminderTime?: string;
+  reminderMinutesBefore?: number;
+  allDay?: boolean;
 }
+
+export interface MemosPlusTaskMetadata {
+  target: Exclude<TaskSyncTarget, "tasks">;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+  dueTime?: string;
+  reminderDate?: string;
+  reminderTime?: string;
+  reminderMinutesBefore?: number;
+  allDay?: boolean;
+  recurrence?: string;
+}
+
+const TASK_METADATA_RE = /<!--\s*memos-plus-task-meta:([^\s>]+)\s*-->/u;
 
 export interface ProjectTaskOptions extends TasksMarkdownOptions {
   isTask: boolean;
@@ -47,8 +73,11 @@ export function buildTasksMarkdownLine(content: string, options: TasksMarkdownOp
     dateToken("🛫", options.startDate),
     dateToken("⏳", options.scheduledDate),
     dateToken("📅", options.dueDate),
+    timeToken(options.dueTime),
     options.addCreatedDate ? dateToken("➕", options.createdDate || formatDate(now)) : "",
-    dateToken("✅", options.doneDate)
+    dateToken("✅", options.doneDate),
+    normalizeTaskSyncTag(options),
+    taskMetadataToken(options)
   ].filter((token) => token && !taskBodyAlreadyHasToken(body, token));
 
   return `- [ ] ${[body, ...tokens].filter(Boolean).join(" ")}`;
@@ -119,6 +148,53 @@ export function normalizeTaskProjectTag(value: unknown): string {
   return normalized ? `#${normalized}` : "";
 }
 
+export function normalizeTaskTime(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/u);
+  if (!match) return "";
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return "";
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+export function normalizeTaskSyncTarget(value: unknown): TaskSyncTarget {
+  return value === "calendar" || value === "reminders" ? value : "tasks";
+}
+
+export function parseMemosPlusTaskMetadata(line: string): MemosPlusTaskMetadata | undefined {
+  const encoded = line.match(TASK_METADATA_RE)?.[1];
+  if (!encoded) return undefined;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(encoded)) as Record<string, unknown>;
+    const target = normalizeTaskSyncTarget(parsed.target);
+    if (target === "tasks") return undefined;
+    return compactMetadata({
+      target,
+      startTime: normalizeTaskTime(parsed.startTime),
+      endDate: normalizeTaskDate(parsed.endDate),
+      endTime: normalizeTaskTime(parsed.endTime),
+      dueTime: normalizeTaskTime(parsed.dueTime),
+      reminderDate: normalizeTaskDate(parsed.reminderDate),
+      reminderTime: normalizeTaskTime(parsed.reminderTime),
+      reminderMinutesBefore: normalizeReminderMinutes(parsed.reminderMinutesBefore),
+      allDay: parsed.allDay === true,
+      recurrence: typeof parsed.recurrence === "string" ? parsed.recurrence.trim() : ""
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+export function stripMemosPlusTaskMetadata(line: string): string {
+  return line.replace(TASK_METADATA_RE, "").replace(/\s{2,}/g, " ").trimEnd();
+}
+
+export function attachMemosPlusTaskMetadata(line: string, metadata: MemosPlusTaskMetadata): string {
+  const clean = stripMemosPlusTaskMetadata(line);
+  return `${clean} <!-- memos-plus-task-meta:${encodeURIComponent(JSON.stringify(compactMetadata(metadata)))} -->`;
+}
+
 function recurrenceToken(options: TasksMarkdownOptions): string {
   const recurrence = normalizeTaskRecurrence(options.recurrence);
   if (recurrence === "none") {
@@ -134,6 +210,50 @@ function recurrenceToken(options: TasksMarkdownOptions): string {
 function dateToken(marker: string, value: unknown): string {
   const date = normalizeTaskDate(value);
   return date ? `${marker} ${date}` : "";
+}
+
+function timeToken(value: unknown): string {
+  const time = normalizeTaskTime(value);
+  return time ? `⏰ ${time}` : "";
+}
+
+function normalizeTaskSyncTag(options: TasksMarkdownOptions): string {
+  if (normalizeTaskSyncTarget(options.syncTarget) === "tasks") return "";
+  return normalizeTaskProjectTag(options.syncTag);
+}
+
+function taskMetadataToken(options: TasksMarkdownOptions): string {
+  const target = normalizeTaskSyncTarget(options.syncTarget);
+  if (target === "tasks") return "";
+  const metadata = compactMetadata({
+    target,
+    startTime: normalizeTaskTime(options.startTime),
+    endDate: normalizeTaskDate(options.endDate),
+    endTime: normalizeTaskTime(options.endTime),
+    dueTime: normalizeTaskTime(options.dueTime),
+    reminderDate: normalizeTaskDate(options.reminderDate),
+    reminderTime: normalizeTaskTime(options.reminderTime),
+    reminderMinutesBefore: normalizeReminderMinutes(options.reminderMinutesBefore),
+    allDay: options.allDay === true,
+    recurrence: metadataRecurrence(options)
+  });
+  return `<!-- memos-plus-task-meta:${encodeURIComponent(JSON.stringify(metadata))} -->`;
+}
+
+function compactMetadata(metadata: MemosPlusTaskMetadata): MemosPlusTaskMetadata {
+  return Object.fromEntries(Object.entries(metadata).filter(([, value]) => value !== "" && value !== undefined && value !== false)) as unknown as MemosPlusTaskMetadata;
+}
+
+function normalizeReminderMinutes(value: unknown): number | undefined {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) && number >= 0 && number <= 10080 ? Math.round(number) : undefined;
+}
+
+function metadataRecurrence(options: TasksMarkdownOptions): string {
+  const recurrence = normalizeTaskRecurrence(options.recurrence);
+  if (recurrence === "none") return "";
+  if (recurrence === "custom") return typeof options.customRecurrence === "string" ? options.customRecurrence.trim() : "";
+  return recurrence;
 }
 
 function normalizeTaskContent(value: string): string {
@@ -167,7 +287,7 @@ function taskBodyAlreadyHasToken(body: string, token: string): boolean {
     return body.includes("🔁");
   }
   const marker = token.slice(0, 2).trim();
-  if (["🛫", "⏳", "📅", "➕", "✅"].includes(marker)) {
+  if (["🛫", "⏳", "📅", "➕", "✅", "⏰"].includes(marker)) {
     return body.includes(marker);
   }
   return body.includes(token);

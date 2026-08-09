@@ -94,7 +94,8 @@ describe("Apple sync safety and merge helpers", () => {
 
   it("formats remote-only items as tagged Markdown tasks", () => {
     const line = formatImportedAppleTask(remoteReminder, "#Apple同步", "new-local");
-    expect(line).toBe("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30 #Apple同步 <!-- memos-plus-apple-id:new-local -->");
+    expect(line).toContain("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30 #Apple同步 <!-- memos-plus-apple-id:new-local -->");
+    expect(line).toContain("memos-plus-task-meta:");
   });
 
   it("keeps state records keyed by target and local id", () => {
@@ -178,18 +179,28 @@ describe("Apple sync source integration", () => {
     expect(mainSource).toContain('createAppleSyncContainer');
   });
 
+  it("maps precise Reminder alerts and explicit Calendar time ranges in the macOS bridge", () => {
+    expect(bridgeSource).toContain("reminder.remindMeDate = remindDate");
+    expect(bridgeSource).toContain("request.reminderMinutesBefore");
+    expect(bridgeSource).toContain("request.endTime || request.dueTime");
+    expect(bridgeSource).toContain("event.alldayEvent = allDay");
+    expect(bridgeSource).toContain("event.recurrence = recurrence");
+  });
+
   it("validates the Apple container before writing local sync ids", () => {
     const remoteListIndex = serviceSource.indexOf("const remoteItems = await this.options.bridge.list(kind, container)");
-    const ensureIdsIndex = serviceSource.indexOf("localTasks = await this.ensureLocalIds(localTasks)");
+    const ensureIdsIndex = serviceSource.indexOf("localTasks = await this.ensureLocalIds(localTasks,");
     expect(remoteListIndex).toBeGreaterThan(-1);
     expect(ensureIdsIndex).toBeGreaterThan(remoteListIndex);
   });
 
-  it("keeps task sync on Reminders while Calendar remains an agenda concern", () => {
+  it("keeps ordinary tasks on Reminders and exports only explicit Calendar-target tasks", () => {
     expect(serviceSource).toContain('const kind = "reminders" as const');
     expect(serviceSource).toContain("const container = settings.appleRemindersList");
     expect(serviceSource).not.toContain("const kind = settings.appleSyncTarget");
     expect(serviceSource).toContain("this.options.bridge.remove(kind, container, remote.id)");
+    expect(serviceSource).toContain("shouldSyncCalendarTask");
+    expect(serviceSource).toContain("container: settings.appleCalendarName");
   });
 
   it("registers manual sync and connection-test commands", () => {

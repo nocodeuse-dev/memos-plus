@@ -207,7 +207,8 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(mainSource).toContain('id: "open-task-calendar"');
     expect(mainSource).toContain('id: "quick-add-task"');
     expect(mainSource).toContain("updateTaskCalendarRibbon");
-    expect(mainSource).toContain("buildTasksMarkdownLine");
+    expect(mainSource).toContain("openTaskOptionsModal");
+    expect(mainSource).toContain("renderTaskContentWithOptions");
     expect(mainSource).toContain("任务收件箱");
   });
 

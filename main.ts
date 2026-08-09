@@ -38,8 +38,8 @@ import {
   type TaskCalendarOpenOptions
 } from "./src/taskCalendar";
 import type { OrganizerFilterId } from "./src/organizerPanel";
-import { buildTasksMarkdownLine } from "./src/tasksFormat";
-import { normalizeAppleSyncTag, shouldSyncTask } from "./src/appleSync";
+import { openTaskOptionsModal, renderTaskContentWithOptions } from "./src/taskOptionsModal";
+import { normalizeAppleSyncTag } from "./src/appleSync";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -526,15 +526,25 @@ export default class MemosPlusPlugin extends Plugin {
     if (!text) return false;
     const path = normalizePath(this.settings.taskCalendar.inboxPath.trim().replace(/^\/+/, ""));
     if (!path) return false;
-    const syncTag = normalizeAppleSyncTag(this.settings.appleSyncTag);
-    const taskText = this.settings.appleSyncEnabled && !shouldSyncTask({ line: text }, syncTag)
-      ? `${text} ${syncTag}`
-      : text;
-    const line = buildTasksMarkdownLine(taskText, {
-      dueDate,
-      priority: this.settings.taskDefaultPriority,
-      addCreatedDate: this.settings.taskAddCreatedDate
+    const task = await openTaskOptionsModal(this.app, {
+      language: this.settings.language,
+      title: t(this.settings.language, "projectSend.taskOptions"),
+      description: text,
+      taskSettings: {
+        enabled: this.settings.tasksFormatEnabled,
+        defaultPriority: this.settings.taskDefaultPriority,
+        defaultDueDate: dueDate || this.settings.taskDefaultDueDate,
+        defaultScheduledDate: this.settings.taskDefaultScheduledDate,
+        defaultRecurrence: this.settings.taskDefaultRecurrence,
+        addCreatedDate: this.settings.taskAddCreatedDate,
+        appleSyncEnabled: this.settings.appleSyncEnabled,
+        appleSyncTag: this.settings.appleSyncTag
+      },
+      defaultAsTask: true,
+      allowPlain: false
     });
+    if (task === null) return false;
+    const line = renderTaskContentWithOptions(text, task ?? { isTask: true }, this.settings);
     try {
       let file = this.app.vault.getAbstractFileByPath(path);
       if (file instanceof TFile) {

@@ -106,7 +106,9 @@ export async function selectProjectTarget(
       defaultDueDate: host.settings.taskDefaultDueDate,
       defaultScheduledDate: host.settings.taskDefaultScheduledDate,
       defaultRecurrence: host.settings.taskDefaultRecurrence,
-      promptOnCreate: host.settings.taskPromptOnCreate
+      promptOnCreate: host.settings.taskPromptOnCreate,
+      appleSyncEnabled: host.settings.appleSyncEnabled,
+      appleSyncTag: host.settings.appleSyncTag
     },
     enableFileTargets: host.settings.sendToFileEnabled,
     customTagTabs: host.settings.projectSendTagTabs,

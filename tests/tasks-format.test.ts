@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTasksMarkdownLine, normalizeTaskPriority, normalizeTaskRecurrence } from "../src/tasksFormat";
+import { buildTasksMarkdownLine, parseMemosPlusTaskMetadata, normalizeTaskPriority, normalizeTaskRecurrence } from "../src/tasksFormat";
 
 describe("Tasks markdown formatter", () => {
   it("builds an Obsidian Tasks line with priority, due date, and created date", () => {
@@ -49,5 +49,50 @@ describe("Tasks markdown formatter", () => {
     expect(normalizeTaskPriority("unknown")).toBe("medium");
     expect(normalizeTaskRecurrence("每周")).toBe("weekly");
     expect(normalizeTaskRecurrence("unknown")).toBe("none");
+  });
+
+  it("keeps Tasks syntax while recording precise Reminder timing", () => {
+    const line = buildTasksMarkdownLine("复诊", {
+      syncTarget: "reminders",
+      syncTag: "#Apple同步",
+      dueDate: "2026-08-12",
+      dueTime: "14:30",
+      reminderDate: "2026-08-12",
+      reminderTime: "14:15",
+      reminderMinutesBefore: 15,
+      priority: "high"
+    });
+    expect(line).toContain("- [ ] 复诊 ⏫ 📅 2026-08-12 ⏰ 14:30 #Apple同步");
+    expect(parseMemosPlusTaskMetadata(line)).toEqual({
+      target: "reminders",
+      dueTime: "14:30",
+      reminderDate: "2026-08-12",
+      reminderTime: "14:15",
+      reminderMinutesBefore: 15
+    });
+  });
+
+  it("records Calendar start/end timing without turning it into a Reminder", () => {
+    const line = buildTasksMarkdownLine("门诊会议", {
+      syncTarget: "calendar",
+      syncTag: "#Apple同步",
+      startDate: "2026-08-13",
+      startTime: "09:00",
+      endTime: "10:30",
+      reminderMinutesBefore: 30,
+      allDay: false,
+      priority: "none"
+    });
+    expect(line).toContain("🛫 2026-08-13 #Apple同步");
+    expect(parseMemosPlusTaskMetadata(line)).toEqual({
+      target: "calendar",
+      startTime: "09:00",
+      endTime: "10:30",
+      reminderMinutesBefore: 30
+    });
+  });
+
+  it("leaves legacy Tasks lines unchanged when no sync target is selected", () => {
+    expect(buildTasksMarkdownLine("历史任务", { dueDate: "2026-08-14", priority: "none" })).toBe("- [ ] 历史任务 📅 2026-08-14");
   });
 });

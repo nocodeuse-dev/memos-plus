@@ -75,6 +75,8 @@ export interface ProjectSendTaskSettings {
   defaultScheduledDate: string;
   defaultRecurrence: TaskRecurrence;
   promptOnCreate: boolean;
+  appleSyncEnabled?: boolean;
+  appleSyncTag?: string;
 }
 
 export interface ProjectSendModalOptions {

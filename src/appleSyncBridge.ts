@@ -20,6 +20,13 @@ export interface AppleSyncUpsertInput {
   completed: boolean;
   dueDate: string;
   dueTime: string;
+  reminderDate?: string;
+  reminderTime?: string;
+  reminderMinutesBefore?: number;
+  allDay?: boolean;
+  endDate?: string;
+  endTime?: string;
+  recurrence?: string;
   priority: number;
 }
 
@@ -41,6 +48,13 @@ interface JxaRequest {
   completed?: boolean;
   dueDate?: string;
   dueTime?: string;
+  reminderDate?: string;
+  reminderTime?: string;
+  reminderMinutesBefore?: number;
+  allDay?: boolean;
+  endDate?: string;
+  endTime?: string;
+  recurrence?: string;
   priority?: number;
 }
 
@@ -153,7 +167,7 @@ function upsertReminderItem(request) {
   reminder.body = withLocalMarker(safeGet(function () { return reminder.body(); }), request.localId);
   if (request.dueDate) {
     reminder.alldayDueDate = localDate(request.dueDate);
-    if (request.dueTime) reminder.dueDate = localDateTime(request.dueDate, request.dueTime);
+    if (!request.allDay && request.dueTime) reminder.dueDate = localDateTime(request.dueDate, request.dueTime);
     else {
       try { reminder.dueDate = null; } catch (_) {}
     }
@@ -161,6 +175,8 @@ function upsertReminderItem(request) {
     try { reminder.dueDate = null; } catch (_) {}
     try { reminder.alldayDueDate = null; } catch (_) {}
   }
+  const remindDate = reminderAlertDate(request);
+  try { reminder.remindMeDate = remindDate; } catch (_) {}
   return reminderRecord(reminder, list.name());
 }
 
@@ -176,14 +192,19 @@ function upsertCalendarItem(request) {
     const matches = calendar.events.whose({ uid: String(request.remoteId) })();
     if (matches.length > 0) event = matches[0];
   }
-  const start = localDate(request.dueDate);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const allDay = Boolean(request.allDay);
+  const start = allDay || !request.dueTime ? localDateAtMidnight(request.dueDate) : localDateTime(request.dueDate, request.dueTime);
+  const endDate = String(request.endDate || request.dueDate);
+  const end = allDay
+    ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1, 0, 0, 0, 0)
+    : localDateTime(endDate, request.endTime || request.dueTime);
+  if (end <= start) throw new Error("Calendar event end time must be after start time");
   if (!event) {
     event = app.Event({
       summary: String(request.title || ""),
       startDate: start,
       endDate: end,
-      alldayEvent: true,
+      alldayEvent: allDay,
       description: withLocalMarker("", request.localId)
     });
     calendar.events.push(event);
@@ -191,15 +212,19 @@ function upsertCalendarItem(request) {
     event.summary = String(request.title || "");
     event.startDate = start;
     event.endDate = end;
-    event.alldayEvent = true;
+    event.alldayEvent = allDay;
     event.description = withLocalMarker(safeGet(function () { return event.description(); }), request.localId);
   }
+  const recurrence = calendarRecurrence(request.recurrence);
+  try { event.recurrence = recurrence; } catch (_) {}
+  replaceDisplayAlarm(app, event, request.reminderMinutesBefore);
   return calendarRecord(event, calendar.name());
 }
 
 function reminderRecord(item, containerName) {
   const due = safeDate(function () { return item.dueDate(); });
   const allDayDue = safeDate(function () { return item.alldayDueDate(); });
+  const remind = safeDate(function () { return item.remindMeDate(); });
   return {
     kind: "reminders",
     id: String(item.id()),
@@ -208,6 +233,10 @@ function reminderRecord(item, containerName) {
     completed: Boolean(item.completed()),
     dueDate: allDayDue ? localDateString(allDayDue) : (due ? localDateString(due) : ""),
     dueTime: due ? localTimeString(due) : "",
+    reminderDate: remind ? localDateString(remind) : "",
+    reminderTime: remind ? localTimeString(remind) : "",
+    reminderMinutesBefore: due && remind ? Math.max(0, Math.round((due.getTime() - remind.getTime()) / 60000)) : undefined,
+    allDay: Boolean(allDayDue && !due),
     priority: Number(item.priority() || 0),
     modifiedAt: safeIso(function () { return item.modificationDate(); }),
     notes: safeGet(function () { return item.body(); }),
@@ -217,6 +246,7 @@ function reminderRecord(item, containerName) {
 
 function calendarRecord(item, containerName) {
   const start = safeDate(function () { return item.startDate(); });
+  const end = safeDate(function () { return item.endDate(); });
   const title = safeGet(function () { return item.summary(); });
   return {
     kind: "calendar",
@@ -225,7 +255,11 @@ function calendarRecord(item, containerName) {
     title: title,
     completed: /^✓\s*/.test(title),
     dueDate: start ? localDateString(start) : "",
-    dueTime: "",
+    dueTime: start && !Boolean(safeValue(function () { return item.alldayEvent(); })) ? localTimeString(start) : "",
+    endDate: end ? localDateString(end) : "",
+    endTime: end ? localTimeString(end) : "",
+    allDay: Boolean(safeValue(function () { return item.alldayEvent(); })),
+    recurrence: safeGet(function () { return item.recurrence(); }),
     priority: 0,
     modifiedAt: safeIso(function () { return item.stampDate(); }),
     notes: safeGet(function () { return item.description(); }),
@@ -245,6 +279,10 @@ function safeGet(getter) {
   } catch (_) { return ""; }
 }
 
+function safeValue(getter) {
+  try { return getter(); } catch (_) { return null; }
+}
+
 function safeDate(getter) {
   try {
     const value = getter();
@@ -260,6 +298,38 @@ function safeIso(getter) {
 function localDate(value) {
   const parts = String(value).split("-").map(Number);
   return new Date(parts[0], parts[1] - 1, parts[2], 9, 0, 0, 0);
+}
+
+function localDateAtMidnight(value) {
+  const parts = String(value).split("-").map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+}
+
+function reminderAlertDate(request) {
+  if (request.reminderDate && request.reminderTime) return localDateTime(request.reminderDate, request.reminderTime);
+  const minutes = Number(request.reminderMinutesBefore);
+  if (request.dueDate && request.dueTime && Number.isFinite(minutes) && minutes >= 0) {
+    return new Date(localDateTime(request.dueDate, request.dueTime).getTime() - minutes * 60000);
+  }
+  return null;
+}
+
+function replaceDisplayAlarm(app, event, minutesBefore) {
+  const minutes = Number(minutesBefore);
+  if (!Number.isFinite(minutes) || minutes < 0) return;
+  try {
+    event.displayAlarms().forEach(function (alarm) { app.delete(alarm); });
+    event.displayAlarms.push(app.DisplayAlarm({ triggerInterval: -Math.round(minutes) }));
+  } catch (_) {}
+}
+
+function calendarRecurrence(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "daily") return "FREQ=DAILY";
+  if (normalized === "weekly") return "FREQ=WEEKLY";
+  if (normalized === "monthly") return "FREQ=MONTHLY";
+  if (normalized === "yearly") return "FREQ=YEARLY";
+  return "";
 }
 
 function localDateTime(dateValue, timeValue) {
@@ -306,7 +376,8 @@ export class MacOsAppleSyncBridge implements AppleSyncBridge {
   }
 
   async upsert(input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem> {
-    return this.run<AppleSyncRemoteItem>({ operation: "upsert", ...input });
+    const item = await this.run<AppleSyncRemoteItem>({ operation: "upsert", ...input });
+    return { ...item, reminderMinutesBefore: input.reminderMinutesBefore };
   }
 
   async remove(kind: AppleSyncTarget, container: string, remoteId: string): Promise<boolean> {

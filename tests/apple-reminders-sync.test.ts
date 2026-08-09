@@ -31,6 +31,7 @@ import type { AppleSyncBridge, AppleSyncUpsertInput } from "../src/appleSyncBrid
 import type { AppleSyncRemoteItem, AppleSyncTarget } from "../src/appleSync";
 import { DEFAULT_SETTINGS, type MemosPlusSettings } from "../src/settings";
 import { TaskIndex } from "../src/taskIndex";
+import { buildTasksMarkdownLine } from "../src/tasksFormat";
 
 class MemoryVault {
   private readonly files = new Map<string, { file: InstanceType<typeof MockTFile>; source: string }>();
@@ -84,18 +85,25 @@ class MemoryRemindersBridge implements AppleSyncBridge {
 
   probe = vi.fn(async () => ({ reminderLists: ["提醒"], calendars: [], defaultReminderList: "提醒" }));
   createContainer = vi.fn(async (_kind: AppleSyncTarget, name: string) => ({ name, writable: true }));
-  list = vi.fn(async () => this.items.map((item) => ({ ...item })));
+  list = vi.fn(async (kind: AppleSyncTarget) => this.items.filter((item) => item.kind === kind).map((item) => ({ ...item })));
 
   upsert = vi.fn(async (input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem> => {
     const existing = input.remoteId ? this.items.find((item) => item.id === input.remoteId) : undefined;
     const next: AppleSyncRemoteItem = {
-      kind: "reminders",
+      kind: input.kind,
       id: existing?.id ?? `remote-${++this.sequence}`,
       localId: input.localId,
       title: input.title,
       completed: input.completed,
       dueDate: input.dueDate,
       dueTime: input.dueTime,
+      reminderDate: input.reminderDate,
+      reminderTime: input.reminderTime,
+      reminderMinutesBefore: input.reminderMinutesBefore,
+      allDay: input.allDay,
+      endDate: input.endDate,
+      endTime: input.endTime,
+      recurrence: input.recurrence,
       priority: input.priority,
       modifiedAt: new Date(Date.now() + this.sequence * 1_000).toISOString(),
       notes: `memos-plus-id:${input.localId}`
@@ -187,6 +195,53 @@ describe("Apple Reminders bidirectional synchronization", () => {
     const deletion = await test.service.syncNow();
     expect(deletion.deletedRemote).toBe(1);
     expect(test.bridge.items).toHaveLength(0);
+  });
+
+  it("pushes separate Reminder due and alert times", async () => {
+    const line = buildTasksMarkdownLine("精确提醒", {
+      syncTarget: "reminders",
+      syncTag: "#Apple同步",
+      dueDate: "2026-08-11",
+      dueTime: "09:45",
+      reminderDate: "2026-08-11",
+      reminderTime: "09:15",
+      reminderMinutesBefore: 30,
+      priority: "medium"
+    });
+    const test = harness(`${line}\n`);
+    await test.service.syncNow();
+    expect(test.bridge.items[0]).toMatchObject({
+      kind: "reminders",
+      dueDate: "2026-08-11",
+      dueTime: "09:45",
+      reminderDate: "2026-08-11",
+      reminderTime: "09:15",
+      reminderMinutesBefore: 30
+    });
+  });
+
+  it("exports an explicitly targeted timed task to Calendar only once", async () => {
+    const line = buildTasksMarkdownLine("日程会议", {
+      syncTarget: "calendar",
+      syncTag: "#Apple同步",
+      startDate: "2026-08-12",
+      startTime: "09:00",
+      endTime: "10:30",
+      reminderMinutesBefore: 15,
+      priority: "none"
+    });
+    const test = harness(`${line}\n`);
+    await test.service.syncNow();
+    await test.service.syncNow();
+    expect(test.bridge.items).toHaveLength(1);
+    expect(test.bridge.items[0]).toMatchObject({
+      kind: "calendar",
+      dueDate: "2026-08-12",
+      dueTime: "09:00",
+      endDate: "2026-08-12",
+      endTime: "10:30",
+      reminderMinutesBefore: 15
+    });
   });
 
   it("pulls Apple edits and deletes only an already-linked local task", async () => {

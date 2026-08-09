@@ -16,6 +16,11 @@ describe("shared task options form", () => {
     expect(formSource).toContain("doneDate");
     expect(formSource).toContain("recurrence");
     expect(formSource).toContain("addCreatedDate");
+    expect(formSource).toContain('projectSend.syncTarget');
+    expect(formSource).toContain('target === "reminders"');
+    expect(formSource).toContain('target === "calendar"');
+    expect(formSource).toContain("reminderMinutesBefore");
+    expect(formSource).toContain("allDay");
     expect(taskModalSource).toContain("createTaskOptionsForm");
     expect(projectModalSource).toContain("createTaskOptionsForm");
   });

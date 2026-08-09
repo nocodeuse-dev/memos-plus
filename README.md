@@ -11,7 +11,7 @@ Memos Plus 是一个本地优先的 Obsidian 收集与整理工作台。它不�
 - 一键收集：从主页面、快速记录弹窗、侧边栏或移动端入口抓取内容。
 - 即时归档：把内容直接投递到项目文件、标签文件、最近文件或真实 Markdown 标题下。
 - 边收边整理：支持链接资料、普通笔记、Obsidian Tasks 任务、Callout、代码块和自定义格式。
-- Apple 双向同步：macOS 桌面端可把明确标记的 Markdown 任务与 Apple 提醒事项双向同步，包含标题、日期、时间、优先级、完成状态和删除；默认关闭。
+- Apple 同步：统一任务表单可选择 Obsidian / Tasks、Apple Reminders 或 Apple Calendar。Reminders 支持独立的截止时间、提醒时间和提前提醒；明确的开始/结束时间段可写入 Calendar。Markdown 仍是兼容底座，Apple 访问默认关闭。
 - 日程与任务：日程继续来自 Apple Calendar，任务复用 Markdown 与 Apple Reminders；状态栏、今天、全部任务、优先级和项目任务入口统一打开这个工作台，并支持关键词、优先级与项目筛选。顶部刷新会同时刷新日程和任务。
 - 移动端可用：适合 iPhone 快速记录，也支持 GitHub Release / BRAT 更新方式。
 

@@ -22,7 +22,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - 新建文件模板库：搜索不到目标文件时，可从独立 Markdown 模板库选择文件骨架模板创建新文件，再把当前输入内容插入到新文件中。
 - 项目分类兼容：旧 `projectSections` 字段仍用于创建项目文件的默认标题骨架和旧配置迁移；投递弹窗不再显示固定分类按钮。
 - Tasks 格式兼容：可生成 Obsidian Tasks 风格任务行。
-- Apple 任务同步：macOS 桌面端将带指定标签的 Markdown 任务与 Apple Reminders 双向同步；Apple Calendar 只负责日程，移动端不直接访问系统 API。
+- Apple 任务同步：macOS 桌面端将带指定标签的普通 Markdown 任务与 Apple Reminders 双向同步；只有统一任务表单明确选择 Calendar 的时间段任务才写入 Apple Calendar，移动端不直接访问系统 API。
 - 日程与任务工作台：独立工作区按当前日/周只读显示默认常用或用户指定的 Apple 日历日程，并复用全库 Markdown `TaskIndex` 管理今天、明天、本周、逾期、收件箱、全部和已完成任务；状态栏、主页和侧栏任务分支都通过参数化上下文打开同一工作区，支持关键词、优先级和项目筛选，不建立第二套任务数据库。
 - Callout 相关功能：输入框工具栏可切换 Callout 模式，长内容/链接内容可自动包装为 Obsidian Callout。
 - 设置页面：使用顶部横向胶囊标签栏，入口为 `发送规则 / 输入工具 / 记录设置 / 任务设置 / 新建文件模板库 / 筛选与侧栏 / 界面布局 / 显示设置 / 性能与缓存 / 高级设置`；`界面布局` 标签内再用二级切换配置 `桌面主页 / 侧边栏 / 移动端` 的真实界面缩略预览和右侧属性面板。
@@ -124,7 +124,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 | 状态栏任务管理 | `main.ts`, `src/taskCalendar.ts`, `src/taskCalendarView.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `addStatusBarItem`, `openTaskCalendar`, `taskCalendarOpenOptionsForOrganizer`, `toggleIndexedTask`, `openIndexedTask` | Obsidian 底部状态栏和兼容命令统一打开“日程与任务”的全部任务视图；搜索、优先级、项目、完成、编辑、来源跳转、强制刷新、快速记录和分批加载都由工作台提供。 |
 | 日程与任务工作台 | `main.ts`, `src/taskCalendar.ts`, `src/taskCalendarAgendaGrid.ts`, `src/taskCalendarView.ts`, `src/appleCalendarAgenda.ts`, `src/taskCalendarEventModal.ts`, `src/taskCalendarEventDetailModal.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `TaskCalendarView`, `taskCalendarMonthDays`, `taskCalendarGridPlacement`, `TaskCalendarEventModal`, `TaskCalendarEventDetailModal`, `AppleCalendarAgendaService`, `taskCalendarTasks`, `createTaskCalendarInboxTask` | 单独 WorkspaceLeaf，Ribbon 与命令可打开。桌面端为导航/日程/任务三栏，日程区提供日 / 周时间网格、全天行、迷你月历和日历显示开关；移动端继续切换今天、任务和日历标签。任务唯一来源仍是 `TaskIndex` 与 Markdown；快速新增写入可配置收件箱。首次读取以单次 Calendar 请求同时返回日历名称和当前日/周事件，默认跳过生日、节假日和 Siri 建议等生成型日历，用户仍可显式勾选或全部显示；Calendar.app 会按完整日/周窗口筛选开始和结束时间，以保留跨天事件并直接排除未来日程，相同日期范围的请求在插件运行期共享缓存。显示开关只改变只读来源，与 Apple 双向同步的写入目标无关；JXA 读取在 macOS 守卫后执行，首次冷启动最多等待 60 秒，底层命令、超时和权限错误都会归一为简短提示而非渲染脚本。设置页发生完整重绘时保留当前分类和阅读位置。新建日程只在用户打开表单并确认提交后写入所选可写日历，取消或关闭不会写入；日程详情可明确创建关联任务或关联快记，但不回写 Apple 事件。 |
 | 首页与移动端快捷入口 | `src/view.ts`, `src/taskCalendar.ts`, `src/settings.ts` | `renderTaskCalendarHomeEntry`, `renderMobileFab`, `openQuickCaptureFromMobileFab` | 首页卡片只读取已有 TaskIndex 缓存，绝不因显示入口读取 Apple 日历；移动端复用已有“＋”按钮并按设置展开新任务、新日程和快速记录，键盘/输入框激活时整体隐藏，避免遮挡。 |
-| Apple 双向同步 | `main.ts`, `src/appleSync.ts`, `src/appleSyncBridge.ts`, `src/appleSyncService.ts`, `src/settings.ts` | `AppleSyncService`, `MacOsAppleSyncBridge`, `resolveAppleSyncDirection`, `updateTaskLineFromApple` | 默认关闭，仅 macOS 桌面端运行；任务固定同步 Apple Reminders，日程单独读取 Apple Calendar。按标签选择本地任务，通过隐藏 ID、Apple Reminder 唯一 ID 和上次签名做三方合并；连接失败发生在本地 ID 写入前。同步标题、日期、时间、优先级、完成状态和已关联项目的双向删除；新 Apple Reminder 导入单独文件，重复刷新不会重复创建。 |
+| Apple 双向同步 | `main.ts`, `src/appleSync.ts`, `src/appleSyncBridge.ts`, `src/appleSyncService.ts`, `src/settings.ts` | `AppleSyncService`, `MacOsAppleSyncBridge`, `resolveAppleSyncDirection`, `updateTaskLineFromApple` | 默认关闭，仅 macOS 桌面端运行；普通任务同步 Apple Reminders，区分截止日期时间与独立提醒时间，并保留完成状态和已关联项目的双向删除。统一表单明确选择 Calendar 的任务使用开始/结束时间、全天、提醒和重复字段执行幂等写入；日历工作台继续按当前日/周读取 Calendar。隐藏本地 ID、Apple 唯一 ID 和上次签名防止重复，旧的无目标元数据任务仍按 Reminders 规则兼容。 |
 | 项目文件识别 | `src/vaultIndex.ts`, `src/projectSend.ts`, `src/store.ts` | `VaultMetadataIndex.getProjectFiles`, `VaultMetadataIndex.getProjectInfos`, `normalizeProjectTag` | Store 层优先通过统一索引判断项目文件；`projectSend.ts` 仍保留纯函数兼容测试和旧调用。 |
 | 发送到项目 | `src/view.ts`, `src/store.ts`, `src/projectDelivery.ts`, `src/projectSend.ts`, `src/projectFileSuggestModal.ts` | `sendComposerToProject`, `sendContentToProject`, `ProjectSendModal`, `renderHeadingPicker`, `sendToFileTarget` | 弹窗按当前内部模板规则决定默认来源，再按项目/标签文件/最近/搜索/固定文件等来源选择目标文件和真实 Markdown 标题后插入。 |
 | 添加项目 | `src/projectFileSuggestModal.ts`, `src/store.ts`, `src/fileTemplateLibrary.ts` | `openFileTemplateLibraryModal("project")`, `FileTemplateLibraryModal`, `createFileFromLibraryTemplate` | 弹窗中先从新建文件模板库选择文件骨架模板和文件名，再创建项目 Markdown 文件；旧 `createProject` 兼容方法仍保留。 |
@@ -304,7 +304,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 
 `src/tasksFormat.ts`：
 
-- `TasksMarkdownOptions`：优先级、项目标签、开始/计划/截止日期、重复、创建日期。
+- `TasksMarkdownOptions`：优先级、项目标签、开始/计划/截止日期、具体时间、结束时间、独立提醒、全天、重复、创建日期和同步目标。Tasks 可识别字段保持原语法，Apple 专用字段使用 `memos-plus-task-meta` 隐藏注释保存。
 - `ProjectTaskOptions`：继承 `TasksMarkdownOptions` 并增加 `isTask`。
 - `TaskPriority`：`none`, `highest`, `high`, `medium`, `low`, `lowest`。
 - `TaskRecurrence`：`none`, `daily`, `weekly`, `monthly`, `yearly`, `custom`。

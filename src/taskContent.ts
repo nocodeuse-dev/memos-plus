@@ -56,15 +56,25 @@ export function indentTaskDetail(content: string): string {
 }
 
 function renderTaskLine(content: string, task: ProjectTaskOptions, settings: MemosPlusSettings, options: TaskContentRenderOptions): string {
-  if (settings.tasksFormatEnabled) {
+  if (settings.tasksFormatEnabled || task.syncTarget === "reminders" || task.syncTarget === "calendar") {
     return buildTasksMarkdownLine(
       content,
       {
         priority: task.priority ?? settings.taskDefaultPriority,
-        projectTag: options.projectTag,
+        projectTag: task.projectTag || options.projectTag,
         startDate: task.startDate,
         scheduledDate: task.scheduledDate ?? settings.taskDefaultScheduledDate,
         dueDate: task.dueDate ?? settings.taskDefaultDueDate,
+        startTime: task.startTime,
+        endDate: task.endDate,
+        endTime: task.endTime,
+        dueTime: task.dueTime,
+        reminderDate: task.reminderDate,
+        reminderTime: task.reminderTime,
+        reminderMinutesBefore: task.reminderMinutesBefore,
+        allDay: task.allDay,
+        syncTarget: task.syncTarget,
+        syncTag: task.syncTag || settings.appleSyncTag,
         recurrence: task.recurrence ?? settings.taskDefaultRecurrence,
         customRecurrence: task.customRecurrence,
         addCreatedDate: task.addCreatedDate ?? settings.taskAddCreatedDate,
