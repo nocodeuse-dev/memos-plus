@@ -3,6 +3,7 @@ import type { OrganizerFilterId, OrganizerTaskBranchId } from "./organizerPanel"
 import { isOrganizerTaskBranchId } from "./organizerPanel";
 import { yieldToUi } from "./performance";
 import { parseTaskLines, type ParsedTaskLine, type TaskPriorityFilterValue } from "./taskSearch";
+import { parseMemosPlusTaskMetadata, type TaskSyncTarget } from "./tasksFormat";
 
 export interface TaskIndexItem {
   filePath: string;
@@ -10,6 +11,7 @@ export interface TaskIndexItem {
   line: string;
   lineNumber: number;
   text: string;
+  title: string;
   capturedAt: string;
   capturedAtTime: number;
   completed: boolean;
@@ -19,6 +21,17 @@ export interface TaskIndexItem {
   startDate: string;
   createdDate: string;
   doneDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+  dueTime: string;
+  reminderDate: string;
+  reminderTime: string;
+  reminderMinutesBefore?: number;
+  allDay: boolean;
+  syncTarget: Exclude<TaskSyncTarget, "tasks"> | "";
+  appleSyncId: string;
+  appleSyncTagged: boolean;
   recurring: boolean;
   mtime: number;
 }
@@ -285,12 +298,14 @@ export function getTaskIndexOrganizerCounts(items: TaskIndexItem[], today: strin
 
 function taskIndexItemFromParsedTask(task: ParsedTaskLine, line: string, lineNumber: number, context: TaskIndexFileContext): TaskIndexItem {
   const captured = resolveTaskCapturedAt(task.text, task.createdDate, context.mtime);
+  const metadata = parseMemosPlusTaskMetadata(line);
   return {
     filePath: normalizeVaultPath(context.filePath),
     fileName: context.fileName,
     line,
     lineNumber,
     text: task.text,
+    title: taskDisplayTitle(task.text),
     capturedAt: captured.value,
     capturedAtTime: captured.time,
     completed: task.completed,
@@ -300,9 +315,40 @@ function taskIndexItemFromParsedTask(task: ParsedTaskLine, line: string, lineNum
     startDate: task.startDate,
     createdDate: task.createdDate,
     doneDate: task.doneDate,
+    startTime: metadata?.startTime ?? "",
+    endDate: metadata?.endDate ?? "",
+    endTime: metadata?.endTime ?? "",
+    dueTime: metadata?.dueTime || taskTimeFromLine(line),
+    reminderDate: metadata?.reminderDate ?? "",
+    reminderTime: metadata?.reminderTime ?? "",
+    reminderMinutesBefore: metadata?.reminderMinutesBefore,
+    allDay: metadata?.allDay === true,
+    syncTarget: metadata?.target ?? "",
+    appleSyncId: line.match(/<!--\s*memos-plus-apple-id:([a-zA-Z0-9_-]+)\s*-->/u)?.[1] ?? "",
+    appleSyncTagged: /(^|\s)#Apple同步(?=\s|$)/u.test(line),
     recurring: task.recurring,
     mtime: context.mtime
   };
+}
+
+export function taskDisplayTitle(text: string): string {
+  return text
+    .replace(/<!--\s*memos-plus-(?:task-meta:[^\s>]+|apple-id:[^\s>]+)\s*-->/gu, " ")
+    .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
+    .replace(/(?:📅|⏳|🛫|➕|✅)\s*\d{4}-\d{2}-\d{2}/gu, " ")
+    .replace(/⏰\s*\d{1,2}:\d{2}/gu, " ")
+    .replace(/(^|\s)#Apple同步(?=\s|$)/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function taskTimeFromLine(line: string): string {
+  const match = line.match(/⏰\s*(\d{1,2}):(\d{2})/u);
+  if (!match) return "";
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || hours < 0 || hours > 23 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) return "";
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 function resolveTaskCapturedAt(text: string, createdDate: string, fallbackTime: number): { value: string; time: number } {

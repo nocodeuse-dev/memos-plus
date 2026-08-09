@@ -1,4 +1,5 @@
 import type { AppleCalendarAgendaEvent } from "./appleCalendarAgenda";
+import type { TaskIndexItem } from "./taskIndex";
 
 export const TASK_CALENDAR_GRID_START_HOUR = 6;
 export const TASK_CALENDAR_GRID_END_HOUR = 22;
@@ -40,6 +41,21 @@ export function taskCalendarGridPlacement(
     top: topMinutes / 60 * TASK_CALENDAR_GRID_MINUTES_PER_HOUR,
     height: visibleMinutes / 60 * TASK_CALENDAR_GRID_MINUTES_PER_HOUR
   };
+}
+
+/** Place a dated task with a concrete due time on the same local time grid. */
+export function taskCalendarTimedTaskPlacement(
+  task: Pick<TaskIndexItem, "dueDate" | "scheduledDate" | "startDate" | "dueTime" | "allDay">,
+  days: string[],
+  startHour = TASK_CALENDAR_GRID_START_HOUR,
+  endHour = TASK_CALENDAR_GRID_END_HOUR
+): TaskCalendarGridPlacement | null {
+  const date = task.dueDate || task.scheduledDate || task.startDate;
+  if (!date || !task.dueTime || task.allDay) return null;
+  const start = new Date(`${date}T${task.dueTime}:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + 30 * 60_000);
+  return taskCalendarGridPlacement({ start: start.toISOString(), end: end.toISOString(), allDay: false }, days, startHour, endHour);
 }
 
 function localDate(date: Date): string {

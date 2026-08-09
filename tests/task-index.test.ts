@@ -3,7 +3,8 @@ import {
   TaskIndex,
   filterTaskIndexItems,
   getTaskIndexOrganizerCounts,
-  parseTaskIndexItemsFromMarkdown
+  parseTaskIndexItemsFromMarkdown,
+  taskDisplayTitle
 } from "../src/taskIndex";
 
 describe("TaskIndex helpers", () => {
@@ -55,6 +56,57 @@ describe("TaskIndex helpers", () => {
       })
     );
     expect(items[6]).toEqual(expect.objectContaining({ completed: true, doneDate: "2026-06-18" }));
+  });
+
+  it("reads Reminder time and sync metadata from the real 8月10日 test-task format", () => {
+    const appleId = "1241e6f5-7f2d-4bf7-b10c-6e481daf31d2";
+    const line = `- [ ] 8月10日测试任务 🔺 📅 2026-08-10 ⏰ 17:31 ➕ 2026-08-10 #Apple同步 <!-- memos-plus-task-meta:%7B%22target%22%3A%22reminders%22%2C%22dueTime%22%3A%2217%3A31%22%7D --> <!-- memos-plus-apple-id:${appleId} -->`;
+    const [item] = parseTaskIndexItemsFromMarkdown(line, {
+      filePath: "我的资源/Memos/Apple 同步.md",
+      fileName: "Apple 同步",
+      mtime: 456
+    });
+
+    expect(item).toEqual(expect.objectContaining({
+      title: "8月10日测试任务",
+      dueDate: "2026-08-10",
+      dueTime: "17:31",
+      priority: "highest",
+      syncTarget: "reminders",
+      appleSyncId: appleId,
+      appleSyncTagged: true,
+      allDay: false
+    }));
+    expect(taskDisplayTitle(item.text)).toBe("8月10日测试任务");
+  });
+
+  it("falls back to the visible time marker and emits an immediate update when time changes", async () => {
+    const file = {
+      path: "我的资源/Memos/Apple 同步.md",
+      name: "Apple 同步.md",
+      basename: "Apple 同步",
+      extension: "md",
+      stat: { mtime: 1 }
+    };
+    let source = "- [ ] 定时任务 📅 2026-08-10 ⏰ 17:31";
+    const index = new TaskIndex({
+      vault: {
+        getMarkdownFiles: () => [file],
+        cachedRead: async () => source
+      }
+    } as never);
+    let changeCount = 0;
+    index.onChange(() => { changeCount += 1; });
+
+    await index.updateFile(file as never);
+    expect(index.getItems()[0]?.dueTime).toBe("17:31");
+
+    source = "- [ ] 定时任务 📅 2026-08-10 ⏰ 18:20";
+    file.stat.mtime = 2;
+    await index.updateFile(file as never);
+
+    expect(index.getItems()[0]?.dueTime).toBe("18:20");
+    expect(changeCount).toBe(2);
   });
 
   it("counts unfinished organizer task branches from cached items", () => {

@@ -13,7 +13,7 @@ import {
   taskCalendarTasks
 } from "../src/taskCalendar";
 import { normalizeAppleCalendarAgendaError } from "../src/appleCalendarAgenda";
-import { taskCalendarGridPlacement } from "../src/taskCalendarAgendaGrid";
+import { taskCalendarGridPlacement, taskCalendarTimedTaskPlacement } from "../src/taskCalendarAgendaGrid";
 import type { TaskIndexItem } from "../src/taskIndex";
 
 function task(overrides: Partial<TaskIndexItem> = {}): TaskIndexItem {
@@ -23,6 +23,7 @@ function task(overrides: Partial<TaskIndexItem> = {}): TaskIndexItem {
     line: "- [ ] 示例任务",
     lineNumber: 1,
     text: "示例任务",
+    title: "示例任务",
     capturedAt: "",
     capturedAtTime: 0,
     completed: false,
@@ -32,6 +33,16 @@ function task(overrides: Partial<TaskIndexItem> = {}): TaskIndexItem {
     startDate: "",
     createdDate: "",
     doneDate: "",
+    startTime: "",
+    endDate: "",
+    endTime: "",
+    dueTime: "",
+    reminderDate: "",
+    reminderTime: "",
+    allDay: false,
+    syncTarget: "",
+    appleSyncId: "",
+    appleSyncTagged: false,
     recurring: false,
     mtime: 0,
     ...overrides
@@ -105,6 +116,14 @@ describe("Schedule and tasks state", () => {
       height: 256
     });
     expect(taskCalendarGridPlacement({ start: "2026-08-05T00:00:00", end: "2026-08-06T00:00:00", allDay: true }, days)).toBeNull();
+  });
+
+  it("places a concrete Reminder due time on the matching local task timeline", () => {
+    const days = ["2026-08-10"];
+    const placement = taskCalendarTimedTaskPlacement(task({ dueDate: "2026-08-10", dueTime: "17:31", syncTarget: "reminders" }), days);
+    expect(placement).toEqual(expect.objectContaining({ dayIndex: 0, height: 32 }));
+    expect(placement?.top).toBeCloseTo(737.07, 2);
+    expect(taskCalendarTimedTaskPlacement(task({ dueDate: "2026-08-10", dueTime: "17:31", allDay: true }), days)).toBeNull();
   });
 
   it("uses the existing task index for today, inbox, all and completed lists", () => {
@@ -218,6 +237,13 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).not.toMatch(/\n\s*open\(options:\s*TaskCalendarOpenOptions/);
     expect(viewSource).toContain("applyOpenOptions(options: TaskCalendarOpenOptions = {})");
     expect(mainSource).toContain("leaf.view.applyOpenOptions(options)");
+  });
+
+  it("renders parsed task time and Apple sync status and listens for task-index changes", () => {
+    expect(viewSource).toContain("task.dueTime");
+    expect(viewSource).toContain("taskAppleSyncStatus(task)");
+    expect(viewSource).toContain("taskCalendarTimedTaskPlacement(task, days)");
+    expect(viewSource).toContain("this.plugin.taskIndex.onChange(() => this.scheduleRender())");
   });
 
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {
