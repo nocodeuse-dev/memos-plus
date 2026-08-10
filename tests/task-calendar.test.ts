@@ -267,7 +267,7 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("task.dueTime");
     expect(viewSource).toContain("taskAppleSyncStatus(task)");
     expect(viewSource).toContain("taskCalendarTimedTaskPlacement(task, days)");
-    expect(viewSource).toContain("this.plugin.taskIndex.onChange(() => this.scheduleRender())");
+    expect(viewSource).toContain("this.plugin.taskIndex.onChange(() => this.handleTaskIndexChange())");
   });
 
   it("keeps task scheduling and editing inside the existing workspace components", () => {
@@ -279,6 +279,17 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("new Menu()");
     expect(viewSource).toContain("navigationWidth");
     expect(viewSource).toContain("taskPaneWidth");
+  });
+
+  it("keeps inline field feedback independent from Markdown indexing and Apple sync", () => {
+    expect(viewSource).toContain('title.addEventListener("input"');
+    expect(viewSource).toContain('date.addEventListener("change"');
+    expect(viewSource).toContain('priority.addEventListener("change"');
+    expect(viewSource).toContain('tags.addEventListener("input"');
+    expect(viewSource).toContain("new TaskCalendarEditSession");
+    expect(viewSource).toContain("updateTaskCalendarTask(sourceTask, patch, false)");
+    expect(viewSource).not.toContain('form.addEventListener("focusout"');
+    expect(mainSource).toContain("void this.syncAppleNow(false)");
   });
 
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {

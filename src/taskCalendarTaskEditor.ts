@@ -1,4 +1,4 @@
-import type { TaskIndexItem } from "./taskIndex";
+import { parseTaskIndexItemsFromMarkdown, type TaskIndexItem } from "./taskIndex";
 import type { TaskPriorityFilterValue } from "./taskSearch";
 import { attachMemosPlusTaskMetadata, parseMemosPlusTaskMetadata } from "./tasksFormat";
 
@@ -151,6 +151,28 @@ export function updateTaskCalendarTaskLine(
     }
   }
   return normalizeTaskLineSpacing(line);
+}
+
+export function taskCalendarTaskWithPatch(
+  task: TaskIndexItem,
+  patch: TaskCalendarTaskPatch,
+  context: TaskCalendarTaskEditContext
+): TaskIndexItem {
+  const line = updateTaskCalendarTaskLine(task, patch, context);
+  const parsed = parseTaskIndexItemsFromMarkdown(line, {
+    filePath: task.filePath,
+    fileName: task.fileName,
+    mtime: task.mtime
+  })[0];
+  if (!parsed) return { ...task, line };
+  return {
+    ...task,
+    ...parsed,
+    filePath: task.filePath,
+    fileName: task.fileName,
+    lineNumber: task.lineNumber,
+    mtime: task.mtime
+  };
 }
 
 export function stripTaskCalendarDetailMetadata(line: string): string {

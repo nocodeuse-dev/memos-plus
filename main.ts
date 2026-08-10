@@ -438,7 +438,7 @@ export default class MemosPlusPlugin extends Plugin {
     new Notice(t(this.settings.language, "notice.diagnosticLogExported") + path);
   }
 
-  async syncAppleNow(showNotice = true): Promise<void> {
+  async syncAppleNow(showNotice = true): Promise<boolean> {
     const lang = this.settings.language;
     try {
       const result = await this.appleSync.syncNow();
@@ -451,10 +451,12 @@ export default class MemosPlusPlugin extends Plugin {
             .replace("{deleted}", String(result.deletedLocal + result.deletedRemote))
         );
       }
+      return true;
     } catch (error) {
       if (showNotice) {
         new Notice(t(lang, "notice.appleSyncFailed").replace("{error}", error instanceof Error ? error.message : String(error)));
       }
+      return false;
     }
   }
 
@@ -573,7 +575,7 @@ export default class MemosPlusPlugin extends Plugin {
   async toggleTaskCalendarTask(item: TaskIndexItem): Promise<boolean> {
     const updated = await this.toggleTaskIndexItem(item);
     if (updated && this.settings.appleSyncEnabled && item.line.includes(normalizeAppleSyncTag(this.settings.appleSyncTag))) {
-      await this.syncAppleNow(false);
+      void this.syncAppleNow(false);
     }
     return updated;
   }
@@ -594,7 +596,7 @@ export default class MemosPlusPlugin extends Plugin {
     return this.editTaskIndexItem(item);
   }
 
-  async updateTaskCalendarTask(item: TaskIndexItem, patch: TaskCalendarTaskPatch): Promise<boolean> {
+  async updateTaskCalendarTask(item: TaskIndexItem, patch: TaskCalendarTaskPatch, syncApple = true): Promise<boolean> {
     try {
       const result = await updateIndexedTaskFromCalendar(this.app, item, patch, {
         projectTagPrefix: this.settings.projectTag,
@@ -605,7 +607,7 @@ export default class MemosPlusPlugin extends Plugin {
         return false;
       }
       await this.taskIndex.updateFile(result.file);
-      if (this.settings.appleSyncEnabled && item.line.includes(normalizeAppleSyncTag(this.settings.appleSyncTag))) {
+      if (syncApple && this.settings.appleSyncEnabled && item.line.includes(normalizeAppleSyncTag(this.settings.appleSyncTag))) {
         void this.syncAppleNow(false);
       }
       return true;
