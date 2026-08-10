@@ -4215,13 +4215,13 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       .addDropdown((dropdown) => {
         dropdown
           .addOption("today", t(lang, "taskCalendar.nav.today"))
-          .addOption("week", t(lang, "taskCalendar.nav.week"))
+          .addOption("upcoming", t(lang, "taskCalendar.nav.upcoming"))
           .addOption("inbox", t(lang, "taskCalendar.nav.inbox"))
           .addOption("all", t(lang, "taskCalendar.nav.all"))
           .addOption("completed", t(lang, "taskCalendar.nav.completed"))
           .setValue(state.defaultView)
           .onChange(async (value) => {
-            this.plugin.settings.taskCalendar.defaultView = value === "week" || value === "inbox" || value === "all" || value === "completed" ? value : "today";
+            this.plugin.settings.taskCalendar.defaultView = value === "upcoming" || value === "inbox" || value === "all" || value === "completed" ? value : "today";
             await this.plugin.persistSettings();
           });
       });

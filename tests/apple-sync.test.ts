@@ -9,6 +9,7 @@ import {
   remoteAppleSyncSignature,
   resolveAppleSyncDirection,
   shouldSyncTask,
+  taskTitleForApple,
   updateTaskLineFromApple,
   type AppleSyncRecord,
   type AppleSyncRemoteItem
@@ -96,6 +97,11 @@ describe("Apple sync safety and merge helpers", () => {
     const line = formatImportedAppleTask(remoteReminder, "#Apple同步", "new-local");
     expect(line).toContain("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30 #Apple同步 <!-- memos-plus-apple-id:new-local -->");
     expect(line).toContain("memos-plus-task-meta:");
+  });
+
+  it("keeps workspace-only task details out of the Apple Reminder title", () => {
+    const detail = encodeURIComponent(JSON.stringify({ notes: "影像资料", relatedNote: "半月板.md" }));
+    expect(taskTitleForApple({ text: `测试任务 📅 2026-08-10 #Apple同步 <!-- memos-plus-task-detail:${detail} -->` }, "#Apple同步")).toBe("测试任务");
   });
 
   it("keeps state records keyed by target and local id", () => {

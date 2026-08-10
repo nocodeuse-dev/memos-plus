@@ -47,6 +47,7 @@ export const DEFAULT_APPLE_SYNC_STATE: AppleSyncState = {
 };
 
 const APPLE_SYNC_ID_RE = /<!--\s*memos-plus-apple-id:([a-zA-Z0-9_-]+)\s*-->/;
+const TASK_DETAIL_RE = /<!--\s*memos-plus-task-detail:[^\s>]+\s*-->/gu;
 const TASK_PREFIX_RE = /^(\s*(?:[-*+]|\d+[.)])\s+\[)[^\]](\]\s+)/;
 const TASK_METADATA_RE = /(?:🔺|⏫|🔼|🔽|⏬|📅\s*\d{4}-\d{2}-\d{2}|⏰\s*\d{1,2}:\d{2}|⏳\s*\d{4}-\d{2}-\d{2}|🛫\s*\d{4}-\d{2}-\d{2}|➕\s*\d{4}-\d{2}-\d{2}|✅\s*\d{4}-\d{2}-\d{2}|🔁|#[^\s#]+|<!--)/u;
 
@@ -132,6 +133,7 @@ export function shouldSyncCalendarTask(task: Pick<TaskIndexItem, "line">): boole
 export function taskTitleForApple(task: Pick<TaskIndexItem, "text">, tag: string): string {
   return task.text
     .replace(APPLE_SYNC_ID_RE, "")
+    .replace(TASK_DETAIL_RE, "")
     .replace(/<!--\s*memos-plus-task-meta:[^\s>]+\s*-->/gu, "")
     .replace(new RegExp(`(^|\\s)${escapeRegExp(normalizeAppleSyncTag(tag))}(?=\\s|$)`, "gu"), " ")
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")

@@ -12,7 +12,8 @@ import { fetchPageTitle, resolveClipboardMarkdownLink } from "./src/linkCapture"
 import type { QuickCaptureInitialContentMode } from "./src/quickCaptureContent";
 import { TaskIndex } from "./src/taskIndex";
 import type { TaskIndexItem } from "./src/taskIndex";
-import { editIndexedTaskWithTasksApi, getTasksApi, toggleIndexedTask } from "./src/taskActions";
+import { editIndexedTaskWithTasksApi, getTasksApi, toggleIndexedTask, updateIndexedTaskFromCalendar } from "./src/taskActions";
+import type { TaskCalendarTaskPatch } from "./src/taskCalendarTaskEditor";
 import { openIndexedTask } from "./src/taskNavigation";
 import { confirmWithModal } from "./src/confirmModal";
 import { importClipboardImageWithConfirmation } from "./src/clipboardImageImport";
@@ -538,10 +539,12 @@ export default class MemosPlusPlugin extends Plugin {
         defaultRecurrence: this.settings.taskDefaultRecurrence,
         addCreatedDate: this.settings.taskAddCreatedDate,
         appleSyncEnabled: this.settings.appleSyncEnabled,
-        appleSyncTag: this.settings.appleSyncTag
+        appleSyncTag: this.settings.appleSyncTag,
+        defaultSyncTarget: this.settings.appleSyncEnabled ? "reminders" : "tasks"
       },
       defaultAsTask: true,
-      allowPlain: false
+      allowPlain: false,
+      hideSyncTarget: true
     });
     if (task === null) return false;
     const line = renderTaskContentWithOptions(text, task ?? { isTask: true }, this.settings);
@@ -589,6 +592,28 @@ export default class MemosPlusPlugin extends Plugin {
 
   async editTaskCalendarTask(item: TaskIndexItem): Promise<boolean> {
     return this.editTaskIndexItem(item);
+  }
+
+  async updateTaskCalendarTask(item: TaskIndexItem, patch: TaskCalendarTaskPatch): Promise<boolean> {
+    try {
+      const result = await updateIndexedTaskFromCalendar(this.app, item, patch, {
+        projectTagPrefix: this.settings.projectTag,
+        appleSyncTag: this.settings.appleSyncTag
+      });
+      if (!result.updated || !result.file) {
+        showTaskMutationFailure(this.settings.language);
+        return false;
+      }
+      await this.taskIndex.updateFile(result.file);
+      if (this.settings.appleSyncEnabled && item.line.includes(normalizeAppleSyncTag(this.settings.appleSyncTag))) {
+        void this.syncAppleNow(false);
+      }
+      return true;
+    } catch (error) {
+      console.error("Memos Plus: failed to update task from Schedule and Tasks", error);
+      showTaskMutationFailure(this.settings.language);
+      return false;
+    }
   }
 
   async refreshTaskCalendarTasks(): Promise<void> {

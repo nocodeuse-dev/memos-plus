@@ -33,6 +33,7 @@ interface TaskOptionsFormOptions {
   allowPlain?: boolean;
   taskContentMode?: TaskContentMode;
   renderMetadataOptions?: boolean;
+  hideSyncTarget?: boolean;
 }
 
 export interface TaskOptionsForm {
@@ -66,6 +67,7 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
       ["reminders", t(lang, "projectSend.syncTarget.reminders")],
       ["calendar", t(lang, "projectSend.syncTarget.calendar")]
     ]);
+    if (options.hideSyncTarget) syncTarget.closest<HTMLElement>(".memos-plus-task-option-field")?.addClass("is-hidden");
     syncTarget.value = defaultTarget;
     const project = createTextField(form, t(lang, "projectSend.project"), t(lang, "projectSend.projectPlaceholder"));
     project.value = options.taskSettings.defaultProjectTag ?? "";

@@ -318,7 +318,7 @@ function taskIndexItemFromParsedTask(task: ParsedTaskLine, line: string, lineNum
     startTime: metadata?.startTime ?? "",
     endDate: metadata?.endDate ?? "",
     endTime: metadata?.endTime ?? "",
-    dueTime: metadata?.dueTime || taskTimeFromLine(line),
+    dueTime: metadata?.dueTime || metadata?.startTime || taskTimeFromLine(line),
     reminderDate: metadata?.reminderDate ?? "",
     reminderTime: metadata?.reminderTime ?? "",
     reminderMinutesBefore: metadata?.reminderMinutesBefore,
@@ -333,11 +333,11 @@ function taskIndexItemFromParsedTask(task: ParsedTaskLine, line: string, lineNum
 
 export function taskDisplayTitle(text: string): string {
   return text
-    .replace(/<!--\s*memos-plus-(?:task-meta:[^\s>]+|apple-id:[^\s>]+)\s*-->/gu, " ")
+    .replace(/<!--\s*memos-plus-(?:task-meta:[^\s>]+|task-detail:[^\s>]+|apple-id:[^\s>]+)\s*-->/gu, " ")
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
     .replace(/(?:📅|⏳|🛫|➕|✅)\s*\d{4}-\d{2}-\d{2}/gu, " ")
     .replace(/⏰\s*\d{1,2}:\d{2}/gu, " ")
-    .replace(/(^|\s)#Apple同步(?=\s|$)/gu, " ")
+    .replace(/(^|\s)#[^\s#]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

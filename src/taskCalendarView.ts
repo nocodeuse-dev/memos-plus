@@ -1,4 +1,4 @@
-import { ItemView, Notice, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Menu, Notice, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
 import type MemosPlusPlugin from "../main";
 import { AppleCalendarAgendaService, type AppleCalendarAgendaEvent } from "./appleCalendarAgenda";
 import { t } from "./i18n";
@@ -22,6 +22,7 @@ import {
   TASK_CALENDAR_GRID_END_HOUR,
   TASK_CALENDAR_GRID_MINUTES_PER_HOUR,
   TASK_CALENDAR_GRID_START_HOUR,
+  taskCalendarDropTime,
   taskCalendarGridPlacement,
   taskCalendarTimedTaskPlacement
 } from "./taskCalendarAgendaGrid";
@@ -30,14 +31,21 @@ import type { TaskPriorityFilterValue } from "./taskSearch";
 import { TaskCalendarEventModal } from "./taskCalendarEventModal";
 import { TaskCalendarEventDetailModal } from "./taskCalendarEventDetailModal";
 import { QuickCaptureModal } from "./modal";
+import {
+  parseTaskCalendarDetailMetadata,
+  taskCalendarPostponeDate,
+  taskCalendarTaskKey,
+  taskCalendarTaskProjectTag,
+  taskCalendarTaskTags,
+  type TaskCalendarTaskPatch
+} from "./taskCalendarTaskEditor";
 
 export const MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE = "memos-plus-task-calendar-view";
 
 const NAVIGATION: ReadonlyArray<{ id: TaskCalendarNavigation; icon: string; labelKey: Parameters<typeof t>[1] }> = [
   { id: "today", icon: "sun", labelKey: "taskCalendar.nav.today" },
-  { id: "tomorrow", icon: "sunrise", labelKey: "taskCalendar.nav.tomorrow" },
-  { id: "week", icon: "calendar-range", labelKey: "taskCalendar.nav.week" },
   { id: "inbox", icon: "inbox", labelKey: "taskCalendar.nav.inbox" },
+  { id: "upcoming", icon: "calendar-range", labelKey: "taskCalendar.nav.upcoming" },
   { id: "overdue", icon: "alarm-clock", labelKey: "taskCalendar.nav.overdue" },
   { id: "all", icon: "list-todo", labelKey: "taskCalendar.nav.all" },
   { id: "completed", icon: "check-circle-2", labelKey: "taskCalendar.nav.completed" }
@@ -60,6 +68,9 @@ export class TaskCalendarView extends ItemView {
   private taskProjectsLoading = false;
   private visibleTaskCount = Platform.isMobile ? 40 : 80;
   private viewActive = false;
+  private selectedTaskKey = "";
+  private draggingTask: TaskIndexItem | null = null;
+  private projectNavExpanded = false;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
     super(leaf);
@@ -109,7 +120,7 @@ export class TaskCalendarView extends ItemView {
 
   openDefault(): void {
     const navigation = this.plugin.settings.taskCalendar.defaultView;
-    this.applyOpenOptions({ navigation, viewMode: navigation === "week" ? "week" : this.plugin.settings.taskCalendar.viewMode });
+    this.applyOpenOptions({ navigation, viewMode: navigation === "upcoming" ? "week" : this.plugin.settings.taskCalendar.viewMode });
   }
 
   openAll(): void {
@@ -192,7 +203,16 @@ export class TaskCalendarView extends ItemView {
   }
 
   private render(): void {
+    this.renderWithOptions(false);
+  }
+
+  private renderForced(): void {
+    this.renderWithOptions(true);
+  }
+
+  private renderWithOptions(force: boolean): void {
     if (!this.viewActive) return;
+    if (!force && this.contentEl.querySelector(".memos-plus-task-calendar-task-details :focus")) return;
     try {
       this.renderContent();
     } catch (error) {
@@ -215,6 +235,8 @@ export class TaskCalendarView extends ItemView {
     root.setAttr("data-mobile-tab", state.mobileTab);
     root.toggleClass("is-sidebar-collapsed", state.sidebarCollapsed);
     root.toggleClass("is-tasks-hidden", !Platform.isMobile && state.tasksPaneHidden);
+    root.style.setProperty("--memos-plus-task-calendar-nav-width", `${state.navigationWidth}px`);
+    root.style.setProperty("--memos-plus-task-calendar-task-width", `${state.taskPaneWidth}px`);
 
     const header = root.createDiv({ cls: "memos-plus-task-calendar-header" });
     const titleBlock = header.createDiv({ cls: "memos-plus-task-calendar-title" });
@@ -239,14 +261,16 @@ export class TaskCalendarView extends ItemView {
         if (state.viewMode !== modeId) void this.updateState({ viewMode: modeId });
       });
     }
-    this.iconButton(headerActions, "message-square-plus", t(lang, "command.quickCapture"), () => this.plugin.openTaskCalendarQuickCapture());
-    this.iconButton(headerActions, "calendar-plus", t(lang, "taskCalendar.newEvent"), () => this.openEventComposer());
+    const create = this.iconButton(headerActions, "plus", t(lang, "taskCalendar.new"), () => undefined);
+    create.addEventListener("click", (event) => this.openCreateMenu(event));
     this.iconButton(headerActions, "refresh-cw", t(lang, "taskCalendar.refresh"), () => void this.refreshScheduleAndTasks(
       range.startDate,
       range.endDate,
       state.agendaCalendarNames,
       state.agendaCalendarNames.length === 0
     ));
+
+    if (state.navigation === "today") this.renderTodaySummary(root, items, selectedDate);
 
     if (Platform.isMobile) {
       const tabs = root.createDiv({ cls: "memos-plus-task-calendar-mobile-tabs", attr: { role: "tablist" } });
@@ -267,10 +291,23 @@ export class TaskCalendarView extends ItemView {
       button.createSpan({ text: t(lang, item.labelKey) });
       button.addEventListener("click", () => void this.openNavigation(item.id));
     }
+    this.renderProjectNavigation(navigation);
+    const calendarNav = navigation.createEl("button", { cls: "memos-plus-task-calendar-nav", attr: { type: "button" } });
+    setIcon(calendarNav, "calendar-days");
+    calendarNav.createSpan({ text: t(lang, "taskCalendar.calendars") });
+    calendarNav.addEventListener("click", () => {
+      if (Platform.isMobile) void this.updateState({ mobileTab: "calendar" });
+      else this.contentEl.querySelector<HTMLElement>(".memos-plus-task-calendar-agenda")?.focus();
+    });
     this.renderCalendarFilters(navigation);
 
+    this.renderResizeHandle(layout, "left", state.navigationWidth);
+
     const agenda = layout.createDiv({ cls: "memos-plus-task-calendar-agenda" });
+    agenda.tabIndex = -1;
     this.renderAgenda(agenda, range.days, selectedDate, state.showAllDayEvents, items);
+
+    this.renderResizeHandle(layout, "right", state.taskPaneWidth);
 
     const taskPane = layout.createDiv({ cls: "memos-plus-task-calendar-tasks" });
     const taskHeader = taskPane.createDiv({ cls: "memos-plus-task-calendar-pane-header" });
@@ -279,6 +316,10 @@ export class TaskCalendarView extends ItemView {
     });
     const hideTasks = this.iconButton(taskHeader, state.tasksPaneHidden ? "panel-right-open" : "panel-right-close", t(lang, "taskCalendar.toggleTasks"), () => void this.updateState({ tasksPaneHidden: !state.tasksPaneHidden }));
     hideTasks.addClass("memos-plus-task-calendar-tasks-toggle");
+    const selectedTask = this.selectedTask(items);
+    if (selectedTask) {
+      this.renderTaskDetails(taskPane, selectedTask);
+    } else {
     const quick = taskPane.createEl("input", { cls: "memos-plus-task-calendar-quick-input", attr: { type: "text", placeholder: t(lang, "taskCalendar.quickTask"), "aria-label": t(lang, "taskCalendar.quickTask") } });
     quick.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || event.isComposing) return;
@@ -293,11 +334,119 @@ export class TaskCalendarView extends ItemView {
       }).finally(() => { if (quick.isConnected) quick.disabled = false; });
     });
     this.renderTaskControls(taskPane, items, state.navigation, selectedDate);
+    }
     const calendarNames = state.agendaCalendarNames;
     const agendaKey = this.agendaKey(range.startDate, range.endDate, calendarNames);
     if (this.loadedAgendaKey !== agendaKey && !this.agendaLoading) {
       void this.loadAgenda(range.startDate, range.endDate, calendarNames, state.agendaCalendarNames.length === 0, false);
     }
+  }
+
+  private openCreateMenu(event: MouseEvent): void {
+    const lang = this.plugin.settings.language;
+    const menu = new Menu();
+    menu.addItem((item) => item
+      .setTitle(t(lang, "taskCalendar.quickAction.task"))
+      .setIcon("list-plus")
+      .onClick(() => {
+        this.selectedTaskKey = "";
+        void this.updateState({ tasksPaneHidden: false, mobileTab: "tasks" }).then(() => this.focusQuickTaskInput());
+      }));
+    menu.addItem((item) => item
+      .setTitle(t(lang, "taskCalendar.quickAction.event"))
+      .setIcon("calendar-plus")
+      .onClick(() => this.openEventComposer()));
+    menu.addItem((item) => item
+      .setTitle(t(lang, "taskCalendar.quickAction.memo"))
+      .setIcon("message-square-plus")
+      .onClick(() => this.plugin.openTaskCalendarQuickCapture()));
+    menu.showAtMouseEvent(event);
+  }
+
+  private renderTodaySummary(container: HTMLElement, items: TaskIndexItem[], selectedDate: string): void {
+    const lang = this.plugin.settings.language;
+    const incomplete = items.filter((item) => !item.completed);
+    const dueToday = incomplete.filter((item) => taskDate(item) === selectedDate);
+    const overdue = incomplete.filter((item) => Boolean(item.dueDate && item.dueDate < selectedDate));
+    const events = this.events.filter((event) => calendarEventLocalDate(event.start) === selectedDate);
+    const next = nextScheduleLabel(dueToday, events, selectedDate);
+    const summary = container.createDiv({ cls: "memos-plus-task-calendar-today-summary", attr: { "aria-label": t(lang, "taskCalendar.todaySummary") } });
+    summaryCard(summary, t(lang, "taskCalendar.summary.todo"), String(dueToday.length));
+    summaryCard(summary, t(lang, "taskCalendar.summary.overdue"), String(overdue.length), overdue.length > 0 ? "is-warning" : "");
+    summaryCard(summary, t(lang, "taskCalendar.summary.events"), String(events.length));
+    summaryCard(summary, t(lang, "taskCalendar.summary.next"), next || t(lang, "taskCalendar.summary.none"), "is-wide");
+  }
+
+  private renderProjectNavigation(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    const project = container.createEl("button", {
+      cls: `memos-plus-task-calendar-nav${this.taskProject ? " is-active" : ""}`,
+      attr: { type: "button", "aria-expanded": String(this.projectNavExpanded) }
+    });
+    setIcon(project, "folder-kanban");
+    project.createSpan({ text: t(lang, "taskCalendar.projects") });
+    const chevron = project.createSpan({ cls: "memos-plus-task-calendar-nav-chevron" });
+    setIcon(chevron, this.projectNavExpanded ? "chevron-down" : "chevron-right");
+    project.addEventListener("click", () => {
+      this.projectNavExpanded = !this.projectNavExpanded;
+      this.render();
+    });
+    if (!this.projectNavExpanded) return;
+    const list = container.createDiv({ cls: "memos-plus-task-calendar-project-nav-list" });
+    for (const candidate of this.taskProjects) {
+      const option = list.createEl("button", {
+        cls: sameProjectFilter(candidate, this.taskProject) ? "is-active" : "",
+        text: candidate.label,
+        attr: { type: "button", title: candidate.filePath ?? candidate.tag ?? candidate.label }
+      });
+      option.addEventListener("click", () => {
+        this.taskProject = candidate;
+        this.selectedTaskKey = "";
+        void this.updateState({ navigation: "all", tasksPaneHidden: false, mobileTab: "tasks" });
+      });
+    }
+  }
+
+  private renderResizeHandle(container: HTMLElement, side: "left" | "right", currentWidth: number): void {
+    const handle = container.createDiv({
+      cls: `memos-plus-task-calendar-resizer is-${side}`,
+      attr: { role: "separator", tabindex: "0", "aria-orientation": "vertical", "aria-label": t(this.plugin.settings.language, side === "left" ? "taskCalendar.resizeNavigation" : "taskCalendar.resizeTasks") }
+    });
+    const minimum = side === "left" ? 120 : 250;
+    const maximum = side === "left" ? 280 : 520;
+    const apply = (value: number): number => {
+      const width = Math.max(minimum, Math.min(maximum, Math.round(value)));
+      const root = this.contentEl.querySelector<HTMLElement>(".memos-plus-task-calendar");
+      root?.style.setProperty(side === "left" ? "--memos-plus-task-calendar-nav-width" : "--memos-plus-task-calendar-task-width", `${width}px`);
+      return width;
+    };
+    handle.addEventListener("pointerdown", (event) => {
+      if (Platform.isMobile) return;
+      event.preventDefault();
+      handle.addClass("is-active");
+      const startX = event.clientX;
+      let nextWidth = currentWidth;
+      const win = this.contentEl.ownerDocument.defaultView;
+      if (!win) return;
+      const move = (moveEvent: PointerEvent): void => {
+        nextWidth = apply(currentWidth + (moveEvent.clientX - startX) * (side === "left" ? 1 : -1));
+      };
+      const end = (): void => {
+        handle.removeClass("is-active");
+        win.removeEventListener("pointermove", move);
+        win.removeEventListener("pointerup", end);
+        void this.updateState(side === "left" ? { navigationWidth: nextWidth } : { taskPaneWidth: nextWidth });
+      };
+      win.addEventListener("pointermove", move);
+      win.addEventListener("pointerup", end, { once: true });
+    });
+    handle.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const direction = event.key === "ArrowRight" ? 1 : -1;
+      const next = apply(currentWidth + direction * 12 * (side === "left" ? 1 : -1));
+      void this.updateState(side === "left" ? { navigationWidth: next } : { taskPaneWidth: next });
+    });
   }
 
   private renderMiniCalendar(container: HTMLElement, selectedDate: string): void {
@@ -374,7 +523,6 @@ export class TaskCalendarView extends ItemView {
     else header.createSpan({ cls: "memos-plus-task-calendar-sync-status", text: t(lang, "taskCalendar.ready") });
     if (this.agendaError) {
       container.createDiv({ cls: "memos-plus-task-calendar-agenda-message", text: this.agendaError });
-      return;
     }
     const eventByDay = new Map(days.map((day) => [day, this.events.filter((event) => calendarEventLocalDate(event.start) === day || (event.allDay && calendarEventLocalDate(event.end) === day))]));
     const scheduler = container.createDiv({ cls: "memos-plus-task-calendar-scheduler" });
@@ -414,6 +562,25 @@ export class TaskCalendarView extends ItemView {
     ]));
     for (const [dayIndex, day] of days.entries()) {
       const column = columns.createDiv({ cls: `memos-plus-task-calendar-time-column${day === todayTaskCalendarDate() ? " is-today" : ""}` });
+      column.setAttr("data-date", day);
+      column.addEventListener("dragover", (event) => {
+        if (!this.draggingTask) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+        column.addClass("is-task-drop-target");
+      });
+      column.addEventListener("dragleave", (event) => {
+        if (!(event.relatedTarget instanceof Node) || !column.contains(event.relatedTarget)) column.removeClass("is-task-drop-target");
+      });
+      column.addEventListener("drop", (event) => {
+        event.preventDefault();
+        column.removeClass("is-task-drop-target");
+        const task = this.draggingTask;
+        this.draggingTask = null;
+        if (!task) return;
+        const time = taskCalendarDropTime(event.clientY, column.getBoundingClientRect().top);
+        void this.updateTask(task, { date: day, time });
+      });
       const timed = (eventByDay.get(day) ?? []).filter((event) => !event.allDay);
       for (const event of timed) {
         const placement = taskCalendarGridPlacement(event, days);
@@ -426,20 +593,28 @@ export class TaskCalendarView extends ItemView {
         if (!placement) continue;
         this.renderTimedTask(column, task, placement.top);
       }
-      if (timed.length === 0 && timedTasks.length === 0) column.createDiv({ cls: "memos-plus-task-calendar-grid-empty", text: days.length === 1 ? t(lang, "taskCalendar.emptyAgenda") : "" });
+      if (timed.length === 0 && timedTasks.length === 0) column.createDiv({
+        cls: "memos-plus-task-calendar-grid-empty",
+        text: days.length === 1 ? t(lang, "taskCalendar.dropHint") : ""
+      });
     }
   }
 
   private renderTimedTask(container: HTMLElement, task: TaskIndexItem, top: number): void {
     const title = task.title || t(this.plugin.settings.language, "taskCalendar.untitledTask");
-    const taskEl = container.createEl("button", {
+    const taskEl = container.createDiv({
       cls: "memos-plus-task-calendar-timed-task",
-      attr: { type: "button", title: `${task.dueTime} ${title}`, "aria-label": `${title} ${task.dueTime}` }
+      attr: { title: `${task.dueTime} ${title}`, "aria-label": `${title} ${task.dueTime}`, draggable: "true" }
     });
     taskEl.style.top = `${top}px`;
-    taskEl.createSpan({ cls: "memos-plus-task-calendar-timed-task-time", text: task.dueTime });
-    taskEl.createSpan({ cls: "memos-plus-task-calendar-timed-task-title", text: title });
-    taskEl.addEventListener("click", () => void this.plugin.openTaskCalendarTask(task));
+    const checkbox = taskEl.createEl("input", { type: "checkbox", attr: { "aria-label": t(this.plugin.settings.language, "taskCalendar.completeTask").replace("{title}", title) } });
+    checkbox.checked = task.completed;
+    checkbox.addEventListener("change", () => void this.plugin.toggleTaskCalendarTask(task));
+    const body = taskEl.createEl("button", { cls: "memos-plus-task-calendar-timed-task-body", attr: { type: "button" } });
+    body.createSpan({ cls: "memos-plus-task-calendar-timed-task-time", text: task.dueTime });
+    body.createSpan({ cls: "memos-plus-task-calendar-timed-task-title", text: title });
+    body.addEventListener("click", () => this.selectTask(task));
+    this.prepareTaskDrag(taskEl, task);
   }
 
   private renderEvent(container: HTMLElement, event: AppleCalendarAgendaEvent, variant = "", top?: number, height?: number): void {
@@ -561,7 +736,7 @@ export class TaskCalendarView extends ItemView {
   }
 
   private renderTask(container: HTMLElement, task: TaskIndexItem, selectedDate: string): void {
-    const item = container.createDiv({ cls: `memos-plus-task-calendar-task${task.completed ? " is-completed" : ""}` });
+    const item = container.createDiv({ cls: `memos-plus-task-calendar-task${task.completed ? " is-completed" : ""}`, attr: { draggable: "true" } });
     const title = task.title || t(this.plugin.settings.language, "taskCalendar.untitledTask");
     const checkbox = item.createEl("input", { type: "checkbox", attr: { "aria-label": title } });
     checkbox.checked = task.completed;
@@ -584,7 +759,8 @@ export class TaskCalendarView extends ItemView {
         task.filePath
       ].filter(Boolean).join(" · ")
     });
-    body.addEventListener("click", () => void this.plugin.openTaskCalendarTask(task));
+    body.addEventListener("click", () => this.selectTask(task));
+    this.prepareTaskDrag(item, task);
     if (this.plugin.canEditTaskCalendarTask()) {
       const edit = this.iconButton(item, "pencil", t(this.plugin.settings.language, "common.edit"), () => {
         edit.disabled = true;
@@ -597,10 +773,153 @@ export class TaskCalendarView extends ItemView {
   private taskAppleSyncStatus(task: TaskIndexItem): string {
     const target = task.syncTarget || (task.appleSyncTagged || task.appleSyncId ? "reminders" : "");
     if (!target) return "";
+    const recordKey = task.appleSyncId ? `${target}:${task.appleSyncId}` : "";
+    const synced = Boolean(recordKey && this.plugin.settings.appleSyncState.records[recordKey]);
+    if (this.plugin.settings.appleSyncState.lastError) return `⚠ ${t(this.plugin.settings.language, "taskCalendar.appleFailed")}`;
+    return synced ? "✓" : "↻";
+  }
+
+  private selectedTask(items: TaskIndexItem[]): TaskIndexItem | null {
+    if (!this.selectedTaskKey) return null;
+    return items.find((item) => taskCalendarTaskKey(item) === this.selectedTaskKey) ?? null;
+  }
+
+  private selectTask(task: TaskIndexItem): void {
+    this.selectedTaskKey = taskCalendarTaskKey(task);
+    if (!Platform.isMobile && this.plugin.settings.taskCalendar.tasksPaneHidden) {
+      void this.updateState({ tasksPaneHidden: false });
+      return;
+    }
+    if (Platform.isMobile && this.plugin.settings.taskCalendar.mobileTab !== "tasks") {
+      void this.updateState({ mobileTab: "tasks" });
+      return;
+    }
+    this.render();
+  }
+
+  private prepareTaskDrag(element: HTMLElement, task: TaskIndexItem): void {
+    element.addEventListener("dragstart", (event) => {
+      this.draggingTask = task;
+      element.addClass("is-dragging");
+      event.dataTransfer?.setData("text/plain", taskCalendarTaskKey(task));
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    });
+    element.addEventListener("dragend", () => {
+      this.draggingTask = null;
+      element.removeClass("is-dragging");
+      this.contentEl.querySelectorAll(".is-task-drop-target").forEach((target) => target.removeClass("is-task-drop-target"));
+    });
+  }
+
+  private async updateTask(task: TaskIndexItem, patch: TaskCalendarTaskPatch): Promise<boolean> {
+    const updated = await this.plugin.updateTaskCalendarTask(task, patch);
+    if (updated) {
+      this.selectedTaskKey = taskCalendarTaskKey(task);
+      this.renderForced();
+    }
+    return updated;
+  }
+
+  private renderTaskDetails(container: HTMLElement, task: TaskIndexItem): void {
+    const lang = this.plugin.settings.language;
+    const detail = parseTaskCalendarDetailMetadata(task.line);
+    const form = container.createDiv({ cls: "memos-plus-task-calendar-task-details" });
+    const toolbar = form.createDiv({ cls: "memos-plus-task-calendar-task-detail-toolbar" });
+    const back = this.iconButton(toolbar, "arrow-left", t(lang, "taskCalendar.backToTasks"), () => {
+      this.selectedTaskKey = "";
+      this.renderForced();
+    });
+    back.addClass("memos-plus-task-calendar-task-detail-back");
+    toolbar.createDiv({ cls: "memos-plus-task-calendar-task-detail-path", text: task.filePath });
+    const sync = this.taskAppleSyncDetail(task);
+    if (sync) toolbar.createSpan({ cls: `memos-plus-task-calendar-task-detail-sync${sync.error ? " is-error" : ""}`, text: sync.label, attr: { title: sync.title } });
+
+    const title = taskDetailTextField(form, t(lang, "taskCalendar.detail.title"), task.title);
+    const row = form.createDiv({ cls: "memos-plus-task-calendar-task-detail-grid" });
+    const date = taskDetailInput(row, t(lang, "taskCalendar.detail.date"), "date", taskDate(task));
+    const time = taskDetailInput(row, t(lang, "taskCalendar.detail.time"), "time", task.dueTime || task.startTime);
+    const reminderDate = taskDetailInput(row, t(lang, "taskCalendar.detail.reminderDate"), "date", task.reminderDate);
+    const reminderTime = taskDetailInput(row, t(lang, "taskCalendar.detail.reminderTime"), "time", task.reminderTime);
+    const reminderLead = taskDetailInput(row, t(lang, "taskCalendar.detail.reminderLead"), "number", task.reminderMinutesBefore === undefined ? "" : String(task.reminderMinutesBefore));
+    reminderLead.min = "0";
+    reminderLead.max = "10080";
+
+    const priority = taskDetailSelect(form, t(lang, "taskCalendar.detail.priority"), [
+      ["none", t(lang, "taskPriority.none")],
+      ["highest", t(lang, "taskPriority.highest")],
+      ["high", t(lang, "taskPriority.high")],
+      ["medium", t(lang, "taskPriority.medium")],
+      ["low", t(lang, "taskPriority.low")],
+      ["lowest", t(lang, "taskPriority.lowest")]
+    ], task.priority);
+
+    const currentProject = taskCalendarTaskProjectTag(task.line, this.plugin.settings.projectTag);
+    const projectOptions: Array<[string, string]> = [["", t(lang, "taskCalendar.noProject")]];
+    for (const candidate of this.taskProjects) projectOptions.push([normalizeVisibleProjectTag(candidate.tag ?? candidate.label), candidate.label]);
+    if (currentProject && !projectOptions.some(([value]) => value === currentProject)) projectOptions.push([currentProject, currentProject]);
+    const project = taskDetailSelect(form, t(lang, "taskCalendar.detail.project"), projectOptions, currentProject);
+    const tags = taskDetailTextField(form, t(lang, "taskCalendar.detail.tags"), taskCalendarTaskTags(task.line, {
+      projectTagPrefix: this.plugin.settings.projectTag,
+      appleSyncTag: this.plugin.settings.appleSyncTag
+    }).join(" "));
+    const notes = taskDetailTextarea(form, t(lang, "taskCalendar.detail.notes"), detail.notes ?? "");
+    const related = taskDetailTextField(form, t(lang, "taskCalendar.detail.relatedNote"), detail.relatedNote ?? "");
+
+    const postpone = form.createDiv({ cls: "memos-plus-task-calendar-postpone" });
+    postpone.createSpan({ text: t(lang, "taskCalendar.postpone") });
+    for (const [kind, label] of [["today", "taskCalendar.postpone.today"], ["tomorrow", "taskCalendar.postpone.tomorrow"], ["next-week", "taskCalendar.postpone.nextWeek"]] as const) {
+      const button = postpone.createEl("button", { type: "button", text: t(lang, label) });
+      button.addEventListener("click", () => void this.updateTask(task, { date: taskCalendarPostponeDate(kind) }));
+    }
+    const choose = postpone.createEl("button", { type: "button", text: t(lang, "taskCalendar.postpone.choose") });
+    choose.addEventListener("click", () => {
+      date.focus();
+      if ("showPicker" in date) date.showPicker();
+    });
+
+    const actions = form.createDiv({ cls: "memos-plus-task-calendar-task-detail-actions" });
+    const open = actions.createEl("button", { type: "button", text: t(lang, "taskCalendar.openSource") });
+    open.addEventListener("click", () => void this.plugin.openTaskCalendarTask(task));
+    if (this.plugin.canEditTaskCalendarTask()) {
+      const tasksEdit = actions.createEl("button", { type: "button", text: t(lang, "taskCalendar.tasksEdit") });
+      tasksEdit.addEventListener("click", () => void this.plugin.editTaskCalendarTask(task));
+    }
+    const save = actions.createEl("button", { cls: "mod-cta", type: "button", text: t(lang, "common.save") });
+    save.addEventListener("click", () => {
+      save.disabled = true;
+      const lead = reminderLead.value.trim() ? Math.max(0, Math.min(10080, Math.round(Number(reminderLead.value)))) : undefined;
+      void this.updateTask(task, {
+        title: title.value,
+        date: date.value,
+        time: time.value,
+        reminderDate: reminderDate.value,
+        reminderTime: reminderTime.value,
+        reminderMinutesBefore: reminderLead.value.trim() && Number.isFinite(lead) ? lead : null,
+        priority: priority.value as TaskPriorityFilterValue,
+        projectTag: project.value,
+        tags: tags.value.split(/[\s,，]+/u).filter(Boolean),
+        notes: notes.value,
+        relatedNote: related.value
+      }).finally(() => { if (save.isConnected) save.disabled = false; });
+    });
+    form.addEventListener("focusout", () => window.setTimeout(() => {
+      if (!form.contains(form.ownerDocument.activeElement)) this.scheduleRender();
+    }, 0));
+  }
+
+  private taskAppleSyncDetail(task: TaskIndexItem): { label: string; title: string; error: boolean } | null {
+    const target = task.syncTarget || (task.appleSyncTagged || task.appleSyncId ? "reminders" : "");
+    if (!target) return null;
     const targetLabel = t(this.plugin.settings.language, target === "calendar" ? "taskCalendar.appleCalendar" : "taskCalendar.appleReminders");
     const recordKey = task.appleSyncId ? `${target}:${task.appleSyncId}` : "";
     const synced = Boolean(recordKey && this.plugin.settings.appleSyncState.records[recordKey]);
-    return `${targetLabel} · ${t(this.plugin.settings.language, synced ? "taskCalendar.appleSynced" : "taskCalendar.applePending")}`;
+    const error = this.plugin.settings.appleSyncState.lastError;
+    if (error) return { label: `⚠ ${t(this.plugin.settings.language, "taskCalendar.appleFailed")}`, title: error, error: true };
+    return {
+      label: synced ? `✓ ${targetLabel}` : `↻ ${t(this.plugin.settings.language, "taskCalendar.applePending")}`,
+      title: synced ? t(this.plugin.settings.language, "taskCalendar.appleSynced") : t(this.plugin.settings.language, "taskCalendar.applePending"),
+      error: false
+    };
   }
 
   private async loadAgenda(startDate: string, endDate: string, calendarNames: string[], excludeGeneratedCalendars: boolean, force: boolean): Promise<void> {
@@ -696,6 +1015,10 @@ export class TaskCalendarView extends ItemView {
       void this.updateState({ navigation, selectedDate: todayTaskCalendarDate(), viewMode: "week" });
       return;
     }
+    if (navigation === "upcoming") {
+      void this.updateState({ navigation, selectedDate: todayTaskCalendarDate(), viewMode: "week" });
+      return;
+    }
     void this.updateState({ navigation });
   }
 
@@ -787,6 +1110,71 @@ function priorityDetails(priority: TaskIndexItem["priority"], lang: "zh" | "en")
     none: "taskPriority.none"
   } as const)[priority];
   return icon ? `${icon} ${t(lang, labelKey)}` : "";
+}
+
+function summaryCard(container: HTMLElement, label: string, value: string, extraClass = ""): void {
+  const card = container.createDiv({ cls: `memos-plus-task-calendar-summary-card${extraClass ? ` ${extraClass}` : ""}` });
+  card.createSpan({ cls: "memos-plus-task-calendar-summary-label", text: label });
+  card.createEl("strong", { text: value });
+}
+
+function nextScheduleLabel(tasks: TaskIndexItem[], events: AppleCalendarAgendaEvent[], date: string): string {
+  const now = new Date();
+  const nowMinutes = calendarEventLocalDate(now.toISOString()) === date ? now.getHours() * 60 + now.getMinutes() : -1;
+  const candidates: Array<{ minutes: number; label: string }> = [];
+  for (const task of tasks) {
+    const time = task.dueTime || task.startTime;
+    const minutes = minutesFromTime(time);
+    if (minutes >= nowMinutes) candidates.push({ minutes, label: `${time} ${task.title}`.trim() });
+  }
+  for (const event of events) {
+    const time = event.allDay ? "" : timePart(event.start);
+    const minutes = event.allDay ? 0 : minutesFromTime(time);
+    if (minutes >= nowMinutes) candidates.push({ minutes, label: `${time || "全天"} ${event.title}`.trim() });
+  }
+  return candidates.sort((left, right) => left.minutes - right.minutes)[0]?.label ?? "";
+}
+
+function minutesFromTime(value: string): number {
+  const match = value.match(/^(\d{1,2}):(\d{2})$/u);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : 24 * 60;
+}
+
+function taskDetailField(container: HTMLElement, label: string): HTMLElement {
+  const field = container.createEl("label", { cls: "memos-plus-task-calendar-task-detail-field" });
+  field.createSpan({ text: label });
+  return field;
+}
+
+function taskDetailInput(container: HTMLElement, label: string, type: string, value: string): HTMLInputElement {
+  const input = taskDetailField(container, label).createEl("input", { attr: { type } });
+  input.value = value;
+  return input;
+}
+
+function taskDetailTextField(container: HTMLElement, label: string, value: string): HTMLInputElement {
+  return taskDetailInput(container, label, "text", value);
+}
+
+function taskDetailTextarea(container: HTMLElement, label: string, value: string): HTMLTextAreaElement {
+  const textarea = taskDetailField(container, label).createEl("textarea");
+  textarea.value = value;
+  textarea.rows = 3;
+  return textarea;
+}
+
+function taskDetailSelect(container: HTMLElement, label: string, options: Array<[string, string]>, value: string): HTMLSelectElement {
+  const select = taskDetailField(container, label).createEl("select");
+  for (const [optionValue, optionLabel] of options) {
+    const option = select.createEl("option", { value: optionValue, text: optionLabel });
+    option.selected = optionValue === value;
+  }
+  return select;
+}
+
+function normalizeVisibleProjectTag(value: string): string {
+  const normalized = value.trim().replace(/^#+/u, "");
+  return normalized ? `#${normalized}` : "";
 }
 
 function eventTaskText(event: AppleCalendarAgendaEvent): string {

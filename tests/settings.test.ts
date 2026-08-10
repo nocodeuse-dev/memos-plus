@@ -121,8 +121,8 @@ describe("DEFAULT_SETTINGS", () => {
     });
   });
 
-  it("preserves the selected weekly schedule-and-tasks default view", () => {
-    expect(normalizeSettings({ taskCalendar: { defaultView: "week" } }).taskCalendar.defaultView).toBe("week");
+  it("migrates the old weekly schedule-and-tasks default into upcoming", () => {
+    expect(normalizeSettings({ taskCalendar: { defaultView: "week" } }).taskCalendar.defaultView).toBe("upcoming");
   });
 
   it("normalizes shared view layout settings for all display surfaces", () => {

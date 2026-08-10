@@ -15,6 +15,7 @@ export interface TaskOptionsModalOptions {
   taskSettings: TaskOptionsModalSettings;
   defaultAsTask?: boolean;
   allowPlain?: boolean;
+  hideSyncTarget?: boolean;
 }
 
 export function openTaskOptionsModal(app: App, options: TaskOptionsModalOptions): Promise<ProjectTaskOptions | undefined | null> {
@@ -55,7 +56,8 @@ class TaskOptionsModal extends Modal {
       defaultAsTask: this.options.defaultAsTask ?? true,
       allowPlain: this.options.allowPlain,
       taskContentMode: "task-with-detail",
-      renderMetadataOptions: true
+      renderMetadataOptions: true,
+      hideSyncTarget: this.options.hideSyncTarget
     });
 
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });

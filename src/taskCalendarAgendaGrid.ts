@@ -58,6 +58,20 @@ export function taskCalendarTimedTaskPlacement(
   return taskCalendarGridPlacement({ start: start.toISOString(), end: end.toISOString(), allDay: false }, days, startHour, endHour);
 }
 
+/** Convert a pointer position inside the visible grid to a 15-minute task time. */
+export function taskCalendarDropTime(
+  clientY: number,
+  columnTop: number,
+  startHour = TASK_CALENDAR_GRID_START_HOUR,
+  endHour = TASK_CALENDAR_GRID_END_HOUR,
+  snapMinutes = 15
+): string {
+  const rawMinutes = startHour * 60 + (clientY - columnTop) / TASK_CALENDAR_GRID_MINUTES_PER_HOUR * 60;
+  const snapped = Math.round(rawMinutes / snapMinutes) * snapMinutes;
+  const bounded = Math.max(startHour * 60, Math.min(endHour * 60 - snapMinutes, snapped));
+  return `${String(Math.floor(bounded / 60)).padStart(2, "0")}:${String(bounded % 60).padStart(2, "0")}`;
+}
+
 function localDate(date: Date): string {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
 }

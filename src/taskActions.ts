@@ -1,5 +1,10 @@
 import { App, TFile } from "obsidian";
 import type { TaskIndexItem } from "./taskIndex";
+import {
+  updateTaskCalendarTaskLine,
+  type TaskCalendarTaskEditContext,
+  type TaskCalendarTaskPatch
+} from "./taskCalendarTaskEditor";
 import { replaceIndexedTaskLine, toggleTaskCheckbox } from "./taskLineActions";
 
 export { replaceIndexedTaskLine, toggleTaskCheckbox } from "./taskLineActions";
@@ -45,6 +50,15 @@ export async function editIndexedTaskWithTasksApi(app: App, task: TaskIndexItem)
     return { updated: false, failure: "cancelled" };
   }
   return mutateIndexedTaskLine(app, task, replacement);
+}
+
+export async function updateIndexedTaskFromCalendar(
+  app: App,
+  task: TaskIndexItem,
+  patch: TaskCalendarTaskPatch,
+  context: TaskCalendarTaskEditContext
+): Promise<TaskMutationResult> {
+  return mutateIndexedTaskLine(app, task, updateTaskCalendarTaskLine(task, patch, context));
 }
 
 async function mutateIndexedTaskLine(app: App, task: TaskIndexItem, replacement: string): Promise<TaskMutationResult> {

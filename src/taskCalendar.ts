@@ -3,7 +3,7 @@ import type { OrganizerFilterId } from "./organizerPanel";
 import type { TaskPriorityFilterValue } from "./taskSearch";
 
 export type TaskCalendarViewMode = "day" | "week";
-export type TaskCalendarNavigation = "today" | "tomorrow" | "week" | "inbox" | "overdue" | "all" | "completed";
+export type TaskCalendarNavigation = "today" | "upcoming" | "tomorrow" | "week" | "inbox" | "overdue" | "all" | "completed";
 export type TaskCalendarMobileTab = "today" | "tasks" | "calendar";
 
 export interface TaskCalendarProjectFilter {
@@ -35,6 +35,8 @@ export interface TaskCalendarSettings {
   mobileTab: TaskCalendarMobileTab;
   sidebarCollapsed: boolean;
   tasksPaneHidden: boolean;
+  navigationWidth: number;
+  taskPaneWidth: number;
   agendaCacheMinutes: number;
   agendaCalendarNames: string[];
   showAllDayEvents: boolean;
@@ -52,6 +54,8 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   mobileTab: "today",
   sidebarCollapsed: false,
   tasksPaneHidden: false,
+  navigationWidth: 152,
+  taskPaneWidth: 320,
   agendaCacheMinutes: 5,
   agendaCalendarNames: [],
   showAllDayEvents: true,
@@ -84,6 +88,8 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     mobileTab: raw.mobileTab === "tasks" || raw.mobileTab === "calendar" ? raw.mobileTab : "today",
     sidebarCollapsed: typeof raw.sidebarCollapsed === "boolean" ? raw.sidebarCollapsed : false,
     tasksPaneHidden: typeof raw.tasksPaneHidden === "boolean" ? raw.tasksPaneHidden : false,
+    navigationWidth: clampInteger(raw.navigationWidth, 120, 280, DEFAULT_TASK_CALENDAR_SETTINGS.navigationWidth),
+    taskPaneWidth: clampInteger(raw.taskPaneWidth, 250, 520, DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth),
     agendaCacheMinutes: clampInteger(raw.agendaCacheMinutes, 1, 30, DEFAULT_TASK_CALENDAR_SETTINGS.agendaCacheMinutes),
     agendaCalendarNames: normalizeCalendarNames(raw.agendaCalendarNames),
     showAllDayEvents: typeof raw.showAllDayEvents === "boolean" ? raw.showAllDayEvents : DEFAULT_TASK_CALENDAR_SETTINGS.showAllDayEvents,
@@ -192,6 +198,9 @@ export function taskCalendarTasks(
       });
       }
       break;
+    case "upcoming":
+      filtered = incomplete.filter((item) => taskDate(item) > date);
+      break;
     default:
       filtered = incomplete.filter((item) => matchesDate(item) || Boolean(item.dueDate && item.dueDate < date));
       break;
@@ -212,7 +221,10 @@ export function taskCalendarTasks(
       Boolean(filePath && item.filePath === filePath) || Boolean(tag && taskLineHasTag(item.line, tag))
     );
   }
-  return [...filtered].sort((left, right) => taskSortKey(left, date) - taskSortKey(right, date) || left.text.localeCompare(right.text));
+  return [...filtered].sort((left, right) => {
+    if (navigation === "upcoming") return taskDate(left).localeCompare(taskDate(right)) || left.text.localeCompare(right.text);
+    return taskSortKey(left, date) - taskSortKey(right, date) || left.text.localeCompare(right.text);
+  });
 }
 
 export function taskCalendarOpenOptionsForOrganizer(filterId: OrganizerFilterId): TaskCalendarOpenOptions | null {
@@ -224,7 +236,7 @@ export function taskCalendarOpenOptionsForOrganizer(filterId: OrganizerFilterId)
     case "task-due-today":
       return { navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" };
     case "task-due-this-week":
-      return { navigation: "week", selectedDate: todayTaskCalendarDate(), viewMode: "week" };
+      return { navigation: "upcoming", selectedDate: todayTaskCalendarDate(), viewMode: "week" };
     case "task-priority-highest":
       return { navigation: "all", priority: "highest" };
     case "task-priority-high":
@@ -252,7 +264,8 @@ export function formatTaskCalendarDate(date: string, locale = "zh-CN"): string {
 }
 
 function normalizeNavigation(value: unknown, fallback: TaskCalendarNavigation): TaskCalendarNavigation {
-  return value === "tomorrow" || value === "week" || value === "inbox" || value === "overdue" || value === "all" || value === "completed" || value === "today" ? value : fallback;
+  if (value === "tomorrow" || value === "week") return "upcoming";
+  return value === "upcoming" || value === "inbox" || value === "overdue" || value === "all" || value === "completed" || value === "today" ? value : fallback;
 }
 
 function normalizeTaskCalendarTag(value: unknown): string {

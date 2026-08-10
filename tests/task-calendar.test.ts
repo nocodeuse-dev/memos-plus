@@ -13,7 +13,7 @@ import {
   taskCalendarTasks
 } from "../src/taskCalendar";
 import { normalizeAppleCalendarAgendaError } from "../src/appleCalendarAgenda";
-import { taskCalendarGridPlacement, taskCalendarTimedTaskPlacement } from "../src/taskCalendarAgendaGrid";
+import { taskCalendarDropTime, taskCalendarGridPlacement, taskCalendarTimedTaskPlacement } from "../src/taskCalendarAgendaGrid";
 import type { TaskIndexItem } from "../src/taskIndex";
 
 function task(overrides: Partial<TaskIndexItem> = {}): TaskIndexItem {
@@ -58,6 +58,8 @@ describe("Schedule and tasks state", () => {
       viewMode: "day",
       agendaCacheMinutes: 5,
       agendaCalendarNames: [],
+      navigationWidth: 152,
+      taskPaneWidth: 320,
       showAllDayEvents: true,
       showHomeEntry: true,
       showMobileQuickActions: true
@@ -77,6 +79,20 @@ describe("Schedule and tasks state", () => {
       viewMode: "day",
       agendaCacheMinutes: 30,
       agendaCalendarNames: ["Calendar", "Work"]
+    });
+  });
+
+  it("migrates legacy date shortcuts and bounds remembered desktop pane widths", () => {
+    expect(normalizeTaskCalendarSettings({
+      defaultView: "week",
+      navigation: "tomorrow",
+      navigationWidth: 900,
+      taskPaneWidth: 10
+    })).toMatchObject({
+      defaultView: "upcoming",
+      navigation: "upcoming",
+      navigationWidth: 280,
+      taskPaneWidth: 250
     });
   });
 
@@ -126,6 +142,12 @@ describe("Schedule and tasks state", () => {
     expect(taskCalendarTimedTaskPlacement(task({ dueDate: "2026-08-10", dueTime: "17:31", allDay: true }), days)).toBeNull();
   });
 
+  it("snaps a dropped task to the nearest 15-minute grid time", () => {
+    expect(taskCalendarDropTime(737.1, 0)).toBe("17:30");
+    expect(taskCalendarDropTime(-20, 0)).toBe("06:00");
+    expect(taskCalendarDropTime(2_000, 0)).toBe("21:45");
+  });
+
   it("uses the existing task index for today, inbox, all and completed lists", () => {
     const tasks = [
       task({ text: "逾期", dueDate: "2026-08-04" }),
@@ -159,6 +181,7 @@ describe("Schedule and tasks state", () => {
     expect(taskCalendarOpenOptionsForOrganizer("tasks")).toEqual({ navigation: "all" });
     expect(taskCalendarOpenOptionsForOrganizer("task-overdue")).toEqual({ navigation: "overdue" });
     expect(taskCalendarOpenOptionsForOrganizer("task-priority-high")).toEqual({ navigation: "all", priority: "high" });
+    expect(taskCalendarOpenOptionsForOrganizer("task-due-this-week")).toEqual({ navigation: "upcoming", selectedDate: expect.any(String), viewMode: "week" });
     expect(taskCalendarOpenOptionsForOrganizer("today")).toBeNull();
   });
 
@@ -170,6 +193,7 @@ describe("Schedule and tasks state", () => {
     ];
     expect(taskCalendarTasks(tasks, "tomorrow", "2026-08-06").map((item) => item.text)).toEqual(["逾期"]);
     expect(taskCalendarTasks(tasks, "week", "2026-08-05").map((item) => item.text)).toEqual(["逾期", "周内"]);
+    expect(taskCalendarTasks(tasks, "upcoming", "2026-08-05").map((item) => item.text)).toEqual(["周内", "下周"]);
   });
 });
 
@@ -244,6 +268,17 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("taskAppleSyncStatus(task)");
     expect(viewSource).toContain("taskCalendarTimedTaskPlacement(task, days)");
     expect(viewSource).toContain("this.plugin.taskIndex.onChange(() => this.scheduleRender())");
+  });
+
+  it("keeps task scheduling and editing inside the existing workspace components", () => {
+    expect(viewSource).toContain("taskCalendarDropTime(event.clientY");
+    expect(viewSource).toContain('draggable: "true"');
+    expect(viewSource).toContain("updateTaskCalendarTask(task, patch)");
+    expect(viewSource).toContain("memos-plus-task-calendar-task-details");
+    expect(viewSource).toContain("taskCalendarPostponeDate(kind)");
+    expect(viewSource).toContain("new Menu()");
+    expect(viewSource).toContain("navigationWidth");
+    expect(viewSource).toContain("taskPaneWidth");
   });
 
   it("registers a dedicated workspace, commands, Ribbon option, and Markdown inbox writer", () => {
