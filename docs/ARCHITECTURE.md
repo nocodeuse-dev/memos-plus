@@ -23,7 +23,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - 项目分类兼容：旧 `projectSections` 字段仍用于创建项目文件的默认标题骨架和旧配置迁移；投递弹窗不再显示固定分类按钮。
 - Tasks 格式兼容：可生成 Obsidian Tasks 风格任务行。
 - Apple 任务同步：macOS 桌面端将带指定标签的普通 Markdown 任务与 Apple Reminders 双向同步；只有统一任务表单明确选择 Calendar 的时间段任务才写入 Apple Calendar，移动端不直接访问系统 API。
-- 日程与任务工作台：独立工作区按当前日/周只读显示默认常用或用户指定的 Apple 日历日程，并复用全库 Markdown `TaskIndex` 管理今天、收件箱、即将到来、逾期、全部和已完成任务；项目只作为筛选条件。右侧任务可拖到时间轴排期，点击后在同一右栏编辑既有 Markdown 任务，不建立第二套任务数据库，也不改写 Apple 同步层。
+- 日程与任务工作台：独立工作区按当前日/周只读显示默认常用或用户指定的 Apple 日历日程，并复用全库 Markdown `TaskIndex` 管理今天、收件箱、即将到来、逾期、全部和已完成任务；项目只作为任务列表与时间轴共用的筛选条件。右侧任务可拖到时间轴排期，点击后在同一右栏编辑既有 Markdown 任务；快速输入先用本地规则解析日期、时间、提醒、标签和优先级并预览，确认后才写入，不建立第二套任务数据库，也不改写 Apple 同步桥接层。
 - Callout 相关功能：输入框工具栏可切换 Callout 模式，长内容/链接内容可自动包装为 Obsidian Callout。
 - 设置页面：使用顶部横向胶囊标签栏，入口为 `发送规则 / 输入工具 / 记录设置 / 任务设置 / 新建文件模板库 / 筛选与侧栏 / 界面布局 / 显示设置 / 性能与缓存 / 高级设置`；`界面布局` 标签内再用二级切换配置 `桌面主页 / 侧边栏 / 移动端` 的真实界面缩略预览和右侧属性面板。
 - 图片粘贴处理：支持 Memos Plus 内置保存、交给 Image Auto Upload、自动检测三种模式。
@@ -59,12 +59,13 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/taskCalendar.ts`：日程与任务工作台的纯状态、日期范围、任务筛选和持久化设置归一化。
 - `src/taskCalendarTaskEditor.ts`：工作台任务详情与拖放排期使用的纯 Markdown 行适配器；保留 Apple 唯一标识和既有同步元数据。
 - `src/taskCalendarEditSession.ts`：右侧任务编辑的短生命周期本地状态与串行保存队列。字段先更新乐观任务快照，再合并写入 Markdown；Apple 同步只更新独立状态，不参与表单反馈或重绘。
-- `src/taskCalendarView.ts`：独立“日程与任务”ItemView，负责桌面三栏与移动端标签切换、任务搜索、优先级/项目筛选、分批加载、快速新增、完成、编辑、跳转和当前日/周的日程渲染。
+- `src/taskCalendarView.ts`：独立“日程与任务”ItemView，负责桌面三栏与移动端标签切换、任务搜索、优先级/项目筛选、分批加载、自然语言快速新增预览、完成、编辑、跳转和当前日/周的日程渲染。
+- `src/taskNaturalLanguage.ts`：无 AI、无索引的中文快速任务规则解析器；只处理明确日期词、星期、时段、提前提醒、标签和优先级，解析失败时返回完整原文。
 - `src/appleCalendarAgenda.ts`：仅 macOS 桌面端使用的 Apple Calendar 日程服务；读取前先检查运行时并使用短期内存缓存。仅在创建表单明确提交时创建所选可写日历事件，不保存日程事件到 `data.json`。
 - `src/taskCalendarEventModal.ts`：明确用户操作后才打开的日程创建表单。先读取可写 Apple 日历，用户填写并点击“创建日程”后才调用日历写入；取消/关闭不会写入。
 - `src/taskCalendarEventDetailModal.ts`：日程详情与明确操作。用户可从事件创建带日期的 Markdown 任务，或将事件摘要交给既有快速记录组件；两项都不修改 Apple 事件。
 - `src/view.ts`：Memos 首页与移动端轻量首页可显示日程与任务摘要入口；移动端复用已有“＋”浮动按钮展开新任务、新日程和快速记录，均只导航到已有明确操作。
-- `src/taskActions.ts` / `src/taskLineActions.ts`：索引任务的安全写回与纯行替换 helper；优先使用 Obsidian Tasks `apiV1` 处理重复任务和编辑，回退时只切换标准 Markdown 复选框，并在写回前核对原始行。
+- `src/taskActions.ts` / `src/taskLineActions.ts`：索引任务的安全写回与纯行替换 helper；优先使用 Obsidian Tasks `apiV1` 处理重复任务和编辑，回退时为常用 Tasks 重复规则保留完成历史并生成下一实例、移除下一实例中的旧 Apple ID，并在写回前核对原始行防止重复生成。
 - `src/appleSync.ts`：Apple 同步的纯数据协议、稳定 ID、签名、三方冲突判断和 Markdown 任务行合并 helper。
 - `src/appleSyncBridge.ts`：macOS 本地 JXA 桥接。使用无 shell 的 `/usr/bin/osascript` 读取/更新 Apple Reminders 或 Calendar；探测只访问当前选择的应用，可在用户明确点击后创建专用容器；移动端不会加载执行 Node 子进程能力。
 - `src/appleSyncService.ts`：协调 `TaskIndex`、标签范围、Apple Reminder、导入文件和 `data.json` 同步状态；先验证远端列表再写本地同步 ID，串行合并标题、日期、时间、优先级和完成状态，只对已有稳定映射的项目传播删除。
@@ -124,7 +125,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 | Vault metadata 索引 | `src/vaultIndex.ts`, `main.ts`, `src/store.ts`, `src/vaultSearch.ts` | `VaultMetadataIndex`, `registerVaultIndexInvalidation`, `getTaggedFileInfos`, `getProjectInfos`, `scanFileTemplateLibrary` | 第一阶段全库统一索引；只缓存 metadata，不读正文；项目、标签文件、文件搜索、最近文件、模板库和 vault metadata 检索复用同一份文件元信息。 |
 | TaskIndex 任务索引 | `src/taskIndex.ts`, `main.ts`, `src/view.ts`, `src/settings.ts` | `TaskIndex`, `parseTaskIndexItemsFromMarkdown`, `filterTaskIndexItems`, `registerTaskIndexInvalidation` | 缓存全库任务行、所在文件、行号、优先级、日期、任务收集时间和 mtime；mtime 只负责缓存失效，列表排序和卡片时间优先用任务自身时间。插件启动后可异步分批构建，文件变化后失效并延迟重建，侧栏任务分支只从缓存读取数量并导航到统一工作台。 |
 | 状态栏任务管理 | `main.ts`, `src/taskCalendar.ts`, `src/taskCalendarView.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `addStatusBarItem`, `openTaskCalendar`, `taskCalendarOpenOptionsForOrganizer`, `toggleIndexedTask`, `openIndexedTask` | Obsidian 底部状态栏和兼容命令统一打开“日程与任务”的全部任务视图；搜索、优先级、项目、完成、编辑、来源跳转、强制刷新、快速记录和分批加载都由工作台提供。 |
-| 日程与任务工作台 | `main.ts`, `src/taskCalendar.ts`, `src/taskCalendarAgendaGrid.ts`, `src/taskCalendarTaskEditor.ts`, `src/taskCalendarEditSession.ts`, `src/taskCalendarView.ts`, `src/appleCalendarAgenda.ts`, `src/taskCalendarEventModal.ts`, `src/taskCalendarEventDetailModal.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `TaskCalendarView`, `TaskCalendarEditSession`, `taskCalendarTaskWithPatch`, `taskCalendarDropTime`, `updateTaskCalendarTaskLine`, `TaskCalendarEventModal`, `AppleCalendarAgendaService`, `taskCalendarTasks` | 单独 WorkspaceLeaf，Ribbon 与命令可打开。首次打开立即渲染基础界面，不等待项目扫描或 Calendar 读取；同步异常只显示局部状态。桌面端为可折叠、可调宽并记忆宽度的导航/日程/任务三栏；移动端切换今天、任务和日历单栏。任务唯一来源仍是 `TaskIndex` 与 Markdown。右侧编辑使用短生命周期乐观会话：字段先在本地快照即时生效，连续补丁串行写入 Markdown，保存失败保留输入并可重试；TaskIndex 和 Apple 后台通知不得销毁正在编辑的表单。Apple 同步只在 Markdown 保存完成后异步运行，并独立更新同步状态。右侧任务可拖到时间轴按 15 分钟排期，定时任务以带复选框的虚线标记和 Calendar 色块区分。日历读取仍使用当前日/周有界查询和运行期缓存。 |
+| 日程与任务工作台 | `main.ts`, `src/taskCalendar.ts`, `src/taskCalendarAgendaGrid.ts`, `src/taskCalendarTaskEditor.ts`, `src/taskCalendarEditSession.ts`, `src/taskNaturalLanguage.ts`, `src/taskCalendarView.ts`, `src/appleCalendarAgenda.ts`, `src/taskCalendarEventModal.ts`, `src/taskCalendarEventDetailModal.ts`, `src/taskActions.ts`, `src/taskNavigation.ts` | `TaskCalendarView`, `TaskCalendarEditSession`, `parseNaturalLanguageTask`, `taskCalendarTaskWithPatch`, `taskCalendarDropTime`, `updateTaskCalendarTaskLine`, `TaskCalendarEventModal`, `AppleCalendarAgendaService`, `taskCalendarTasks` | 单独 WorkspaceLeaf，Ribbon 与命令可打开。首次打开立即渲染基础界面，不等待项目扫描或 Calendar 读取；同步异常只显示局部状态。桌面端为可折叠、可调宽并记忆宽度的导航/日程/任务三栏；移动端切换今天、任务和日历单栏。任务唯一来源仍是 `TaskIndex` 与 Markdown，项目筛选同时约束右侧列表和中间时间轴。右侧编辑使用短生命周期乐观会话：字段先在本地快照即时生效，连续补丁串行写入 Markdown，保存失败保留输入并可重试；TaskIndex 和 Apple 后台通知不得销毁正在编辑的表单。快速输入的本地规则解析只显示预览，确认后才复用任务格式写入。Apple 同步只在 Markdown 保存完成后异步运行，并独立更新同步状态。右侧任务可拖到时间轴按 15 分钟排期，定时任务以带复选框的虚线标记和 Calendar 色块区分。日历读取仍使用当前日/周有界查询和运行期缓存。 |
 | 首页与移动端快捷入口 | `src/view.ts`, `src/taskCalendar.ts`, `src/settings.ts` | `renderTaskCalendarHomeEntry`, `renderMobileFab`, `openQuickCaptureFromMobileFab` | 首页卡片只读取已有 TaskIndex 缓存，绝不因显示入口读取 Apple 日历；移动端复用已有“＋”按钮并按设置展开新任务、新日程和快速记录，键盘/输入框激活时整体隐藏，避免遮挡。 |
 | Apple 双向同步 | `main.ts`, `src/appleSync.ts`, `src/appleSyncBridge.ts`, `src/appleSyncService.ts`, `src/settings.ts` | `AppleSyncService`, `MacOsAppleSyncBridge`, `resolveAppleSyncDirection`, `updateTaskLineFromApple` | 默认关闭，仅 macOS 桌面端运行；普通任务同步 Apple Reminders，区分截止日期时间与独立提醒时间，并保留完成状态和已关联项目的双向删除。统一表单明确选择 Calendar 的任务使用开始/结束时间、全天、提醒和重复字段执行幂等写入；日历工作台继续按当前日/周读取 Calendar。隐藏本地 ID、Apple 唯一 ID 和上次签名防止重复，旧的无目标元数据任务仍按 Reminders 规则兼容。 |
 | 项目文件识别 | `src/vaultIndex.ts`, `src/projectSend.ts`, `src/store.ts` | `VaultMetadataIndex.getProjectFiles`, `VaultMetadataIndex.getProjectInfos`, `normalizeProjectTag` | Store 层优先通过统一索引判断项目文件；`projectSend.ts` 仍保留纯函数兼容测试和旧调用。 |

@@ -46,9 +46,17 @@ describe("unified task management source integration", () => {
 
   it("keeps quick task creation in the unified workspace", () => {
     expect(calendarViewSource).toContain("memos-plus-task-calendar-quick-input");
-    expect(calendarViewSource).toContain("createTaskCalendarInboxTask(taskText");
+    expect(calendarViewSource).toContain("parseNaturalLanguageTask(text)");
+    expect(calendarViewSource).toContain("memos-plus-task-calendar-quick-preview");
+    expect(calendarViewSource).toContain("createTaskCalendarInboxTask(taskText, options.dueDate, options)");
     expect(mainSource).toContain('id: "quick-add-task"');
     expect(mainSource).toContain("focusQuickTask: true");
+  });
+
+  it("uses the same project filter for the task list and time axis", () => {
+    expect(calendarViewSource).toContain('taskCalendarTasks(items, "all", selectedDate, { project: this.taskProject })');
+    expect(calendarViewSource).toContain("this.renderAgenda(agenda, range.days, selectedDate, state.showAllDayEvents, agendaTasks)");
+    expect(calendarViewSource).toContain("session.apply({ projectTag: project.value })");
   });
 
   it("delegates recurrence-aware toggles and edits to the official Tasks API when available", () => {

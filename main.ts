@@ -41,6 +41,7 @@ import {
 import type { OrganizerFilterId } from "./src/organizerPanel";
 import { openTaskOptionsModal, renderTaskContentWithOptions } from "./src/taskOptionsModal";
 import { normalizeAppleSyncTag } from "./src/appleSync";
+import type { ProjectTaskOptions } from "./src/tasksFormat";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -524,12 +525,12 @@ export default class MemosPlusPlugin extends Plugin {
     });
   }
 
-  async createTaskCalendarInboxTask(content: string, dueDate = ""): Promise<boolean> {
+  async createTaskCalendarInboxTask(content: string, dueDate = "", preset?: ProjectTaskOptions): Promise<boolean> {
     const text = content.trim();
     if (!text) return false;
     const path = normalizePath(this.settings.taskCalendar.inboxPath.trim().replace(/^\/+/, ""));
     if (!path) return false;
-    const task = await openTaskOptionsModal(this.app, {
+    const task = preset ?? await openTaskOptionsModal(this.app, {
       language: this.settings.language,
       title: t(this.settings.language, "projectSend.taskOptions"),
       description: text,

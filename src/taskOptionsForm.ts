@@ -112,6 +112,7 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
     const recurrence = createSelectField(form, t(lang, "projectSend.recurrence"), [
       ["none", t(lang, "taskRecurrence.none")],
       ["daily", t(lang, "taskRecurrence.daily")],
+      ["weekdays", t(lang, "taskRecurrence.weekdays")],
       ["weekly", t(lang, "taskRecurrence.weekly")],
       ["monthly", t(lang, "taskRecurrence.monthly")],
       ["yearly", t(lang, "taskRecurrence.yearly")],

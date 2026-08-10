@@ -4161,6 +4161,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         dropdown
           .addOption("none", t(lang, "taskRecurrence.none"))
           .addOption("daily", t(lang, "taskRecurrence.daily"))
+          .addOption("weekdays", t(lang, "taskRecurrence.weekdays"))
           .addOption("weekly", t(lang, "taskRecurrence.weekly"))
           .addOption("monthly", t(lang, "taskRecurrence.monthly"))
           .addOption("yearly", t(lang, "taskRecurrence.yearly"))

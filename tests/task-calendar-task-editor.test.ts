@@ -53,6 +53,15 @@ describe("task calendar inline editor", () => {
     expect(taskCalendarTaskTags(updated, context)).toEqual(["#检查", "#治疗"]);
   });
 
+  it("updates Tasks-compatible weekday and custom recurrence rules", () => {
+    const source = "- [ ] 复诊 🔁 every week 📅 2026-08-10";
+    const weekday = updateTaskCalendarTaskLine(task(source), { recurrence: "weekdays" }, context);
+    expect(weekday).toContain("🔁 every weekday");
+    const custom = updateTaskCalendarTaskLine(task(weekday), { recurrence: "custom", customRecurrence: "every 2 weeks" }, context);
+    expect(custom).toContain("🔁 every 2 weeks");
+    expect(updateTaskCalendarTaskLine(task(custom), { recurrence: "none" }, context)).not.toContain("🔁");
+  });
+
   it("uses Monday of next week for the quick postpone action", () => {
     expect(taskCalendarPostponeDate("today", new Date(2026, 7, 10))).toBe("2026-08-10");
     expect(taskCalendarPostponeDate("tomorrow", new Date(2026, 7, 10))).toBe("2026-08-11");

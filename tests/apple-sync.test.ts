@@ -93,6 +93,17 @@ describe("Apple sync safety and merge helpers", () => {
     expect(updated.match(/memos-plus-apple-id/g)).toHaveLength(1);
   });
 
+  it("keeps recurring history and creates one unlinked next occurrence after Apple completion", () => {
+    const line = "- [ ] Apple 重复任务 🔁 every day 📅 2026-08-08 #Apple同步 <!-- memos-plus-apple-id:local-1 -->";
+    const updated = updateTaskLineFromApple(line, remoteReminder, "#Apple同步", "local-1");
+    const lines = updated.split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("- [x] Apple 修改后的任务");
+    expect(lines[1]).toContain("- [ ] Apple 修改后的任务");
+    expect(lines[1]).toContain("📅 2026-08-09");
+    expect(lines[1]).not.toContain("memos-plus-apple-id:local-1");
+  });
+
   it("formats remote-only items as tagged Markdown tasks", () => {
     const line = formatImportedAppleTask(remoteReminder, "#Apple同步", "new-local");
     expect(line).toContain("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30 #Apple同步 <!-- memos-plus-apple-id:new-local -->");

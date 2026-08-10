@@ -1,6 +1,11 @@
 import { parseTaskIndexItemsFromMarkdown, type TaskIndexItem } from "./taskIndex";
 import type { TaskPriorityFilterValue } from "./taskSearch";
-import { attachMemosPlusTaskMetadata, parseMemosPlusTaskMetadata } from "./tasksFormat";
+import {
+  attachMemosPlusTaskMetadata,
+  normalizeTaskRecurrence,
+  parseMemosPlusTaskMetadata,
+  type TaskRecurrence
+} from "./tasksFormat";
 
 export interface TaskCalendarDetailMetadata {
   notes?: string;
@@ -15,6 +20,8 @@ export interface TaskCalendarTaskPatch {
   reminderTime?: string;
   reminderMinutesBefore?: number | null;
   priority?: TaskPriorityFilterValue;
+  recurrence?: TaskRecurrence;
+  customRecurrence?: string;
   projectTag?: string;
   tags?: string[];
   notes?: string;
@@ -31,6 +38,7 @@ const PRIORITY_RE = /(?:🔺|⏫|🔼|🔽|⏬)/gu;
 const DATE_RE = /📅\s*\d{4}-\d{2}-\d{2}/gu;
 const START_DATE_RE = /🛫\s*\d{4}-\d{2}-\d{2}/gu;
 const TIME_RE = /⏰\s*\d{1,2}:\d{2}/gu;
+const RECURRENCE_RE = /🔁\s*.*?(?=\s+(?:#|🔺|⏫|🔼|🔽|⏬|🛫|⏳|📅|⏰|➕|✅|<!--)|$)/gu;
 const TAG_RE = /(^|\s)(#[^\s#]+)/gu;
 
 const PRIORITY_MARKERS: Record<TaskPriorityFilterValue, string> = {
@@ -93,6 +101,13 @@ export function updateTaskCalendarTaskLine(
   }
 
   if (patch.priority !== undefined) line = replaceVisibleToken(line, PRIORITY_RE, PRIORITY_MARKERS[patch.priority]);
+  if (patch.recurrence !== undefined || patch.customRecurrence !== undefined) {
+    const current = taskCalendarTaskRecurrence(line);
+    const recurrence = patch.recurrence ?? current.recurrence;
+    const custom = patch.customRecurrence ?? current.customRecurrence;
+    const rule = recurrenceRule(recurrence, custom);
+    line = replaceVisibleToken(line, RECURRENCE_RE, rule ? `🔁 ${rule}` : "");
+  }
   const target = task.syncTarget || (task.appleSyncTagged ? "reminders" : "");
   if (patch.date !== undefined) {
     const marker = target === "calendar" ? "🛫" : "📅";
@@ -114,6 +129,9 @@ export function updateTaskCalendarTaskLine(
   }
 
   const existingMetadata = parseMemosPlusTaskMetadata(line);
+  const recurrenceMetadata = patch.recurrence !== undefined || patch.customRecurrence !== undefined
+    ? recurrenceMetadataValue(taskCalendarTaskRecurrence(line))
+    : existingMetadata?.recurrence;
   const reminderMinutesBefore = patch.reminderMinutesBefore === null
     ? undefined
     : patch.reminderMinutesBefore ?? existingMetadata?.reminderMinutesBefore;
@@ -125,7 +143,7 @@ export function updateTaskCalendarTaskLine(
       reminderTime: patch.reminderTime ?? existingMetadata?.reminderTime,
       reminderMinutesBefore,
       allDay: patch.time === "" ? existingMetadata?.allDay : false,
-      recurrence: existingMetadata?.recurrence
+      recurrence: recurrenceMetadata
     });
   } else if (target === "calendar") {
     line = attachMemosPlusTaskMetadata(line, {
@@ -135,7 +153,7 @@ export function updateTaskCalendarTaskLine(
       endTime: existingMetadata?.endTime,
       reminderMinutesBefore,
       allDay: patch.time === "" ? existingMetadata?.allDay : false,
-      recurrence: existingMetadata?.recurrence
+      recurrence: recurrenceMetadata
     });
   }
 
@@ -151,6 +169,14 @@ export function updateTaskCalendarTaskLine(
     }
   }
   return normalizeTaskLineSpacing(line);
+}
+
+export function taskCalendarTaskRecurrence(line: string): { recurrence: TaskRecurrence; customRecurrence: string } {
+  const rule = line.match(RECURRENCE_RE)?.[0]?.replace(/^🔁\s*/u, "").trim() ?? "";
+  const recurrence = normalizeTaskRecurrence(rule);
+  return recurrence === "none" && rule
+    ? { recurrence: "custom", customRecurrence: rule }
+    : { recurrence, customRecurrence: recurrence === "custom" ? rule : "" };
 }
 
 export function taskCalendarTaskWithPatch(
@@ -211,6 +237,21 @@ function uniqueTags(values: string[]): string[] {
     if (tag && !result.some((item) => item.toLocaleLowerCase() === tag.toLocaleLowerCase())) result.push(tag);
   }
   return result;
+}
+
+function recurrenceRule(recurrence: TaskRecurrence, custom: string): string {
+  if (recurrence === "daily") return "every day";
+  if (recurrence === "weekdays") return "every weekday";
+  if (recurrence === "weekly") return "every week";
+  if (recurrence === "monthly") return "every month";
+  if (recurrence === "yearly") return "every year";
+  if (recurrence === "custom") return custom.trim().replace(/^🔁\s*/u, "");
+  return "";
+}
+
+function recurrenceMetadataValue(value: ReturnType<typeof taskCalendarTaskRecurrence>): string {
+  if (value.recurrence === "none") return "";
+  return value.recurrence === "custom" ? value.customRecurrence : value.recurrence;
 }
 
 function normalizeTag(value: string): string {

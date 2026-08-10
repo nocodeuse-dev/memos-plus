@@ -337,6 +337,7 @@ export function taskDisplayTitle(text: string): string {
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
     .replace(/(?:📅|⏳|🛫|➕|✅)\s*\d{4}-\d{2}-\d{2}/gu, " ")
     .replace(/⏰\s*\d{1,2}:\d{2}/gu, " ")
+    .replace(/🔁\s*.*?(?=\s+(?:#|🔺|⏫|🔼|🔽|⏬|🛫|⏳|📅|⏰|➕|✅|<!--)|$)/gu, " ")
     .replace(/(^|\s)#[^\s#]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();

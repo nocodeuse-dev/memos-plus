@@ -1,5 +1,6 @@
 import type { TaskIndexItem } from "./taskIndex";
 import { attachMemosPlusTaskMetadata, parseMemosPlusTaskMetadata, stripMemosPlusTaskMetadata } from "./tasksFormat";
+import { completeTaskWithRecurrence } from "./taskLineActions";
 
 export type AppleSyncTarget = "reminders" | "calendar";
 export type AppleSyncConflictPolicy = "remote-wins" | "local-wins" | "newest";
@@ -286,7 +287,7 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
   }
   parts.push(normalizeAppleSyncTag(tag), `<!-- memos-plus-apple-id:${localId} -->`);
   const updated = `${prefix[1]}${item.completed ? "x" : " "}${prefix[2]}${parts.join(" ")}`;
-  return attachMemosPlusTaskMetadata(updated, {
+  const withMetadata = attachMemosPlusTaskMetadata(updated, {
     target: "reminders",
     dueTime: item.dueTime,
     reminderDate: item.reminderDate,
@@ -295,6 +296,10 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
     allDay: item.allDay,
     recurrence: originalMetadata?.recurrence
   });
+  const wasIncomplete = /^\s*(?:[-*+]|\d+[.)])\s+\[\s\]/u.test(line);
+  return item.completed && wasIncomplete && withMetadata.includes("🔁")
+    ? completeTaskWithRecurrence(withMetadata)
+    : withMetadata;
 }
 
 export function formatImportedAppleTask(item: AppleSyncRemoteItem, tag: string, localId: string): string {

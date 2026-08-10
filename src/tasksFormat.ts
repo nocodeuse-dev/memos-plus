@@ -1,5 +1,5 @@
 export type TaskPriority = "none" | "highest" | "high" | "medium" | "low" | "lowest";
-export type TaskRecurrence = "none" | "daily" | "weekly" | "monthly" | "yearly" | "custom";
+export type TaskRecurrence = "none" | "daily" | "weekdays" | "weekly" | "monthly" | "yearly" | "custom";
 export type TaskContentMode = "task-with-detail" | "task-only" | "ask";
 export type TaskSyncTarget = "tasks" | "reminders" | "calendar";
 type LooseTaskPriority = TaskPriority | (string & {});
@@ -59,6 +59,7 @@ const priorityMarkers: Record<TaskPriority, string> = {
 
 const recurrenceRules: Record<Exclude<TaskRecurrence, "none" | "custom">, string> = {
   daily: "every day",
+  weekdays: "every weekday",
   weekly: "every week",
   monthly: "every month",
   yearly: "every year"
@@ -119,6 +120,9 @@ export function normalizeTaskRecurrence(value: unknown): TaskRecurrence {
   }
   if (["daily", "day", "每天", "每日", "every day"].includes(normalized)) {
     return "daily";
+  }
+  if (["weekdays", "weekday", "工作日", "每个工作日", "every weekday"].includes(normalized)) {
+    return "weekdays";
   }
   if (["weekly", "week", "每周", "每星期", "every week"].includes(normalized)) {
     return "weekly";
