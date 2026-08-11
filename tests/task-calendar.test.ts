@@ -304,6 +304,17 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("taskSourceLabel(task.filePath)");
   });
 
+  it("keeps task row actions independent and opens the editor only from settings", () => {
+    const renderTaskSource = viewSource.slice(viewSource.indexOf("private renderTask(container"), viewSource.indexOf("private taskAppleSyncStatus"));
+    expect(renderTaskSource).toContain('checkbox.addEventListener("click", (event) => event.stopPropagation())');
+    expect(renderTaskSource).toContain("this.plugin.openTaskCalendarTask(task)");
+    expect(renderTaskSource).toContain('this.iconButton(item, "settings-2"');
+    expect(renderTaskSource).toContain("() => this.selectTask(task)");
+    expect(renderTaskSource).not.toContain("editTaskCalendarTask(task)");
+    expect(stylesSource).toContain("grid-template-columns: 20px minmax(0, 1fr) 34px");
+    expect(stylesSource).toContain(".memos-plus-task-calendar-task-settings");
+  });
+
   it("keeps desktop panes readable and collapses navigation before squeezing task text", () => {
     expect(stylesSource).toContain("--memos-plus-task-calendar-nav-width, 232px");
     expect(stylesSource).toContain("--memos-plus-task-calendar-task-width, 390px");

@@ -828,22 +828,23 @@ export class TaskCalendarView extends ItemView {
   private renderTask(container: HTMLElement, task: TaskIndexItem, selectedDate: string): void {
     const item = container.createDiv({ cls: `memos-plus-task-calendar-task${task.completed ? " is-completed" : ""}`, attr: { draggable: "true" } });
     const title = task.title || t(this.plugin.settings.language, "taskCalendar.untitledTask");
-    const checkbox = item.createEl("input", { type: "checkbox", attr: { "aria-label": title } });
+    const checkbox = item.createEl("input", { cls: "memos-plus-task-calendar-task-checkbox", type: "checkbox", attr: { "aria-label": title } });
     checkbox.checked = task.completed;
+    checkbox.addEventListener("click", (event) => event.stopPropagation());
     checkbox.addEventListener("change", () => this.toggleTaskCompletionOptimistically(task, checkbox, item));
-    const body = item.createEl("button", { cls: "memos-plus-task-calendar-task-body", attr: { type: "button" } });
+    const body = item.createEl("button", {
+      cls: "memos-plus-task-calendar-task-body",
+      attr: {
+        type: "button",
+        title: `${t(this.plugin.settings.language, "taskCalendar.openSource")}: ${title}`,
+        "aria-label": `${t(this.plugin.settings.language, "taskCalendar.openSource")}: ${title}`
+      }
+    });
     const heading = body.createDiv({ cls: "memos-plus-task-calendar-task-heading" });
     heading.createDiv({ cls: "memos-plus-task-calendar-task-title", text: title, attr: { title } });
-    const syncStatus = this.taskAppleSyncStatus(task);
-    if (syncStatus) {
-      heading.createSpan({
-        cls: `memos-plus-task-calendar-task-sync${syncStatus.startsWith("⚠") ? " is-error" : ""}`,
-        text: syncStatus,
-        attr: { title: syncStatus === "✓" ? t(this.plugin.settings.language, "taskCalendar.appleSynced") : syncStatus }
-      });
-    }
     const date = task.dueDate || task.scheduledDate || task.startDate;
-    const dateAndTime = [date, task.dueTime].filter(Boolean).join(" ");
+    const time = task.dueTime || task.startTime;
+    const dateAndTime = [taskListDateLabel(date, this.plugin.settings.language), time].filter(Boolean).join(" ");
     const facts = body.createDiv({ cls: "memos-plus-task-calendar-task-meta memos-plus-task-calendar-task-facts" });
     if (date && date < selectedDate) facts.createSpan({ cls: "is-overdue", text: t(this.plugin.settings.language, "taskCalendar.overdue") });
     if (dateAndTime) facts.createSpan({ text: dateAndTime });
@@ -851,28 +852,34 @@ export class TaskCalendarView extends ItemView {
     if (priority) facts.createSpan({ cls: task.priority === "highest" || task.priority === "high" ? "is-priority" : "", text: priority });
     const project = this.taskProjectLabel(task);
     if (project) facts.createSpan({ text: project });
+    const syncStatus = this.taskAppleSyncStatus(task);
+    if (syncStatus) {
+      facts.createSpan({
+        cls: `memos-plus-task-calendar-task-sync${syncStatus.error ? " is-error" : ""}`,
+        text: syncStatus.label,
+        attr: { title: syncStatus.title, "aria-label": syncStatus.title }
+      });
+    }
     const source = taskSourceLabel(task.filePath);
     if (source) body.createDiv({ cls: "memos-plus-task-calendar-task-source", text: `${this.plugin.settings.language === "zh" ? "来源" : "Source"}: ${source}`, attr: { title: task.filePath } });
-    body.addEventListener("click", () => this.selectTask(task));
+    body.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.plugin.openTaskCalendarTask(task);
+    });
     this.prepareTaskDrag(item, task);
-    if (this.plugin.canEditTaskCalendarTask()) {
-      const edit = this.iconButton(item, "pencil", t(this.plugin.settings.language, "common.edit"), () => {
-        edit.disabled = true;
-        void this.plugin.editTaskCalendarTask(task).finally(() => { if (edit.isConnected) edit.disabled = false; });
-      });
-      edit.addClass("memos-plus-task-calendar-task-edit");
-    }
+    const settings = this.iconButton(item, "settings-2", t(this.plugin.settings.language, "taskCalendar.taskSettings"), () => this.selectTask(task));
+    settings.addClass("memos-plus-task-calendar-task-settings");
   }
 
-  private taskAppleSyncStatus(task: TaskIndexItem): string {
-    const target = task.syncTarget || (task.appleSyncTagged || task.appleSyncId ? "reminders" : "");
-    if (!target) return "";
-    const recordKey = task.appleSyncId ? `${target}:${task.appleSyncId}` : "";
-    const pending = Boolean(recordKey && this.plugin.settings.appleSyncState.pending[recordKey]);
-    const synced = Boolean(recordKey && this.plugin.settings.appleSyncState.records[recordKey]);
-    if (pending) return "↻";
-    if (this.plugin.settings.appleSyncState.lastError) return `⚠ ${t(this.plugin.settings.language, "taskCalendar.appleFailed")}`;
-    return synced ? "✓" : "↻";
+  private taskAppleSyncStatus(task: TaskIndexItem): { label: string; title: string; error: boolean } | null {
+    const detail = this.taskAppleSyncDetail(task);
+    if (!detail) return null;
+    if (detail.error) return { ...detail, label: `⚠ ${t(this.plugin.settings.language, "taskCalendar.appleFailed")}` };
+    return {
+      ...detail,
+      label: detail.label.startsWith("↻") ? "↻" : ""
+    };
   }
 
   private taskProjectLabel(task: TaskIndexItem): string {
@@ -1351,6 +1358,14 @@ function priorityDetails(priority: TaskIndexItem["priority"], lang: "zh" | "en")
 
 function taskSourceLabel(filePath: string): string {
   return filePath.split("/").pop()?.replace(/\.md$/iu, "") ?? filePath;
+}
+
+function taskListDateLabel(date: string, lang: "zh" | "en"): string {
+  if (!date) return "";
+  const today = todayTaskCalendarDate();
+  if (date === today) return lang === "zh" ? "今天" : "Today";
+  if (date === shiftDate(today, "day", 1)) return lang === "zh" ? "明天" : "Tomorrow";
+  return date;
 }
 
 function summaryCard(container: HTMLElement, label: string, value: string, extraClass = ""): void {
