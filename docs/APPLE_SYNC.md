@@ -28,7 +28,7 @@ Memos Plus 在 macOS Obsidian 桌面端把两类数据明确分开：Markdown �
 <!-- memos-plus-apple-id:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -->
 ```
 
-该 ID 用于在任务移动、标题变化或行号变化后继续识别同一项目。不要在多个任务之间复制相同的 ID；同步器检测到重复 ID 时会为后续任务重新生成。
+该 ID 同时写入 Apple Reminder 正文，并随 iCloud 在设备间同步，是跨 Mac / iPhone 重新关联的主键。Apple 返回的 `x-apple-reminder://…` identifier 只作为本机缓存；identifier 变化后会通过正文 ID 或唯一任务特征重新关联。不要在多个任务之间复制相同的 ID；同步器检测到重复 ID 时会为后续任务重新生成。
 
 ## 同步内容
 
@@ -55,7 +55,7 @@ Apple 侧没有 Memos Plus ID 的项目会被导入为带同步标签的 Markdow
 - Markdown 优先
 - Apple 优先
 
-删除只对已经同时保存本地隐藏 ID 和 Apple Reminder 唯一 ID 的项目传播：删除 Markdown 任务会删除对应提醒事项，删除对应提醒事项会删除那一条 Markdown 任务。没有建立映射的历史本地任务不会被删除；移除同步标签只会暂停同步，也不会触发删除。Apple Calendar 事件不参与任务删除。
+删除只对已经建立映射的项目传播。某一轮暂时找不到 Markdown 或 Reminder 时先进入“等待同步”，按 30 秒、2 分钟、5 分钟、15 分钟自动退避重试；跨设备 identifier 变化会先重新关联，不会直接创建副本。只有连续多次未命中且首次缺失已超过 24 小时，才允许把缺失解释为删除。没有建立映射的历史本地任务不会被删除；移除同步标签只会暂停同步，也不会触发删除。Apple Calendar 事件不参与任务删除。
 
 工作台快速新增任务在同步已启用时会自动加入同步标签。顶部刷新按钮会同时刷新 Calendar 日程和 Reminders 任务；两个请求保持独立，任何一边失败都不会把任务写成日历事件。
 

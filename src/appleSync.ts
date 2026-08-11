@@ -35,14 +35,27 @@ export interface AppleSyncRecord {
   lastSyncedAt: string;
 }
 
+export type AppleSyncPendingReason = "remote-missing" | "local-missing" | "both-missing" | "linked-remote-awaiting-local" | "linked-local-awaiting-remote";
+
+export interface AppleSyncPendingRecord {
+  localId: string;
+  kind: AppleSyncTarget;
+  reason: AppleSyncPendingReason;
+  firstSeenAt: string;
+  lastAttemptAt: string;
+  retryCount: number;
+}
+
 export interface AppleSyncState {
   records: Record<string, AppleSyncRecord>;
+  pending: Record<string, AppleSyncPendingRecord>;
   lastSyncAt: string;
   lastError: string;
 }
 
 export const DEFAULT_APPLE_SYNC_STATE: AppleSyncState = {
   records: {},
+  pending: {},
   lastSyncAt: "",
   lastError: ""
 };
@@ -78,7 +91,7 @@ export function normalizeAppleSyncInterval(value: unknown): number {
 
 export function normalizeAppleSyncState(value: unknown): AppleSyncState {
   if (!isRecord(value)) {
-    return { ...DEFAULT_APPLE_SYNC_STATE, records: {} };
+    return { ...DEFAULT_APPLE_SYNC_STATE, records: {}, pending: {} };
   }
   const records: Record<string, AppleSyncRecord> = {};
   if (isRecord(value.records)) {
@@ -102,8 +115,26 @@ export function normalizeAppleSyncState(value: unknown): AppleSyncState {
       };
     }
   }
+  const pending: Record<string, AppleSyncPendingRecord> = {};
+  if (isRecord(value.pending)) {
+    for (const [key, raw] of Object.entries(value.pending)) {
+      if (!isRecord(raw)) continue;
+      const localId = text(raw.localId);
+      const reason = normalizePendingReason(raw.reason);
+      if (!localId || !reason) continue;
+      pending[key] = {
+        localId,
+        kind: normalizeAppleSyncTarget(raw.kind),
+        reason,
+        firstSeenAt: text(raw.firstSeenAt),
+        lastAttemptAt: text(raw.lastAttemptAt),
+        retryCount: Math.max(0, Math.floor(number(raw.retryCount)))
+      };
+    }
+  }
   return {
     records,
+    pending,
     lastSyncAt: text(value.lastSyncAt),
     lastError: text(value.lastError)
   };
@@ -395,6 +426,21 @@ function dateMs(value: string): number {
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function number(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizePendingReason(value: unknown): AppleSyncPendingReason | "" {
+  return value === "remote-missing"
+    || value === "local-missing"
+    || value === "both-missing"
+    || value === "linked-remote-awaiting-local"
+    || value === "linked-local-awaiting-remote"
+    ? value
+    : "";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -26,7 +26,7 @@ vi.mock("obsidian", () => ({
   normalizePath: (value: string) => value.replace(/\/+/g, "/").replace(/\/$/, "")
 }));
 
-import { AppleSyncService } from "../src/appleSyncService";
+import { APPLE_SYNC_MISSING_GRACE_MS, AppleSyncService } from "../src/appleSyncService";
 import type { AppleSyncBridge, AppleSyncUpsertInput } from "../src/appleSyncBridge";
 import type { AppleSyncRemoteItem, AppleSyncTarget } from "../src/appleSync";
 import { DEFAULT_SETTINGS, type MemosPlusSettings } from "../src/settings";
@@ -127,6 +127,7 @@ function harness(source = ""): {
   settings: MemosPlusSettings;
   taskIndex: TaskIndex;
   service: AppleSyncService;
+  advance: (milliseconds: number) => void;
 } {
   const vault = new MemoryVault();
   if (source) vault.add("Tasks.md", source);
@@ -136,8 +137,9 @@ function harness(source = ""): {
     appleSyncEnabled: true,
     appleRemindersList: "提醒",
     appleSyncInboxPath: "Apple Sync Test.md",
-    appleSyncState: { records: {}, lastSyncAt: "", lastError: "" }
+    appleSyncState: { records: {}, pending: {}, lastSyncAt: "", lastError: "" }
   };
+  let now = Date.parse("2026-08-11T00:00:00.000Z");
   const app = { vault } as never;
   const taskIndex = new TaskIndex(app, { isMobile: () => false });
   const service = new AppleSyncService({
@@ -146,9 +148,16 @@ function harness(source = ""): {
     bridge,
     getSettings: () => settings,
     persistSettings: vi.fn(async () => undefined),
-    isAvailable: () => true
+    isAvailable: () => true,
+    now: () => now
   });
-  return { vault, bridge, settings, taskIndex, service };
+  return { vault, bridge, settings, taskIndex, service, advance: (milliseconds) => { now += milliseconds; } };
+}
+
+async function finishMissingGrace(test: ReturnType<typeof harness>): Promise<void> {
+  test.advance(APPLE_SYNC_MISSING_GRACE_MS / 2);
+  await test.service.syncNow();
+  test.advance(APPLE_SYNC_MISSING_GRACE_MS / 2 + 1);
 }
 
 describe("Apple Reminders bidirectional synchronization", () => {
@@ -178,6 +187,119 @@ describe("Apple Reminders bidirectional synchronization", () => {
     expect(test.bridge.items[0]?.localId).not.toBe("");
   });
 
+  it("reassociates the same iCloud reminder when its device-local identifier changes", async () => {
+    const test = harness("- [ ] 跨设备任务 📅 2026-08-12 #Apple同步\n");
+    await test.service.syncNow();
+    const localId = test.bridge.items[0]!.localId;
+    test.bridge.items[0] = { ...test.bridge.items[0]!, id: "other-mac-id", modifiedAt: "2026-08-11T01:00:00.000Z" };
+
+    const result = await test.service.syncNow();
+
+    expect(result.waiting).toBe(0);
+    expect(test.bridge.items).toHaveLength(1);
+    expect(test.settings.appleSyncState.records[`reminders:${localId}`]?.remoteId).toBe("other-mac-id");
+  });
+
+  it("uses the last remote signature to restore a missing iCloud marker without creating a duplicate", async () => {
+    const test = harness("- [ ] 重新关联 📅 2026-08-12 #Apple同步\n");
+    await test.service.syncNow();
+    const original = test.bridge.items[0]!;
+    test.bridge.items[0] = { ...original, id: "changed-id", localId: "", notes: "" };
+
+    await test.service.syncNow();
+
+    expect(test.bridge.items).toHaveLength(1);
+    expect(test.bridge.items[0]).toMatchObject({ id: "changed-id", localId: original.localId });
+    expect(test.settings.appleSyncState.records[`reminders:${original.localId}`]?.remoteId).toBe("changed-id");
+  });
+
+  it("keeps a temporarily missing reminder in waiting state and reconnects after iCloud catches up", async () => {
+    const test = harness("- [ ] 等待 iCloud 📅 2026-08-12 #Apple同步\n");
+    await test.service.syncNow();
+    const remote = test.bridge.items[0]!;
+    test.bridge.items = [];
+
+    const waiting = await test.service.syncNow();
+    expect(waiting.waiting).toBe(1);
+    expect(waiting.deletedLocal).toBe(0);
+    expect(test.settings.appleSyncState.lastError).toBe("");
+    expect(test.vault.source("Tasks.md")).toContain("等待 iCloud");
+
+    test.bridge.items = [{ ...remote, id: "icloud-new-id" }];
+    const recovered = await test.service.syncNow();
+    expect(recovered.waiting).toBe(0);
+    expect(test.bridge.items).toHaveLength(1);
+    expect(test.settings.appleSyncState.pending[`reminders:${remote.localId}`]).toBeUndefined();
+    expect(test.settings.appleSyncState.records[`reminders:${remote.localId}`]?.remoteId).toBe("icloud-new-id");
+  });
+
+  it("classifies an iCloud list timeout as waiting and retries without recording a sync failure", async () => {
+    const localId = "timeout-local-id";
+    const test = harness(`- [ ] iCloud 读取中 #Apple同步 <!-- memos-plus-apple-id:${localId} -->\n`);
+    test.bridge.list.mockRejectedValueOnce(new Error("Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。"));
+
+    const result = await test.service.syncNow();
+
+    expect(result.waiting).toBe(1);
+    expect(test.settings.appleSyncState.lastError).toBe("");
+    expect(test.settings.appleSyncState.pending[`reminders:${localId}`]?.reason).toBe("remote-missing");
+    expect(test.bridge.upsert).not.toHaveBeenCalled();
+    expect(test.vault.source("Tasks.md")).toContain("iCloud 读取中");
+  });
+
+  it("waits for Markdown from another device when a linked Reminder arrives first", async () => {
+    const test = harness();
+    const localId = "cross-device-local-id";
+    test.bridge.items.push({
+      kind: "reminders",
+      id: "iphone-reminder-id",
+      localId,
+      title: "iPhone 创建",
+      completed: false,
+      dueDate: "2026-08-13",
+      dueTime: "09:30",
+      priority: 5,
+      modifiedAt: "2026-08-11T01:00:00.000Z",
+      notes: `memos-plus-id:${localId}`
+    });
+
+    const waiting = await test.service.syncNow();
+    expect(waiting.waiting).toBe(1);
+    expect(waiting.imported).toBe(0);
+    expect(test.vault.source("Apple Sync Test.md")).toBe("");
+
+    test.vault.add("Tasks.md", `- [ ] iPhone 创建 🔼 📅 2026-08-13 ⏰ 09:30 #Apple同步 <!-- memos-plus-apple-id:${localId} -->\n`);
+    const matched = await test.service.syncNow();
+    expect(matched.waiting).toBe(0);
+    expect(matched.imported).toBe(0);
+    expect(test.bridge.items).toHaveLength(1);
+    expect(test.settings.appleSyncState.records[`reminders:${localId}`]?.remoteId).toBe("iphone-reminder-id");
+  });
+
+  it("uniquely matches an unmarked Reminder by task fields before creating anything", async () => {
+    const localId = "existing-markdown-id";
+    const test = harness(`- [ ] 唯一匹配 🔼 📅 2026-08-14 ⏰ 10:30 #Apple同步 <!-- memos-plus-apple-id:${localId} -->\n`);
+    test.bridge.items.push({
+      kind: "reminders",
+      id: "unmarked-icloud-id",
+      localId: "",
+      title: "唯一匹配",
+      completed: false,
+      dueDate: "2026-08-14",
+      dueTime: "10:30",
+      priority: 5,
+      modifiedAt: "2026-08-11T01:00:00.000Z",
+      notes: ""
+    });
+
+    const result = await test.service.syncNow();
+
+    expect(result.waiting).toBe(0);
+    expect(test.bridge.items).toHaveLength(1);
+    expect(test.bridge.items[0]).toMatchObject({ id: "unmarked-icloud-id", localId });
+    expect(test.settings.appleSyncState.records[`reminders:${localId}`]?.remoteId).toBe("unmarked-icloud-id");
+  });
+
   it("pushes local create/edit/complete/delete without duplicate reminders", async () => {
     const test = harness("- [ ] 本地新建 ⏫ 📅 2026-08-11 ⏰ 09:45 #Apple同步\n");
 
@@ -192,6 +314,10 @@ describe("Apple Reminders bidirectional synchronization", () => {
     expect(test.bridge.items[0]).toMatchObject({ title: "本地修改", completed: true, dueTime: "10:15" });
 
     test.vault.setSource("Tasks.md", "");
+    const waiting = await test.service.syncNow();
+    expect(waiting.waiting).toBe(1);
+    expect(test.bridge.items).toHaveLength(1);
+    await finishMissingGrace(test);
     const deletion = await test.service.syncNow();
     expect(deletion.deletedRemote).toBe(1);
     expect(test.bridge.items).toHaveLength(0);
@@ -264,6 +390,10 @@ describe("Apple Reminders bidirectional synchronization", () => {
     expect(test.vault.source("Tasks.md")).toContain("- [ ] 历史本地任务");
 
     test.bridge.items = [];
+    const waiting = await test.service.syncNow();
+    expect(waiting.waiting).toBe(1);
+    expect(test.vault.source("Tasks.md")).toContain("Apple 修改");
+    await finishMissingGrace(test);
     const deletion = await test.service.syncNow();
     expect(deletion.deletedLocal).toBe(1);
     expect(test.vault.source("Tasks.md")).not.toContain("Apple 修改");
@@ -299,6 +429,9 @@ describe("Apple Reminders bidirectional synchronization", () => {
     expect(test.bridge.items).toHaveLength(1);
 
     status.mockRestore();
+    const waiting = await test.service.syncNow();
+    expect(waiting.waiting).toBe(1);
+    await finishMissingGrace(test);
     const removed = await test.service.syncNow();
     expect(removed.deletedRemote).toBe(1);
     expect(test.bridge.items).toHaveLength(0);

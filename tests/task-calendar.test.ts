@@ -296,6 +296,7 @@ describe("Schedule and tasks integration boundaries", () => {
   it("renders parsed task time and Apple sync status and listens for task-index changes", () => {
     expect(viewSource).toContain("task.dueTime");
     expect(viewSource).toContain("taskAppleSyncStatus(task)");
+    expect(viewSource).toContain("appleSyncState.pending[recordKey]");
     expect(viewSource).toContain("taskCalendarTimedTaskPlacement(task, days)");
     expect(viewSource).toContain("this.plugin.taskIndex.onChange(() => this.handleTaskIndexChange())");
     expect(viewSource).toContain("memos-plus-task-calendar-task-heading");

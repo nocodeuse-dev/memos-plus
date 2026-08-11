@@ -58,6 +58,7 @@ describe("Apple sync safety and merge helpers", () => {
     expect(normalized.language).toBe("en");
     expect(normalized.appleSyncEnabled).toBe(false);
     expect(normalized.appleSyncState.lastSyncAt).toBe("2026-08-01");
+    expect(normalized.appleSyncState.pending).toEqual({});
   });
 
   it("adds a stable hidden marker without duplicating it", () => {
@@ -144,8 +145,17 @@ describe("Apple sync source integration", () => {
     expect(bridgeSource).not.toContain('await import("node:child_process")');
     expect(bridgeSource).not.toContain("shell: true");
     expect(bridgeSource).toContain('request.kind !== "reminders"');
-    expect(bridgeSource).toContain("app.delete(matches[0])");
+    expect(bridgeSource).toContain("app.delete(reminder)");
+    expect(bridgeSource).toContain("reminderByLocalId(list, request.localId)");
     expect(bridgeSource).not.toContain("deleteEvent");
+  });
+
+  it("batch-reads Reminder properties and leaves enough time for iCloud responses", () => {
+    expect(bridgeSource).toContain("const ids = safeArray(function () { return reminders.id(); });");
+    expect(bridgeSource).toContain("const bodies = safeArray(function () { return reminders.body(); });");
+    expect(bridgeSource).toContain("reminderRecordFromValues");
+    expect(bridgeSource).toContain("timeout: 60_000");
+    expect(bridgeSource).toContain("Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。");
   });
 
   it("loads the desktop child-process bridge only after the macOS runtime guard", () => {
@@ -215,7 +225,10 @@ describe("Apple sync source integration", () => {
     expect(serviceSource).toContain('const kind = "reminders" as const');
     expect(serviceSource).toContain("const container = settings.appleRemindersList");
     expect(serviceSource).not.toContain("const kind = settings.appleSyncTarget");
-    expect(serviceSource).toContain("this.options.bridge.remove(kind, container, remote.id)");
+    expect(serviceSource).toContain("this.options.bridge.remove(kind, container, remote.id, record.localId)");
+    expect(serviceSource).toContain("findRemoteForRecord");
+    expect(serviceSource).toContain("markAppleSyncPending");
+    expect(mainSource).toContain("scheduleAppleSyncRetry");
     expect(serviceSource).toContain("shouldSyncCalendarTask");
     expect(serviceSource).toContain("container: settings.appleCalendarName");
   });

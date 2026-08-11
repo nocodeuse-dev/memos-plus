@@ -35,7 +35,7 @@ export interface AppleSyncBridge {
   createContainer(kind: AppleSyncTarget, name: string): Promise<AppleSyncContainerResult>;
   list(kind: AppleSyncTarget, container: string): Promise<AppleSyncRemoteItem[]>;
   upsert(input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem>;
-  remove(kind: AppleSyncTarget, container: string, remoteId: string): Promise<boolean>;
+  remove(kind: AppleSyncTarget, container: string, remoteId: string, localId?: string): Promise<boolean>;
 }
 
 interface JxaRequest {
@@ -126,7 +126,29 @@ function listItems(request) {
 function listReminderItems(containerName) {
   const app = Application("Reminders");
   const list = requiredCollection(app.lists.whose({ name: String(containerName || "") })(), "Reminders list", containerName);
-  return list.reminders().map(function (item) { return reminderRecord(item, list.name()); });
+  const reminders = list.reminders;
+  const ids = safeArray(function () { return reminders.id(); });
+  const names = safeArray(function () { return reminders.name(); });
+  const bodies = safeArray(function () { return reminders.body(); });
+  const completed = safeArray(function () { return reminders.completed(); });
+  const priorities = safeArray(function () { return reminders.priority(); });
+  const dueDates = safeArray(function () { return reminders.dueDate(); });
+  const allDayDueDates = safeArray(function () { return reminders.alldayDueDate(); });
+  const remindDates = safeArray(function () { return reminders.remindMeDate(); });
+  const modifiedDates = safeArray(function () { return reminders.modificationDate(); });
+  return ids.map(function (id, index) {
+    return reminderRecordFromValues({
+      id: id,
+      name: names[index],
+      body: bodies[index],
+      completed: completed[index],
+      priority: priorities[index],
+      dueDate: dueDates[index],
+      allDayDueDate: allDayDueDates[index],
+      remindMeDate: remindDates[index],
+      modificationDate: modifiedDates[index]
+    }, list.name());
+  });
 }
 
 function listCalendarItems(containerName) {
@@ -143,9 +165,12 @@ function removeItem(request) {
   if (request.kind !== "reminders") throw new Error("Memos Plus deletes tasks only from Apple Reminders");
   const app = Application("Reminders");
   const list = requiredCollection(app.lists.whose({ name: String(request.container || "") })(), "Reminders list", request.container);
+  let reminder = null;
   const matches = list.reminders.whose({ id: String(request.remoteId || "") })();
-  if (matches.length === 0) return false;
-  app.delete(matches[0]);
+  if (matches.length > 0) reminder = matches[0];
+  if (!reminder && request.localId) reminder = reminderByLocalId(list, request.localId);
+  if (!reminder) return false;
+  app.delete(reminder);
   return true;
 }
 
@@ -157,6 +182,7 @@ function upsertReminderItem(request) {
     const matches = list.reminders.whose({ id: String(request.remoteId) })();
     if (matches.length > 0) reminder = matches[0];
   }
+  if (!reminder && request.localId) reminder = reminderByLocalId(list, request.localId);
   if (!reminder) {
     reminder = app.Reminder({ name: String(request.title || ""), completed: Boolean(request.completed) });
     list.reminders.push(reminder);
@@ -244,6 +270,38 @@ function reminderRecord(item, containerName) {
   };
 }
 
+function reminderRecordFromValues(values, containerName) {
+  const due = dateOrNull(values.dueDate);
+  const allDayDue = dateOrNull(values.allDayDueDate);
+  const remind = dateOrNull(values.remindMeDate);
+  const modified = dateOrNull(values.modificationDate);
+  const body = values.body == null ? "" : String(values.body);
+  return {
+    kind: "reminders",
+    id: String(values.id || ""),
+    localId: localIdFromNotes(body),
+    title: values.name == null ? "" : String(values.name),
+    completed: Boolean(values.completed),
+    dueDate: allDayDue ? localDateString(allDayDue) : (due ? localDateString(due) : ""),
+    dueTime: due ? localTimeString(due) : "",
+    reminderDate: remind ? localDateString(remind) : "",
+    reminderTime: remind ? localTimeString(remind) : "",
+    reminderMinutesBefore: due && remind ? Math.max(0, Math.round((due.getTime() - remind.getTime()) / 60000)) : undefined,
+    allDay: Boolean(allDayDue && !due),
+    priority: Number(values.priority || 0),
+    modifiedAt: modified ? modified.toISOString() : "",
+    notes: body,
+    container: String(containerName || "")
+  };
+}
+
+function reminderByLocalId(list, localId) {
+  const reminders = list.reminders;
+  const bodies = safeArray(function () { return reminders.body(); });
+  const index = bodies.findIndex(function (body) { return localIdFromNotes(body) === String(localId || ""); });
+  return index >= 0 ? reminders[index] : null;
+}
+
 function calendarRecord(item, containerName) {
   const start = safeDate(function () { return item.startDate(); });
   const end = safeDate(function () { return item.endDate(); });
@@ -293,6 +351,17 @@ function safeDate(getter) {
 function safeIso(getter) {
   const value = safeDate(getter);
   try { return value ? value.toISOString() : ""; } catch (_) { return ""; }
+}
+
+function safeArray(getter) {
+  try {
+    const value = getter();
+    return Array.isArray(value) ? value : [];
+  } catch (_) { return []; }
+}
+
+function dateOrNull(value) {
+  try { return value ? new Date(value) : null; } catch (_) { return null; }
 }
 
 function localDate(value) {
@@ -380,8 +449,8 @@ export class MacOsAppleSyncBridge implements AppleSyncBridge {
     return { ...item, reminderMinutesBefore: input.reminderMinutesBefore };
   }
 
-  async remove(kind: AppleSyncTarget, container: string, remoteId: string): Promise<boolean> {
-    return this.run<boolean>({ operation: "remove", kind, container, remoteId });
+  async remove(kind: AppleSyncTarget, container: string, remoteId: string, localId?: string): Promise<boolean> {
+    return this.run<boolean>({ operation: "remove", kind, container, remoteId, localId });
   }
 
   private async run<T>(request: JxaRequest): Promise<T> {
@@ -394,10 +463,11 @@ export class MacOsAppleSyncBridge implements AppleSyncBridge {
       execFile(
         "/usr/bin/osascript",
         ["-l", "JavaScript", "-e", APPLE_SYNC_JXA, JSON.stringify(request)],
-        { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 },
+        { timeout: 60_000, maxBuffer: 10 * 1024 * 1024 },
         (error, stdout, stderr) => {
           if (error) {
-            reject(new Error(normalizeAppleBridgeError(stderr || error.message)));
+            const timedOut = error.killed || error.signal === "SIGTERM";
+            reject(new Error(timedOut ? "Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。" : normalizeAppleBridgeError(stderr || error.message)));
             return;
           }
           try {
@@ -419,6 +489,9 @@ export function normalizeAppleBridgeError(message: string): string {
   const clean = message.replace(/\s+/g, " ").trim();
   if (/not authorized|not permitted|permission|(-1743)|(-10004)/i.test(clean)) {
     return "Obsidian 没有访问 Apple 日历或提醒事项的权限，请在 macOS 系统设置 > 隐私与安全性中授权。";
+  }
+  if (/timed out|timeout|ETIMEDOUT/i.test(clean)) {
+    return "Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。";
   }
   return clean.slice(0, 500) || "Apple sync failed";
 }

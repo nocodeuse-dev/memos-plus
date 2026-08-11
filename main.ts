@@ -55,6 +55,8 @@ export default class MemosPlusPlugin extends Plugin {
   private diagnosticSessionId = "";
   private taskIndexRefreshTimer: number | null = null;
   private vaultIndexWarmTimer: number | null = null;
+  private appleSyncRetryTimer: number | null = null;
+  private appleSyncRetryAttempt = 0;
   private readonly settingsSaveQueue = new SerialTaskQueue();
   private readonly linkAnalysisTitleCache = new Map<string, Promise<string>>();
 
@@ -276,6 +278,7 @@ export default class MemosPlusPlugin extends Plugin {
   onunload(): void {
     this.clearTaskIndexRefreshTimer();
     this.clearVaultIndexWarmTimer();
+    this.clearAppleSyncRetry();
     logMemosPlusDiagnostic("memos-plus:onunload", {
       memosLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE).length,
       quickInputLeaves: this.app.workspace.getLeavesOfType(MEMOS_PLUS_QUICK_INPUT_VIEW_TYPE).length
@@ -443,6 +446,8 @@ export default class MemosPlusPlugin extends Plugin {
     const lang = this.settings.language;
     try {
       const result = await this.appleSync.syncNow();
+      if (result.waiting > 0) this.scheduleAppleSyncRetry();
+      else this.clearAppleSyncRetry();
       if (showNotice) {
         new Notice(
           t(lang, "notice.appleSyncComplete")
@@ -454,6 +459,7 @@ export default class MemosPlusPlugin extends Plugin {
       }
       return true;
     } catch (error) {
+      if (isRetryableAppleSyncError(error)) this.scheduleAppleSyncRetry();
       if (showNotice) {
         new Notice(t(lang, "notice.appleSyncFailed").replace("{error}", error instanceof Error ? error.message : String(error)));
       }
@@ -914,6 +920,23 @@ export default class MemosPlusPlugin extends Plugin {
     }
   }
 
+  private scheduleAppleSyncRetry(): void {
+    if (this.appleSyncRetryTimer !== null || !this.settings.appleSyncEnabled || !this.appleSync.isAvailable()) return;
+    const delays = [30_000, 120_000, 300_000, 900_000];
+    const delay = delays[Math.min(this.appleSyncRetryAttempt, delays.length - 1)];
+    this.appleSyncRetryAttempt = Math.min(this.appleSyncRetryAttempt + 1, delays.length - 1);
+    this.appleSyncRetryTimer = window.setTimeout(() => {
+      this.appleSyncRetryTimer = null;
+      this.runAsyncOperation("retry Apple sync", () => this.syncAppleNow(false));
+    }, delay);
+  }
+
+  private clearAppleSyncRetry(): void {
+    if (this.appleSyncRetryTimer !== null) window.clearTimeout(this.appleSyncRetryTimer);
+    this.appleSyncRetryTimer = null;
+    this.appleSyncRetryAttempt = 0;
+  }
+
   private shouldRunScheduledAppleSync(now = Date.now()): boolean {
     if (!this.settings.appleSyncEnabled || this.settings.appleSyncIntervalMinutes <= 0) {
       return false;
@@ -969,6 +992,11 @@ export default class MemosPlusPlugin extends Plugin {
     };
   }
 
+}
+
+function isRetryableAppleSyncError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return !/没有访问|not authorized|not permitted|permission|not found|read-only|disabled|only in Obsidian Desktop/i.test(message);
 }
 
 function showTaskMutationFailure(language: Parameters<typeof t>[0]): void {

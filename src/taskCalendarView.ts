@@ -868,7 +868,9 @@ export class TaskCalendarView extends ItemView {
     const target = task.syncTarget || (task.appleSyncTagged || task.appleSyncId ? "reminders" : "");
     if (!target) return "";
     const recordKey = task.appleSyncId ? `${target}:${task.appleSyncId}` : "";
+    const pending = Boolean(recordKey && this.plugin.settings.appleSyncState.pending[recordKey]);
     const synced = Boolean(recordKey && this.plugin.settings.appleSyncState.records[recordKey]);
+    if (pending) return "↻";
     if (this.plugin.settings.appleSyncState.lastError) return `⚠ ${t(this.plugin.settings.language, "taskCalendar.appleFailed")}`;
     return synced ? "✓" : "↻";
   }
@@ -1146,8 +1148,14 @@ export class TaskCalendarView extends ItemView {
     if (!target) return null;
     const targetLabel = t(this.plugin.settings.language, target === "calendar" ? "taskCalendar.appleCalendar" : "taskCalendar.appleReminders");
     const recordKey = task.appleSyncId ? `${target}:${task.appleSyncId}` : "";
+    const pending = Boolean(recordKey && this.plugin.settings.appleSyncState.pending[recordKey]);
     const synced = Boolean(recordKey && this.plugin.settings.appleSyncState.records[recordKey]);
     const error = this.plugin.settings.appleSyncState.lastError;
+    if (pending) return {
+      label: `↻ ${t(this.plugin.settings.language, "taskCalendar.applePending")}`,
+      title: t(this.plugin.settings.language, "taskCalendar.applePending"),
+      error: false
+    };
     if (error) return { label: `⚠ ${t(this.plugin.settings.language, "taskCalendar.appleFailed")}`, title: error, error: true };
     return {
       label: synced ? `✓ ${targetLabel}` : `↻ ${t(this.plugin.settings.language, "taskCalendar.applePending")}`,
