@@ -286,6 +286,9 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(stylesSource).toContain("--memos-plus-task-calendar-task-width, 390px");
     expect(stylesSource).toContain("@container memos-plus-task-calendar (max-width: 1080px)");
     expect(stylesSource).toContain(".memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse)");
+    expect(stylesSource).toContain("justify-self: stretch");
+    expect(stylesSource).not.toContain(".memos-plus-task-calendar-resizer.is-left { display: none; }");
+    expect(stylesSource).toContain(".memos-plus-task-calendar-task-body { display: block;");
     expect(stylesSource).toContain("-webkit-line-clamp: 2");
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-source");
   });
