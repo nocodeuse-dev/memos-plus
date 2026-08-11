@@ -54,8 +54,8 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   mobileTab: "today",
   sidebarCollapsed: false,
   tasksPaneHidden: false,
-  navigationWidth: 152,
-  taskPaneWidth: 320,
+  navigationWidth: 232,
+  taskPaneWidth: 390,
   agendaCacheMinutes: 5,
   agendaCalendarNames: [],
   showAllDayEvents: true,
@@ -78,6 +78,8 @@ export interface TaskCalendarMonthDay {
 
 export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSettings {
   const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const navigationWidth = raw.navigationWidth === 152 ? DEFAULT_TASK_CALENDAR_SETTINGS.navigationWidth : raw.navigationWidth;
+  const taskPaneWidth = raw.taskPaneWidth === 320 ? DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth : raw.taskPaneWidth;
   return {
     showRibbon: typeof raw.showRibbon === "boolean" ? raw.showRibbon : DEFAULT_TASK_CALENDAR_SETTINGS.showRibbon,
     defaultView: normalizeNavigation(raw.defaultView, DEFAULT_TASK_CALENDAR_SETTINGS.defaultView),
@@ -88,8 +90,8 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     mobileTab: raw.mobileTab === "tasks" || raw.mobileTab === "calendar" ? raw.mobileTab : "today",
     sidebarCollapsed: typeof raw.sidebarCollapsed === "boolean" ? raw.sidebarCollapsed : false,
     tasksPaneHidden: typeof raw.tasksPaneHidden === "boolean" ? raw.tasksPaneHidden : false,
-    navigationWidth: clampInteger(raw.navigationWidth, 120, 280, DEFAULT_TASK_CALENDAR_SETTINGS.navigationWidth),
-    taskPaneWidth: clampInteger(raw.taskPaneWidth, 250, 520, DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth),
+    navigationWidth: clampInteger(navigationWidth, 200, 320, DEFAULT_TASK_CALENDAR_SETTINGS.navigationWidth),
+    taskPaneWidth: clampInteger(taskPaneWidth, 340, 560, DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth),
     agendaCacheMinutes: clampInteger(raw.agendaCacheMinutes, 1, 30, DEFAULT_TASK_CALENDAR_SETTINGS.agendaCacheMinutes),
     agendaCalendarNames: normalizeCalendarNames(raw.agendaCalendarNames),
     showAllDayEvents: typeof raw.showAllDayEvents === "boolean" ? raw.showAllDayEvents : DEFAULT_TASK_CALENDAR_SETTINGS.showAllDayEvents,

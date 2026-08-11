@@ -295,21 +295,24 @@ export class TaskCalendarView extends ItemView {
     const collapse = this.iconButton(navigation, state.sidebarCollapsed ? "panel-left-open" : "panel-left-close", t(lang, "taskCalendar.collapse"), () => void this.updateState({ sidebarCollapsed: !state.sidebarCollapsed }));
     collapse.addClass("memos-plus-task-calendar-collapse");
     this.renderMiniCalendar(navigation, selectedDate);
+    const primaryNavigation = navigation.createDiv({ cls: "memos-plus-task-calendar-primary-navigation" });
     for (const item of NAVIGATION) {
-      const button = navigation.createEl("button", { cls: `memos-plus-task-calendar-nav${state.navigation === item.id ? " is-active" : ""}`, attr: { type: "button", "data-nav": item.id } });
+      const button = primaryNavigation.createEl("button", { cls: `memos-plus-task-calendar-nav${state.navigation === item.id ? " is-active" : ""}`, attr: { type: "button", "data-nav": item.id } });
       setIcon(button, item.icon);
       button.createSpan({ text: t(lang, item.labelKey) });
       button.addEventListener("click", () => void this.openNavigation(item.id));
     }
-    this.renderProjectNavigation(navigation);
-    const calendarNav = navigation.createEl("button", { cls: "memos-plus-task-calendar-nav", attr: { type: "button" } });
+    const projectSection = navigation.createDiv({ cls: "memos-plus-task-calendar-project-section" });
+    this.renderProjectNavigation(projectSection);
+    const calendarSection = navigation.createDiv({ cls: "memos-plus-task-calendar-calendar-section" });
+    const calendarNav = calendarSection.createEl("button", { cls: "memos-plus-task-calendar-nav memos-plus-task-calendar-calendar-nav", attr: { type: "button" } });
     setIcon(calendarNav, "calendar-days");
     calendarNav.createSpan({ text: t(lang, "taskCalendar.calendars") });
     calendarNav.addEventListener("click", () => {
       if (Platform.isMobile) void this.updateState({ mobileTab: "calendar" });
       else this.contentEl.querySelector<HTMLElement>(".memos-plus-task-calendar-agenda")?.focus();
     });
-    this.renderCalendarFilters(navigation);
+    this.renderCalendarFilters(calendarSection);
 
     this.renderResizeHandle(layout, "left", state.navigationWidth);
 
@@ -432,8 +435,8 @@ export class TaskCalendarView extends ItemView {
       cls: `memos-plus-task-calendar-resizer is-${side}`,
       attr: { role: "separator", tabindex: "0", "aria-orientation": "vertical", "aria-label": t(this.plugin.settings.language, side === "left" ? "taskCalendar.resizeNavigation" : "taskCalendar.resizeTasks") }
     });
-    const minimum = side === "left" ? 120 : 250;
-    const maximum = side === "left" ? 280 : 520;
+    const minimum = side === "left" ? 200 : 340;
+    const maximum = side === "left" ? 320 : 560;
     const apply = (value: number): number => {
       const width = Math.max(minimum, Math.min(maximum, Math.round(value)));
       const root = this.contentEl.querySelector<HTMLElement>(".memos-plus-task-calendar");
@@ -819,20 +822,27 @@ export class TaskCalendarView extends ItemView {
     checkbox.checked = task.completed;
     checkbox.addEventListener("change", () => this.toggleTaskCompletionOptimistically(task, checkbox, item));
     const body = item.createEl("button", { cls: "memos-plus-task-calendar-task-body", attr: { type: "button" } });
-    body.createDiv({ cls: "memos-plus-task-calendar-task-title", text: title });
+    const heading = body.createDiv({ cls: "memos-plus-task-calendar-task-heading" });
+    heading.createDiv({ cls: "memos-plus-task-calendar-task-title", text: title, attr: { title } });
+    const syncStatus = this.taskAppleSyncStatus(task);
+    if (syncStatus) {
+      heading.createSpan({
+        cls: `memos-plus-task-calendar-task-sync${syncStatus.startsWith("⚠") ? " is-error" : ""}`,
+        text: syncStatus,
+        attr: { title: syncStatus === "✓" ? t(this.plugin.settings.language, "taskCalendar.appleSynced") : syncStatus }
+      });
+    }
     const date = task.dueDate || task.scheduledDate || task.startDate;
     const dateAndTime = [date, task.dueTime].filter(Boolean).join(" ");
-    const syncStatus = this.taskAppleSyncStatus(task);
-    body.createDiv({
-      cls: "memos-plus-task-calendar-task-meta",
-      text: [
-        date && date < selectedDate ? t(this.plugin.settings.language, "taskCalendar.overdue") : "",
-        dateAndTime,
-        priorityDetails(task.priority, this.plugin.settings.language),
-        syncStatus,
-        task.filePath
-      ].filter(Boolean).join(" · ")
-    });
+    const facts = body.createDiv({ cls: "memos-plus-task-calendar-task-meta memos-plus-task-calendar-task-facts" });
+    if (date && date < selectedDate) facts.createSpan({ cls: "is-overdue", text: t(this.plugin.settings.language, "taskCalendar.overdue") });
+    if (dateAndTime) facts.createSpan({ text: dateAndTime });
+    const priority = priorityDetails(task.priority, this.plugin.settings.language);
+    if (priority) facts.createSpan({ cls: task.priority === "highest" || task.priority === "high" ? "is-priority" : "", text: priority });
+    const project = this.taskProjectLabel(task);
+    if (project) facts.createSpan({ text: project });
+    const source = taskSourceLabel(task.filePath);
+    if (source) body.createDiv({ cls: "memos-plus-task-calendar-task-source", text: `${this.plugin.settings.language === "zh" ? "来源" : "Source"}: ${source}`, attr: { title: task.filePath } });
     body.addEventListener("click", () => this.selectTask(task));
     this.prepareTaskDrag(item, task);
     if (this.plugin.canEditTaskCalendarTask()) {
@@ -851,6 +861,15 @@ export class TaskCalendarView extends ItemView {
     const synced = Boolean(recordKey && this.plugin.settings.appleSyncState.records[recordKey]);
     if (this.plugin.settings.appleSyncState.lastError) return `⚠ ${t(this.plugin.settings.language, "taskCalendar.appleFailed")}`;
     return synced ? "✓" : "↻";
+  }
+
+  private taskProjectLabel(task: TaskIndexItem): string {
+    const projectTag = taskCalendarTaskProjectTag(task.line, this.plugin.settings.projectTag);
+    if (!projectTag) return "";
+    const normalized = normalizeVisibleProjectTag(projectTag);
+    return this.taskProjects.find((candidate) => normalizeVisibleProjectTag(candidate.tag ?? candidate.label) === normalized)?.label
+      ?? normalized.replace(/^#/u, "").split("/").pop()
+      ?? "";
   }
 
   private selectedTask(items: TaskIndexItem[]): TaskIndexItem | null {
@@ -1310,6 +1329,10 @@ function priorityDetails(priority: TaskIndexItem["priority"], lang: "zh" | "en")
     none: "taskPriority.none"
   } as const)[priority];
   return icon ? `${icon} ${t(lang, labelKey)}` : "";
+}
+
+function taskSourceLabel(filePath: string): string {
+  return filePath.split("/").pop()?.replace(/\.md$/iu, "") ?? filePath;
 }
 
 function summaryCard(container: HTMLElement, label: string, value: string, extraClass = ""): void {

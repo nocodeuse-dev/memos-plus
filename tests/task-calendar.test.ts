@@ -58,8 +58,8 @@ describe("Schedule and tasks state", () => {
       viewMode: "day",
       agendaCacheMinutes: 5,
       agendaCalendarNames: [],
-      navigationWidth: 152,
-      taskPaneWidth: 320,
+      navigationWidth: 232,
+      taskPaneWidth: 390,
       showAllDayEvents: true,
       showHomeEntry: true,
       showMobileQuickActions: true
@@ -91,8 +91,15 @@ describe("Schedule and tasks state", () => {
     })).toMatchObject({
       defaultView: "upcoming",
       navigation: "upcoming",
-      navigationWidth: 280,
-      taskPaneWidth: 250
+      navigationWidth: 320,
+      taskPaneWidth: 340
+    });
+  });
+
+  it("migrates the legacy compact pane defaults to readable desktop widths", () => {
+    expect(normalizeTaskCalendarSettings({ navigationWidth: 152, taskPaneWidth: 320 })).toMatchObject({
+      navigationWidth: 232,
+      taskPaneWidth: 390
     });
   });
 
@@ -202,6 +209,7 @@ describe("Schedule and tasks integration boundaries", () => {
   const eventModalSource = readFileSync("src/taskCalendarEventModal.ts", "utf8");
   const eventDetailModalSource = readFileSync("src/taskCalendarEventDetailModal.ts", "utf8");
   const viewSource = readFileSync("src/taskCalendarView.ts", "utf8");
+  const stylesSource = readFileSync("styles.css", "utf8");
   const mainSource = readFileSync("main.ts", "utf8");
 
   it("reads Apple Calendar only after the macOS guard and keeps agenda access separate from syncing", () => {
@@ -268,6 +276,18 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("taskAppleSyncStatus(task)");
     expect(viewSource).toContain("taskCalendarTimedTaskPlacement(task, days)");
     expect(viewSource).toContain("this.plugin.taskIndex.onChange(() => this.handleTaskIndexChange())");
+    expect(viewSource).toContain("memos-plus-task-calendar-task-heading");
+    expect(viewSource).toContain("memos-plus-task-calendar-task-source");
+    expect(viewSource).toContain("taskSourceLabel(task.filePath)");
+  });
+
+  it("keeps desktop panes readable and collapses navigation before squeezing task text", () => {
+    expect(stylesSource).toContain("--memos-plus-task-calendar-nav-width, 232px");
+    expect(stylesSource).toContain("--memos-plus-task-calendar-task-width, 390px");
+    expect(stylesSource).toContain("@container memos-plus-task-calendar (max-width: 1080px)");
+    expect(stylesSource).toContain(".memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse)");
+    expect(stylesSource).toContain("-webkit-line-clamp: 2");
+    expect(stylesSource).toContain(".memos-plus-task-calendar-task-source");
   });
 
   it("keeps task scheduling and editing inside the existing workspace components", () => {
