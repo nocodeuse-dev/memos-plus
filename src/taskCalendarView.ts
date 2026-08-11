@@ -9,6 +9,7 @@ import {
   taskCalendarMonthDays,
   taskCalendarDefaultAgendaNames,
   taskCalendarDateRange,
+  taskCalendarCompletedOnDate,
   taskCalendarTasks,
   toggleTaskCalendarSidebar,
   taskDate,
@@ -78,6 +79,7 @@ export class TaskCalendarView extends ItemView {
   private taskEditSession: TaskCalendarEditSession | null = null;
   private draggingTask: TaskIndexItem | null = null;
   private projectNavExpanded = false;
+  private hideCompletedToday = false;
   private quickTaskDraft = "";
   private quickTaskPreview: ParsedNaturalLanguageTask | null = null;
 
@@ -342,6 +344,14 @@ export class TaskCalendarView extends ItemView {
     });
     const hideTasks = this.iconButton(taskHeader, state.tasksPaneHidden ? "panel-right-open" : "panel-right-close", t(lang, "taskCalendar.toggleTasks"), () => void this.updateState({ tasksPaneHidden: !state.tasksPaneHidden }));
     hideTasks.addClass("memos-plus-task-calendar-tasks-toggle");
+    const appleSyncError = this.plugin.settings.appleSyncState.lastError.trim();
+    if (appleSyncError) {
+      taskPane.createDiv({
+        cls: "memos-plus-task-calendar-reminders-error",
+        text: `${t(lang, "taskCalendar.appleFailed")}: ${appleSyncError}`,
+        attr: { title: appleSyncError, role: "status" }
+      });
+    }
     const selectedTask = this.selectedTask(items);
     if (selectedTask) {
       this.renderTaskDetails(taskPane, selectedTask);
@@ -401,11 +411,13 @@ export class TaskCalendarView extends ItemView {
     const incomplete = items.filter((item) => !item.completed);
     const dueToday = incomplete.filter((item) => taskDate(item) === selectedDate);
     const overdue = incomplete.filter((item) => Boolean(item.dueDate && item.dueDate < selectedDate));
+    const completedToday = items.filter((item) => taskCalendarCompletedOnDate(item, selectedDate));
     const events = this.events.filter((event) => calendarEventLocalDate(event.start) === selectedDate);
     const next = nextScheduleLabel(dueToday, events, selectedDate);
     const summary = container.createDiv({ cls: "memos-plus-task-calendar-today-summary", attr: { "aria-label": t(lang, "taskCalendar.todaySummary") } });
     summaryCard(summary, t(lang, "taskCalendar.summary.todo"), String(dueToday.length));
     summaryCard(summary, t(lang, "taskCalendar.summary.overdue"), String(overdue.length), overdue.length > 0 ? "is-warning" : "");
+    summaryCard(summary, t(lang, "taskCalendar.summary.completed"), String(completedToday.length), "is-completed");
     summaryCard(summary, t(lang, "taskCalendar.summary.events"), String(events.length));
     summaryCard(summary, t(lang, "taskCalendar.summary.next"), next || t(lang, "taskCalendar.summary.none"), "is-wide");
   }
@@ -551,9 +563,22 @@ export class TaskCalendarView extends ItemView {
     const lang = this.plugin.settings.language;
     const header = container.createDiv({ cls: "memos-plus-task-calendar-pane-header" });
     header.createEl("h3", { text: this.plugin.settings.taskCalendar.viewMode === "day" ? t(lang, "taskCalendar.todayAgenda") : t(lang, "taskCalendar.weekAgenda") });
-    if (this.agendaLoading) header.createSpan({ cls: "memos-plus-task-calendar-sync-status is-loading", text: t(lang, "taskCalendar.loading") });
-    else if (this.agendaError) header.createSpan({ cls: "memos-plus-task-calendar-sync-status is-error", text: t(lang, "taskCalendar.unavailable") });
-    else header.createSpan({ cls: "memos-plus-task-calendar-sync-status", text: t(lang, "taskCalendar.ready") });
+    const headerStatus = header.createDiv({ cls: "memos-plus-task-calendar-agenda-actions" });
+    const completedInRange = tasks.filter((task) => days.some((day) => taskCalendarCompletedOnDate(task, day)));
+    if (completedInRange.length > 0) {
+      const toggleCompleted = headerStatus.createEl("button", {
+        cls: "memos-plus-task-calendar-completed-toggle",
+        text: t(lang, this.hideCompletedToday ? "taskCalendar.showCompleted" : "taskCalendar.hideCompleted"),
+        attr: { type: "button", "aria-pressed": String(this.hideCompletedToday) }
+      });
+      toggleCompleted.addEventListener("click", () => {
+        this.hideCompletedToday = !this.hideCompletedToday;
+        this.renderForced();
+      });
+    }
+    if (this.agendaLoading) headerStatus.createSpan({ cls: "memos-plus-task-calendar-sync-status is-loading", text: t(lang, "taskCalendar.loading") });
+    else if (this.agendaError) headerStatus.createSpan({ cls: "memos-plus-task-calendar-sync-status is-error", text: t(lang, "taskCalendar.unavailable") });
+    else headerStatus.createSpan({ cls: "memos-plus-task-calendar-sync-status", text: t(lang, "taskCalendar.ready") });
     if (this.agendaError) {
       container.createDiv({ cls: "memos-plus-task-calendar-agenda-message", text: this.agendaError });
     }
@@ -574,6 +599,21 @@ export class TaskCalendarView extends ItemView {
       button.addEventListener("click", () => void this.updateState({ selectedDate: day, navigation: "today", viewMode: "day" }));
     }
 
+    if (!this.hideCompletedToday) {
+      const completedWithoutTimeByDay = new Map(days.map((day) => [
+        day,
+        tasks.filter((task) => taskCalendarCompletedOnDate(task, day) && (!task.dueTime || task.allDay))
+      ]));
+      if (Array.from(completedWithoutTimeByDay.values()).some((items) => items.length > 0)) {
+        const completedRow = scheduler.createDiv({ cls: "memos-plus-task-calendar-completed-row" });
+        completedRow.createDiv({ cls: "memos-plus-task-calendar-time-gutter", text: t(lang, "taskCalendar.completedToday") });
+        for (const day of days) {
+          const cell = completedRow.createDiv({ cls: "memos-plus-task-calendar-completed-cell" });
+          for (const task of completedWithoutTimeByDay.get(day) ?? []) this.renderCompletedTask(cell, task);
+        }
+      }
+    }
+
     if (showAllDayEvents) {
       const allDayRow = scheduler.createDiv({ cls: "memos-plus-task-calendar-all-day-row" });
       allDayRow.createDiv({ cls: "memos-plus-task-calendar-time-gutter", text: t(lang, "taskCalendar.allDay") });
@@ -591,7 +631,12 @@ export class TaskCalendarView extends ItemView {
     const columns = grid.createDiv({ cls: "memos-plus-task-calendar-time-columns" });
     const timedTasksByDay = new Map(days.map((day) => [
       day,
-      tasks.filter((task) => !task.completed && Boolean(task.dueTime) && !task.allDay && taskDate(task) === day)
+      tasks.filter((task) =>
+        Boolean(task.dueTime)
+        && !task.allDay
+        && taskDate(task) === day
+        && (!task.completed || (!this.hideCompletedToday && taskCalendarCompletedOnDate(task, day)))
+      )
     ]));
     for (const [dayIndex, day] of days.entries()) {
       const column = columns.createDiv({ cls: `memos-plus-task-calendar-time-column${day === todayTaskCalendarDate() ? " is-today" : ""}` });
@@ -636,7 +681,7 @@ export class TaskCalendarView extends ItemView {
   private renderTimedTask(container: HTMLElement, task: TaskIndexItem, top: number): void {
     const title = task.title || t(this.plugin.settings.language, "taskCalendar.untitledTask");
     const taskEl = container.createDiv({
-      cls: "memos-plus-task-calendar-timed-task",
+      cls: `memos-plus-task-calendar-timed-task${task.completed ? " is-completed" : ""}`,
       attr: { title: `${task.dueTime} ${title}`, "aria-label": `${title} ${task.dueTime}`, draggable: "true" }
     });
     taskEl.style.top = `${top}px`;
@@ -648,6 +693,20 @@ export class TaskCalendarView extends ItemView {
     body.createSpan({ cls: "memos-plus-task-calendar-timed-task-title", text: title });
     body.addEventListener("click", () => this.selectTask(task));
     this.prepareTaskDrag(taskEl, task);
+  }
+
+  private renderCompletedTask(container: HTMLElement, task: TaskIndexItem): void {
+    const title = task.title || t(this.plugin.settings.language, "taskCalendar.untitledTask");
+    const taskEl = container.createDiv({ cls: "memos-plus-task-calendar-completed-task is-completed" });
+    const checkbox = taskEl.createEl("input", {
+      type: "checkbox",
+      attr: { "aria-label": t(this.plugin.settings.language, "taskCalendar.completeTask").replace("{title}", title) }
+    });
+    checkbox.checked = true;
+    checkbox.addEventListener("change", () => this.toggleTaskCompletionOptimistically(task, checkbox, taskEl));
+    const body = taskEl.createEl("button", { cls: "memos-plus-task-calendar-completed-task-body", attr: { type: "button", title } });
+    body.createSpan({ text: title });
+    body.addEventListener("click", () => this.selectTask(task));
   }
 
   private renderEvent(container: HTMLElement, event: AppleCalendarAgendaEvent, variant = "", top?: number, height?: number): void {
@@ -929,6 +988,7 @@ export class TaskCalendarView extends ItemView {
   private toggleTaskCompletionOptimistically(task: TaskIndexItem, checkbox: HTMLInputElement, host: HTMLElement): void {
     const desired = checkbox.checked;
     host.querySelector(".memos-plus-task-calendar-inline-retry")?.remove();
+    host.toggleClass("is-completed", desired);
     host.addClass("is-saving");
     const persist = (): void => {
       void this.plugin.toggleTaskCalendarTask(task).then((saved) => {
@@ -1217,6 +1277,7 @@ export class TaskCalendarView extends ItemView {
       this.plugin.refreshTaskCalendarTasks()
     ];
     await Promise.allSettled(operations);
+    this.renderForced();
   }
 
   private async loadTaskProjects(): Promise<void> {

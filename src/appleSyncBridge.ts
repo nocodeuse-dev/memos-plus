@@ -131,6 +131,7 @@ function listReminderItems(containerName) {
   const names = safeArray(function () { return reminders.name(); });
   const bodies = safeArray(function () { return reminders.body(); });
   const completed = safeArray(function () { return reminders.completed(); });
+  const completionDates = safeArray(function () { return reminders.completionDate(); });
   const priorities = safeArray(function () { return reminders.priority(); });
   const dueDates = safeArray(function () { return reminders.dueDate(); });
   const allDayDueDates = safeArray(function () { return reminders.alldayDueDate(); });
@@ -142,6 +143,7 @@ function listReminderItems(containerName) {
       name: names[index],
       body: bodies[index],
       completed: completed[index],
+      completionDate: completionDates[index],
       priority: priorities[index],
       dueDate: dueDates[index],
       allDayDueDate: allDayDueDates[index],
@@ -251,12 +253,14 @@ function reminderRecord(item, containerName) {
   const due = safeDate(function () { return item.dueDate(); });
   const allDayDue = safeDate(function () { return item.alldayDueDate(); });
   const remind = safeDate(function () { return item.remindMeDate(); });
+  const completion = safeDate(function () { return item.completionDate(); });
   return {
     kind: "reminders",
     id: String(item.id()),
     localId: localIdFromNotes(safeGet(function () { return item.body(); })),
     title: safeGet(function () { return item.name(); }),
     completed: Boolean(item.completed()),
+    completionDate: completion ? localDateString(completion) : "",
     dueDate: allDayDue ? localDateString(allDayDue) : (due ? localDateString(due) : ""),
     dueTime: due ? localTimeString(due) : "",
     reminderDate: remind ? localDateString(remind) : "",
@@ -274,6 +278,7 @@ function reminderRecordFromValues(values, containerName) {
   const due = dateOrNull(values.dueDate);
   const allDayDue = dateOrNull(values.allDayDueDate);
   const remind = dateOrNull(values.remindMeDate);
+  const completion = dateOrNull(values.completionDate);
   const modified = dateOrNull(values.modificationDate);
   const body = values.body == null ? "" : String(values.body);
   return {
@@ -282,6 +287,7 @@ function reminderRecordFromValues(values, containerName) {
     localId: localIdFromNotes(body),
     title: values.name == null ? "" : String(values.name),
     completed: Boolean(values.completed),
+    completionDate: completion ? localDateString(completion) : "",
     dueDate: allDayDue ? localDateString(allDayDue) : (due ? localDateString(due) : ""),
     dueTime: due ? localTimeString(due) : "",
     reminderDate: remind ? localDateString(remind) : "",

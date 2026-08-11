@@ -95,6 +95,7 @@ class MemoryRemindersBridge implements AppleSyncBridge {
       localId: input.localId,
       title: input.title,
       completed: input.completed,
+      completionDate: input.completed ? "2026-08-11" : "",
       dueDate: input.dueDate,
       dueTime: input.dueTime,
       reminderDate: input.reminderDate,
@@ -323,6 +324,18 @@ describe("Apple Reminders bidirectional synchronization", () => {
     expect(test.bridge.items).toHaveLength(0);
   });
 
+  it("backfills an Apple completion date for already-linked completed tasks", async () => {
+    const test = harness("- [x] 已完成但缺少完成日期 📅 2026-08-11 #Apple同步\n");
+
+    await test.service.syncNow();
+    expect(test.vault.source("Tasks.md")).not.toContain("✅ 2026-08-11");
+
+    const backfill = await test.service.syncNow();
+    expect(backfill.pulled).toBe(1);
+    expect(test.vault.source("Tasks.md")).toContain("✅ 2026-08-11");
+    expect(test.bridge.items).toHaveLength(1);
+  });
+
   it("pushes separate Reminder due and alert times", async () => {
     const line = buildTasksMarkdownLine("精确提醒", {
       syncTarget: "reminders",
@@ -378,6 +391,7 @@ describe("Apple Reminders bidirectional synchronization", () => {
       ...remote,
       title: "Apple 修改",
       completed: true,
+      completionDate: "2026-08-11",
       dueDate: "2026-08-12",
       dueTime: "18:20",
       priority: 9,
@@ -386,7 +400,9 @@ describe("Apple Reminders bidirectional synchronization", () => {
 
     const pull = await test.service.syncNow();
     expect(pull.pulled).toBe(1);
-    expect(test.vault.source("Tasks.md")).toContain("- [x] Apple 修改 🔽 📅 2026-08-12 ⏰ 18:20 #Apple同步");
+    expect(test.vault.source("Tasks.md")).toContain("- [x] Apple 修改 🔽 📅 2026-08-12 ⏰ 18:20");
+    expect(test.vault.source("Tasks.md")).toContain("#Apple同步");
+    expect(test.vault.source("Tasks.md")).toContain("✅ 2026-08-11");
     expect(test.vault.source("Tasks.md")).toContain("- [ ] 历史本地任务");
 
     test.bridge.items = [];

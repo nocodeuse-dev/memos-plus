@@ -12,6 +12,7 @@ export interface AppleSyncRemoteItem {
   localId: string;
   title: string;
   completed: boolean;
+  completionDate?: string;
   dueDate: string;
   dueTime: string;
   reminderDate?: string;
@@ -300,6 +301,7 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
     .replace(/📅\s*\d{4}-\d{2}-\d{2}/gu, " ")
     .replace(/⏰\s*\d{1,2}:\d{2}/gu, " ")
+    .replace(/✅\s*\d{4}-\d{2}-\d{2}/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
   const title = normalizeRemoteTitle(item.title, item.kind);
@@ -316,6 +318,9 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
   }
   if (preserved) {
     parts.push(preserved);
+  }
+  if (item.completed && item.completionDate) {
+    parts.push(`✅ ${item.completionDate}`);
   }
   parts.push(normalizeAppleSyncTag(tag), `<!-- memos-plus-apple-id:${localId} -->`);
   const updated = `${prefix[1]}${item.completed ? "x" : " "}${prefix[2]}${dedupeHashTags(parts.join(" "))}`;
@@ -346,6 +351,9 @@ export function formatImportedAppleTask(item: AppleSyncRemoteItem, tag: string, 
     if (item.dueTime) {
       parts.push(`⏰ ${item.dueTime}`);
     }
+  }
+  if (item.completed && item.completionDate) {
+    parts.push(`✅ ${item.completionDate}`);
   }
   parts.push(normalizeAppleSyncTag(tag), `<!-- memos-plus-apple-id:${localId} -->`);
   return attachMemosPlusTaskMetadata(parts.join(" "), {

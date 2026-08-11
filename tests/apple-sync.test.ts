@@ -37,6 +37,7 @@ const remoteReminder: AppleSyncRemoteItem = {
   localId: "local-1",
   title: "Apple 修改后的任务",
   completed: true,
+  completionDate: "2026-08-11",
   dueDate: "2026-08-08",
   dueTime: "14:30",
   priority: 1,
@@ -89,6 +90,7 @@ describe("Apple sync safety and merge helpers", () => {
     const line = "- [ ] 旧标题 🔽 ⏳ 2026-08-02 #项目/测试 #Apple同步 <!-- memos-plus-apple-id:local-1 -->";
     const updated = updateTaskLineFromApple(line, remoteReminder, "#Apple同步", "local-1");
     expect(updated).toContain("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30");
+    expect(updated).toContain("✅ 2026-08-11");
     expect(updated).toContain("⏳ 2026-08-02");
     expect(updated).toContain("#项目/测试");
     expect(updated.match(/memos-plus-apple-id/g)).toHaveLength(1);
@@ -107,7 +109,9 @@ describe("Apple sync safety and merge helpers", () => {
 
   it("formats remote-only items as tagged Markdown tasks", () => {
     const line = formatImportedAppleTask(remoteReminder, "#Apple同步", "new-local");
-    expect(line).toContain("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30 #Apple同步 <!-- memos-plus-apple-id:new-local -->");
+    expect(line).toContain("- [x] Apple 修改后的任务 ⏫ 📅 2026-08-08 ⏰ 14:30");
+    expect(line).toContain("#Apple同步 <!-- memos-plus-apple-id:new-local -->");
+    expect(line).toContain("✅ 2026-08-11");
     expect(line).toContain("memos-plus-task-meta:");
   });
 
@@ -161,6 +165,7 @@ describe("Apple sync source integration", () => {
   it("batch-reads Reminder properties and leaves enough time for iCloud responses", () => {
     expect(bridgeSource).toContain("const ids = safeArray(function () { return reminders.id(); });");
     expect(bridgeSource).toContain("const bodies = safeArray(function () { return reminders.body(); });");
+    expect(bridgeSource).toContain("const completionDates = safeArray(function () { return reminders.completionDate(); });");
     expect(bridgeSource).toContain("reminderRecordFromValues");
     expect(bridgeSource).toContain("timeout: 60_000");
     expect(bridgeSource).toContain("Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。");

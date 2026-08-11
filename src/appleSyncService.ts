@@ -217,7 +217,7 @@ export class AppleSyncService {
           continue;
         }
         const remoteSignature = remoteAppleSyncSignature(remote);
-        const direction = resolveAppleSyncDirection(
+        let direction = resolveAppleSyncDirection(
           localSignature,
           remoteSignature,
           record,
@@ -225,6 +225,12 @@ export class AppleSyncService {
           task.mtime,
           remote.modifiedAt
         );
+        // Older plugin versions synchronized the completed checkbox but did
+        // not read Reminders.completionDate. Backfill that missing Tasks
+        // marker even when the normal content signatures are otherwise equal.
+        if (direction === "none" && remote.completed && remote.completionDate && task.doneDate !== remote.completionDate) {
+          direction = "pull";
+        }
         if (direction === "push") {
           const updated = await this.pushTask(task, localId, remote.id);
           state.records[key] = syncedRecord(localId, updated, localSignature);

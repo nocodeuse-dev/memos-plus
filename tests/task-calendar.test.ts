@@ -6,6 +6,7 @@ import {
   normalizeTaskCalendarSettings,
   shiftTaskCalendarDate,
   shiftTaskCalendarMonth,
+  taskCalendarCompletedOnDate,
   taskCalendarDefaultAgendaNames,
   taskCalendarDateRange,
   taskCalendarMonthDays,
@@ -171,6 +172,13 @@ describe("Schedule and tasks state", () => {
     expect(taskCalendarTimedTaskPlacement(task({ dueDate: "2026-08-10", dueTime: "17:31", allDay: true }), days)).toBeNull();
   });
 
+  it("recognizes tasks completed on the selected day without losing legacy dated completions", () => {
+    expect(taskCalendarCompletedOnDate(task({ completed: true, doneDate: "2026-08-11", dueDate: "2026-08-10" }), "2026-08-11")).toBe(true);
+    expect(taskCalendarCompletedOnDate(task({ completed: true, doneDate: "2026-08-10", dueDate: "2026-08-11" }), "2026-08-11")).toBe(false);
+    expect(taskCalendarCompletedOnDate(task({ completed: true, dueDate: "2026-08-11" }), "2026-08-11")).toBe(true);
+    expect(taskCalendarCompletedOnDate(task({ completed: false, dueDate: "2026-08-11" }), "2026-08-11")).toBe(false);
+  });
+
   it("snaps a dropped task to the nearest 15-minute grid time", () => {
     expect(taskCalendarDropTime(737.1, 0)).toBe("17:30");
     expect(taskCalendarDropTime(-20, 0)).toBe("06:00");
@@ -302,6 +310,23 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("memos-plus-task-calendar-task-heading");
     expect(viewSource).toContain("memos-plus-task-calendar-task-source");
     expect(viewSource).toContain("taskSourceLabel(task.filePath)");
+  });
+
+  it("keeps today's completed tasks on the timeline and exposes a default-visible completed section", () => {
+    expect(viewSource).toContain("taskCalendarCompletedOnDate(task, day)");
+    expect(viewSource).toContain("memos-plus-task-calendar-completed-row");
+    expect(viewSource).toContain("this.hideCompletedToday = !this.hideCompletedToday");
+    expect(viewSource).toContain('task.completed ? " is-completed" : ""');
+    expect(viewSource).not.toContain("tasks.filter((task) => !task.completed && Boolean(task.dueTime)");
+    expect(stylesSource).toContain(".memos-plus-task-calendar-timed-task.is-completed");
+    expect(stylesSource).toContain("text-decoration: line-through");
+  });
+
+  it("refreshes Reminders with the task index and shows concrete Apple failures", () => {
+    expect(mainSource).toContain("await this.syncAppleNow(false)");
+    expect(viewSource).toContain("appleSyncState.lastError.trim()");
+    expect(viewSource).toContain("memos-plus-task-calendar-reminders-error");
+    expect(viewSource).toContain("this.renderForced();");
   });
 
   it("keeps task row actions independent and opens the editor only from settings", () => {

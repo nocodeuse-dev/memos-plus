@@ -280,6 +280,20 @@ export function taskDate(item: Pick<TaskIndexItem, "dueDate" | "scheduledDate" |
   return item.dueDate || item.scheduledDate || item.startDate || "";
 }
 
+/**
+ * Completion dates are the authoritative signal for "done on this day".
+ * Older completed tasks may not have a Tasks completion marker, so retain a
+ * conservative fallback when their only dated placement is the selected day.
+ */
+export function taskCalendarCompletedOnDate(
+  item: Pick<TaskIndexItem, "completed" | "doneDate" | "dueDate" | "scheduledDate" | "startDate">,
+  date: string
+): boolean {
+  if (!item.completed) return false;
+  if (item.doneDate) return item.doneDate === date;
+  return taskDate(item) === date;
+}
+
 export function formatTaskCalendarDate(date: string, locale = "zh-CN"): string {
   const parsed = parseDate(normalizeDate(date) || todayTaskCalendarDate());
   return new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", day: "numeric", weekday: "short" }).format(parsed);
