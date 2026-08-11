@@ -114,6 +114,14 @@ describe("Apple sync safety and merge helpers", () => {
   it("keeps workspace-only task details out of the Apple Reminder title", () => {
     const detail = encodeURIComponent(JSON.stringify({ notes: "影像资料", relatedNote: "半月板.md" }));
     expect(taskTitleForApple({ text: `测试任务 📅 2026-08-10 #Apple同步 <!-- memos-plus-task-detail:${detail} -->` }, "#Apple同步")).toBe("测试任务");
+    expect(taskTitleForApple({ text: "修复同步 #项目/memosplus 📅 2026-08-10 #项目/memosplus #Apple同步" }, "#Apple同步")).toBe("修复同步 #项目/memosplus");
+  });
+
+  it("does not duplicate a project tag when Apple already includes the preserved local tag", () => {
+    const line = "- [ ] 旧标题 📅 2026-08-10 #项目/memosplus #Apple同步 <!-- memos-plus-apple-id:local-1 -->";
+    const remote = { ...remoteReminder, title: "新标题 #项目/memosplus" };
+    const updated = updateTaskLineFromApple(line, remote, "#Apple同步", "local-1");
+    expect(updated.match(/#项目\/memosplus/gu)).toHaveLength(1);
   });
 
   it("keeps state records keyed by target and local id", () => {

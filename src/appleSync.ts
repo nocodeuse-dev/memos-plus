@@ -163,7 +163,7 @@ export function shouldSyncCalendarTask(task: Pick<TaskIndexItem, "line">): boole
 }
 
 export function taskTitleForApple(task: Pick<TaskIndexItem, "text">, tag: string): string {
-  return task.text
+  const cleaned = task.text
     .replace(APPLE_SYNC_ID_RE, "")
     .replace(TASK_DETAIL_RE, "")
     .replace(/<!--\s*memos-plus-task-meta:[^\s>]+\s*-->/gu, "")
@@ -174,6 +174,7 @@ export function taskTitleForApple(task: Pick<TaskIndexItem, "text">, tag: string
     .replace(/🔁\s*[^#<]*/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+  return dedupeHashTags(cleaned);
 }
 
 export function localAppleSyncSignature(task: TaskIndexItem, tag: string, kind: AppleSyncTarget): string {
@@ -317,7 +318,7 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
     parts.push(preserved);
   }
   parts.push(normalizeAppleSyncTag(tag), `<!-- memos-plus-apple-id:${localId} -->`);
-  const updated = `${prefix[1]}${item.completed ? "x" : " "}${prefix[2]}${parts.join(" ")}`;
+  const updated = `${prefix[1]}${item.completed ? "x" : " "}${prefix[2]}${dedupeHashTags(parts.join(" "))}`;
   const withMetadata = attachMemosPlusTaskMetadata(updated, {
     target: "reminders",
     dueTime: item.dueTime,
@@ -402,7 +403,18 @@ export function taskReminderForApple(task: Pick<TaskIndexItem, "line">): {
 
 function normalizeRemoteTitle(title: string, kind: AppleSyncTarget): string {
   const clean = title.trim();
-  return kind === "calendar" ? clean.replace(/^✓\s*/u, "").trim() : clean;
+  return dedupeHashTags(kind === "calendar" ? clean.replace(/^✓\s*/u, "").trim() : clean);
+}
+
+function dedupeHashTags(value: string): string {
+  const seen = new Set<string>();
+  return value.split(/\s+/u).filter((token) => {
+    if (!token.startsWith("#")) return true;
+    const normalized = token.toLocaleLowerCase();
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  }).join(" ");
 }
 
 function applePriorityMarker(priority: number): string {
