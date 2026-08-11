@@ -34,6 +34,7 @@ export interface TaskCalendarSettings {
   navigation: TaskCalendarNavigation;
   mobileTab: TaskCalendarMobileTab;
   sidebarCollapsed: boolean;
+  sidebarExpandedManually: boolean;
   tasksPaneHidden: boolean;
   navigationWidth: number;
   taskPaneWidth: number;
@@ -53,6 +54,7 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   navigation: "today",
   mobileTab: "today",
   sidebarCollapsed: false,
+  sidebarExpandedManually: false,
   tasksPaneHidden: false,
   navigationWidth: 232,
   taskPaneWidth: 390,
@@ -89,6 +91,7 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     navigation: normalizeNavigation(raw.navigation, DEFAULT_TASK_CALENDAR_SETTINGS.navigation),
     mobileTab: raw.mobileTab === "tasks" || raw.mobileTab === "calendar" ? raw.mobileTab : "today",
     sidebarCollapsed: typeof raw.sidebarCollapsed === "boolean" ? raw.sidebarCollapsed : false,
+    sidebarExpandedManually: typeof raw.sidebarExpandedManually === "boolean" ? raw.sidebarExpandedManually : false,
     tasksPaneHidden: typeof raw.tasksPaneHidden === "boolean" ? raw.tasksPaneHidden : false,
     navigationWidth: clampInteger(navigationWidth, 200, 320, DEFAULT_TASK_CALENDAR_SETTINGS.navigationWidth),
     taskPaneWidth: clampInteger(taskPaneWidth, 340, 560, DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth),
@@ -98,6 +101,23 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     showHomeEntry: typeof raw.showHomeEntry === "boolean" ? raw.showHomeEntry : DEFAULT_TASK_CALENDAR_SETTINGS.showHomeEntry,
     showMobileQuickActions: typeof raw.showMobileQuickActions === "boolean" ? raw.showMobileQuickActions : DEFAULT_TASK_CALENDAR_SETTINGS.showMobileQuickActions
   };
+}
+
+export interface TaskCalendarSidebarState {
+  sidebarCollapsed: boolean;
+  sidebarExpandedManually: boolean;
+}
+
+export function toggleTaskCalendarSidebar(
+  state: TaskCalendarSidebarState,
+  responsiveCollapsed: boolean,
+  isMobile: boolean
+): TaskCalendarSidebarState {
+  if (isMobile) return { ...state };
+  if (state.sidebarCollapsed || responsiveCollapsed) {
+    return { sidebarCollapsed: false, sidebarExpandedManually: true };
+  }
+  return { sidebarCollapsed: true, sidebarExpandedManually: false };
 }
 
 export function todayTaskCalendarDate(now = new Date()): string {

@@ -10,7 +10,8 @@ import {
   taskCalendarDateRange,
   taskCalendarMonthDays,
   taskCalendarOpenOptionsForOrganizer,
-  taskCalendarTasks
+  taskCalendarTasks,
+  toggleTaskCalendarSidebar
 } from "../src/taskCalendar";
 import { normalizeAppleCalendarAgendaError } from "../src/appleCalendarAgenda";
 import { taskCalendarDropTime, taskCalendarGridPlacement, taskCalendarTimedTaskPlacement } from "../src/taskCalendarAgendaGrid";
@@ -58,6 +59,8 @@ describe("Schedule and tasks state", () => {
       viewMode: "day",
       agendaCacheMinutes: 5,
       agendaCalendarNames: [],
+      sidebarCollapsed: false,
+      sidebarExpandedManually: false,
       navigationWidth: 232,
       taskPaneWidth: 390,
       showAllDayEvents: true,
@@ -100,6 +103,25 @@ describe("Schedule and tasks state", () => {
     expect(normalizeTaskCalendarSettings({ navigationWidth: 152, taskPaneWidth: 320 })).toMatchObject({
       navigationWidth: 232,
       taskPaneWidth: 390
+    });
+  });
+
+  it("lets a manual desktop toggle override responsive auto-collapse without changing mobile state", () => {
+    expect(toggleTaskCalendarSidebar({ sidebarCollapsed: false, sidebarExpandedManually: false }, true, false)).toEqual({
+      sidebarCollapsed: false,
+      sidebarExpandedManually: true
+    });
+    expect(toggleTaskCalendarSidebar({ sidebarCollapsed: true, sidebarExpandedManually: false }, false, false)).toEqual({
+      sidebarCollapsed: false,
+      sidebarExpandedManually: true
+    });
+    expect(toggleTaskCalendarSidebar({ sidebarCollapsed: false, sidebarExpandedManually: true }, false, false)).toEqual({
+      sidebarCollapsed: true,
+      sidebarExpandedManually: false
+    });
+    expect(toggleTaskCalendarSidebar({ sidebarCollapsed: true, sidebarExpandedManually: false }, false, true)).toEqual({
+      sidebarCollapsed: true,
+      sidebarExpandedManually: false
     });
   });
 
@@ -285,7 +307,10 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(stylesSource).toContain("--memos-plus-task-calendar-nav-width, 232px");
     expect(stylesSource).toContain("--memos-plus-task-calendar-task-width, 390px");
     expect(stylesSource).toContain("@container memos-plus-task-calendar (max-width: 1080px)");
+    expect(stylesSource).toContain(":not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout");
     expect(stylesSource).toContain(".memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse)");
+    expect(viewSource).toContain("responsiveSidebarCollapsed");
+    expect(viewSource).toContain("toggleTaskCalendarSidebar(state, responsiveSidebarCollapsed, false)");
     expect(stylesSource).toContain("justify-self: stretch");
     expect(stylesSource).not.toContain(".memos-plus-task-calendar-resizer.is-left { display: none; }");
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-body { display: block;");

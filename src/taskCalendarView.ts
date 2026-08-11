@@ -10,6 +10,7 @@ import {
   taskCalendarDefaultAgendaNames,
   taskCalendarDateRange,
   taskCalendarTasks,
+  toggleTaskCalendarSidebar,
   taskDate,
   todayTaskCalendarDate,
   type TaskCalendarNavigation,
@@ -242,8 +243,13 @@ export class TaskCalendarView extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("memos-plus-task-calendar", Platform.isMobile ? "is-mobile" : "is-desktop");
+    const responsiveSidebarCollapsed = !Platform.isMobile
+      && !state.sidebarCollapsed
+      && !state.sidebarExpandedManually
+      && root.clientWidth <= 1080;
     root.setAttr("data-mobile-tab", state.mobileTab);
-    root.toggleClass("is-sidebar-collapsed", state.sidebarCollapsed);
+    root.toggleClass("is-sidebar-collapsed", !Platform.isMobile && state.sidebarCollapsed);
+    root.toggleClass("is-sidebar-force-expanded", !Platform.isMobile && state.sidebarExpandedManually && !state.sidebarCollapsed);
     root.toggleClass("is-tasks-hidden", !Platform.isMobile && state.tasksPaneHidden);
     root.style.setProperty("--memos-plus-task-calendar-nav-width", `${state.navigationWidth}px`);
     root.style.setProperty("--memos-plus-task-calendar-task-width", `${state.taskPaneWidth}px`);
@@ -292,7 +298,11 @@ export class TaskCalendarView extends ItemView {
 
     const layout = root.createDiv({ cls: "memos-plus-task-calendar-layout" });
     const navigation = layout.createDiv({ cls: "memos-plus-task-calendar-navigation" });
-    const collapse = this.iconButton(navigation, state.sidebarCollapsed ? "panel-left-open" : "panel-left-close", t(lang, "taskCalendar.collapse"), () => void this.updateState({ sidebarCollapsed: !state.sidebarCollapsed }));
+    const sidebarLooksCollapsed = !Platform.isMobile && (state.sidebarCollapsed || responsiveSidebarCollapsed);
+    const collapse = this.iconButton(navigation, sidebarLooksCollapsed ? "panel-left-open" : "panel-left-close", t(lang, "taskCalendar.collapse"), () => {
+      if (Platform.isMobile) return;
+      void this.updateState(toggleTaskCalendarSidebar(state, responsiveSidebarCollapsed, false));
+    });
     collapse.addClass("memos-plus-task-calendar-collapse");
     this.renderMiniCalendar(navigation, selectedDate);
     const primaryNavigation = navigation.createDiv({ cls: "memos-plus-task-calendar-primary-navigation" });

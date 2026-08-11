@@ -3856,13 +3856,13 @@
 .memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-tasks > :not(.memos-plus-task-calendar-pane-header) { display: none; }
 
 @container memos-plus-task-calendar (max-width: 1080px) {
-  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden) .memos-plus-task-calendar-layout { grid-template-columns: 44px 0 minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 390px)); }
-  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden) .memos-plus-task-calendar-resizer.is-left { visibility: hidden; pointer-events: none; }
-  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden) .memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse) { display: none; }
+  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout { grid-template-columns: 44px 0 minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 390px)); }
+  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-resizer.is-left { visibility: hidden; pointer-events: none; }
+  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse) { display: none; }
 }
 
 @container memos-plus-task-calendar (max-width: 760px) {
-  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden) .memos-plus-task-calendar-layout { grid-template-columns: 40px 0 minmax(220px, 1fr) 5px minmax(320px, var(--memos-plus-task-calendar-task-width, 360px)); }
+  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout { grid-template-columns: 40px 0 minmax(220px, 1fr) 5px minmax(320px, var(--memos-plus-task-calendar-task-width, 360px)); }
   .memos-plus-task-calendar-today-summary { padding-right: 10px; padding-left: 10px; }
   .memos-plus-task-calendar-summary-card { padding-right: 7px; padding-left: 7px; }
 }
