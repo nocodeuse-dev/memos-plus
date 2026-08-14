@@ -66,7 +66,8 @@ describe("Schedule and tasks state", () => {
       taskPaneWidth: 420,
       showAllDayEvents: true,
       showHomeEntry: true,
-      showMobileQuickActions: true
+      showMobileQuickActions: true,
+      quickPanelTab: "today"
     });
   });
 
@@ -84,6 +85,11 @@ describe("Schedule and tasks state", () => {
       agendaCacheMinutes: 30,
       agendaCalendarNames: ["Calendar", "Work"]
     });
+  });
+
+  it("remembers only supported quick task panel tabs", () => {
+    expect(normalizeTaskCalendarSettings({ quickPanelTab: "important" }).quickPanelTab).toBe("important");
+    expect(normalizeTaskCalendarSettings({ quickPanelTab: "unknown" }).quickPanelTab).toBe("today");
   });
 
   it("migrates legacy date shortcuts and bounds remembered desktop pane widths", () => {

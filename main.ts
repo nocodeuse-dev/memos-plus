@@ -45,6 +45,7 @@ import type { ProjectTaskOptions } from "./src/tasksFormat";
 import { taskAtEditorCursor } from "./src/currentTaskEditor";
 import { TaskCalendarEditSession } from "./src/taskCalendarEditSession";
 import { openTaskCalendarTaskEditorModal } from "./src/taskCalendarTaskEditorModal";
+import { QuickTaskPanel } from "./src/quickTaskPanel";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -55,6 +56,7 @@ export default class MemosPlusPlugin extends Plugin {
   taskIndex!: TaskIndex;
   appleSync!: AppleSyncService;
   private taskCalendarRibbonEl: HTMLElement | null = null;
+  private quickTaskPanel: QuickTaskPanel | null = null;
   private diagnosticSessionId = "";
   private taskIndexRefreshTimer: number | null = null;
   private vaultIndexWarmTimer: number | null = null;
@@ -295,6 +297,8 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.quickTaskPanel?.destroy();
+    this.quickTaskPanel = null;
     this.clearTaskIndexRefreshTimer();
     this.clearVaultIndexWarmTimer();
     this.clearAppleSyncRetry();
@@ -527,16 +531,19 @@ export default class MemosPlusPlugin extends Plugin {
     item.setAttrs({
       role: "button",
       tabindex: "0",
-      title: t(this.settings.language, "taskManager.open"),
-      "aria-label": t(this.settings.language, "taskManager.open")
+      title: t(this.settings.language, "quickTaskPanel.open"),
+      "aria-label": t(this.settings.language, "quickTaskPanel.open"),
+      "aria-haspopup": "dialog",
+      "aria-expanded": "false"
     });
     setIcon(item, "list-todo");
-    const open = () => this.runAsyncOperation("open task calendar from status bar", () => this.openTaskCalendar({ navigation: "all" }));
-    item.addEventListener("click", open);
+    this.quickTaskPanel = new QuickTaskPanel(this, item);
+    const toggle = () => this.quickTaskPanel?.toggle();
+    item.addEventListener("click", toggle);
     item.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        open();
+        toggle();
       }
     });
   }

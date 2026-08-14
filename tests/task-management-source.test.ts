@@ -13,6 +13,7 @@ describe("unified task management source integration", () => {
     expect(mainSource).toContain("this.addStatusBarItem()");
     expect(mainSource).toContain('"memos-plus-task-status-item"');
     expect(mainSource).toContain('setIcon(item, "list-todo")');
+    expect(mainSource).toContain("new QuickTaskPanel(this, item)");
     const start = stylesSource.indexOf(".status-bar-item.memos-plus-task-status-item {");
     const end = stylesSource.indexOf(".memos-plus-shell.is-composer-focused", start);
     const entryStyles = stylesSource.slice(start, end);

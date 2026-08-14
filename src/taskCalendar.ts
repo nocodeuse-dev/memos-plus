@@ -5,6 +5,7 @@ import type { TaskPriorityFilterValue } from "./taskSearch";
 export type TaskCalendarViewMode = "day" | "week";
 export type TaskCalendarNavigation = "today" | "upcoming" | "tomorrow" | "week" | "inbox" | "overdue" | "all" | "completed";
 export type TaskCalendarMobileTab = "today" | "tasks" | "calendar";
+export type TaskCalendarQuickPanelTab = "today" | "next-seven" | "important" | "overdue";
 
 export interface TaskCalendarProjectFilter {
   label: string;
@@ -43,6 +44,7 @@ export interface TaskCalendarSettings {
   showAllDayEvents: boolean;
   showHomeEntry: boolean;
   showMobileQuickActions: boolean;
+  quickPanelTab: TaskCalendarQuickPanelTab;
 }
 
 export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
@@ -62,7 +64,8 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   agendaCalendarNames: [],
   showAllDayEvents: true,
   showHomeEntry: true,
-  showMobileQuickActions: true
+  showMobileQuickActions: true,
+  quickPanelTab: "today"
 };
 
 export interface TaskCalendarDateRange {
@@ -101,8 +104,13 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     agendaCalendarNames: normalizeCalendarNames(raw.agendaCalendarNames),
     showAllDayEvents: typeof raw.showAllDayEvents === "boolean" ? raw.showAllDayEvents : DEFAULT_TASK_CALENDAR_SETTINGS.showAllDayEvents,
     showHomeEntry: typeof raw.showHomeEntry === "boolean" ? raw.showHomeEntry : DEFAULT_TASK_CALENDAR_SETTINGS.showHomeEntry,
-    showMobileQuickActions: typeof raw.showMobileQuickActions === "boolean" ? raw.showMobileQuickActions : DEFAULT_TASK_CALENDAR_SETTINGS.showMobileQuickActions
+    showMobileQuickActions: typeof raw.showMobileQuickActions === "boolean" ? raw.showMobileQuickActions : DEFAULT_TASK_CALENDAR_SETTINGS.showMobileQuickActions,
+    quickPanelTab: normalizeQuickPanelTab(raw.quickPanelTab)
   };
+}
+
+function normalizeQuickPanelTab(value: unknown): TaskCalendarQuickPanelTab {
+  return value === "next-seven" || value === "important" || value === "overdue" ? value : "today";
 }
 
 export interface TaskCalendarSidebarState {
