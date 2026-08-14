@@ -3331,10 +3331,32 @@
   margin-top: 14px;
 }
 
+.memos-plus-unified-task-modal-shell {
+  width: min(720px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  overflow-x: hidden;
+}
+
+.memos-plus-unified-task-modal-shell .modal-content {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 .memos-plus-unified-task-modal {
-  width: min(680px, calc(100vw - 40px));
+  width: 100%;
+  max-width: 100%;
   max-height: min(82vh, 760px);
-  overflow: auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.memos-plus-unified-task-modal *,
+.memos-plus-unified-task-modal *::before,
+.memos-plus-unified-task-modal *::after {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .memos-plus-unified-task-composer {
@@ -3418,32 +3440,54 @@
 }
 
 .memos-plus-unified-task-destination-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  width: 100%;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 8px 0 10px;
 }
 
 .memos-plus-unified-task-destination-value {
-  flex: 1 1 220px;
-  min-width: 0;
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.memos-plus-unified-task-destination-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.memos-plus-unified-task-destination-actions > button {
+  width: 100%;
+  max-width: 100%;
+  white-space: normal;
+}
+
 @media (max-width: 760px) {
+  .memos-plus-unified-task-modal-shell {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 16px);
+    overflow: hidden;
+  }
+
+  .memos-plus-unified-task-modal-shell .modal-content {
+    max-height: calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 16px);
+    overflow: hidden;
+  }
+
   .memos-plus-unified-task-modal {
-    width: calc(100vw - 24px);
-    max-height: calc(100dvh - 24px);
+    max-height: calc(var(--memos-plus-mobile-viewport-height, 100dvh) - 24px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .memos-plus-unified-task-destination-row > button {
+  .memos-plus-unified-task-destination-actions > button {
     min-height: 40px;
-  }
-
-  .memos-plus-unified-task-destination-value {
-    flex-basis: 100%;
   }
 }
 

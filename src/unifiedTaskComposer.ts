@@ -145,6 +145,7 @@ class UnifiedTaskComposerModal extends Modal {
   onOpen(): void {
     const lang = this.plugin.settings.language;
     const { contentEl } = this;
+    this.modalEl.addClass("memos-plus-unified-task-modal-shell");
     contentEl.empty();
     contentEl.addClass("memos-plus-modal", "memos-plus-unified-task-modal");
     contentEl.createEl("h2", { text: t(lang, "unifiedTask.title") });
@@ -167,9 +168,10 @@ class UnifiedTaskComposerModal extends Modal {
     const destinationRow = destination.createDiv({ cls: "memos-plus-unified-task-destination-row" });
     this.targetTextEl = destinationRow.createDiv({ cls: "memos-plus-unified-task-destination-value" });
     this.renderTargetText();
+    const destinationActions = destination.createDiv({ cls: "memos-plus-unified-task-destination-actions" });
     const currentFile = this.plugin.app.workspace.getActiveFile();
     if (currentFile) {
-      const current = destinationRow.createEl("button", { attr: { type: "button" }, text: t(lang, "unifiedTask.currentFile") });
+      const current = destinationActions.createEl("button", { attr: { type: "button" }, text: t(lang, "unifiedTask.currentFile") });
       current.addEventListener("click", () => {
         this.target = {
           file: currentFile,
@@ -180,9 +182,9 @@ class UnifiedTaskComposerModal extends Modal {
         this.renderTargetText();
       });
     }
-    const choose = destinationRow.createEl("button", { attr: { type: "button" }, text: t(lang, "unifiedTask.chooseDestination") });
+    const choose = destinationActions.createEl("button", { attr: { type: "button" }, text: t(lang, "unifiedTask.chooseDestination") });
     choose.addEventListener("click", () => void this.chooseTarget(choose));
-    const inbox = destinationRow.createEl("button", { attr: { type: "button" }, text: t(lang, "unifiedTask.useInbox") });
+    const inbox = destinationActions.createEl("button", { attr: { type: "button" }, text: t(lang, "unifiedTask.useInbox") });
     inbox.addEventListener("click", () => {
       this.target = null;
       this.renderTargetText();

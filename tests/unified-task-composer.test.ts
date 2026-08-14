@@ -66,6 +66,8 @@ describe("unified task composer integration", () => {
   const mobilePanelSource = readFileSync("src/mobilePanelView.ts", "utf8");
   const deliverySource = readFileSync("src/projectDelivery.ts", "utf8");
   const mainSource = readFileSync("main.ts", "utf8");
+  const composerSource = readFileSync("src/unifiedTaskComposer.ts", "utf8");
+  const stylesSource = readFileSync("styles.css", "utf8");
 
   it("routes both quick inputs through the same composer instead of local preview implementations", () => {
     expect(quickPanelSource).toContain("this.plugin.openUnifiedTaskComposer");
@@ -90,5 +92,14 @@ describe("unified task composer integration", () => {
     expect(mainSource).toContain("onUnifiedTaskWritten(file: TFile, task: ProjectTaskOptions)");
     expect(mainSource).toContain("await this.taskIndex.updateFile(file)");
     expect(mainSource).toContain("task.syncTarget !== \"tasks\"");
+  });
+
+  it("sizes the outer modal shell and keeps destination actions out of the path row", () => {
+    expect(composerSource).toContain('this.modalEl.addClass("memos-plus-unified-task-modal-shell")');
+    expect(composerSource).toContain('destination.createDiv({ cls: "memos-plus-unified-task-destination-actions" })');
+    expect(composerSource).toContain('destinationActions.createEl("button"');
+    expect(stylesSource).toContain(".memos-plus-unified-task-modal-shell .modal-content");
+    expect(stylesSource).toContain(".memos-plus-unified-task-destination-actions");
+    expect(stylesSource).toContain("overflow-x: hidden;");
   });
 });
