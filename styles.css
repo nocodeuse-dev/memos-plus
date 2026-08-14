@@ -3331,6 +3331,122 @@
   margin-top: 14px;
 }
 
+.memos-plus-unified-task-modal {
+  width: min(680px, calc(100vw - 40px));
+  max-height: min(82vh, 760px);
+  overflow: auto;
+}
+
+.memos-plus-unified-task-composer {
+  display: grid;
+  gap: 10px;
+}
+
+.memos-plus-unified-task-content {
+  width: 100%;
+  min-height: 68px;
+  resize: vertical;
+}
+
+.memos-plus-unified-task-preview,
+.memos-plus-project-as-task-preview {
+  display: grid;
+  gap: 5px;
+  border-left: 2px solid var(--interactive-accent);
+  padding: 7px 9px;
+  background: color-mix(in srgb, var(--interactive-accent) 6%, transparent);
+}
+
+.memos-plus-project-as-task-preview:empty {
+  display: none;
+}
+
+.memos-plus-project-as-task-preview {
+  flex: 1 1 100%;
+  min-width: min(320px, 100%);
+}
+
+.memos-plus-unified-task-preview-label {
+  color: var(--text-accent);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+.memos-plus-unified-task-preview-title {
+  color: var(--text-normal);
+  font-weight: var(--font-medium);
+  overflow-wrap: anywhere;
+}
+
+.memos-plus-unified-task-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.memos-plus-unified-task-preview-meta span {
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: var(--background-modifier-hover);
+}
+
+.memos-plus-unified-task-details {
+  border-top: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 8px 0;
+}
+
+.memos-plus-unified-task-details > summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-medium);
+}
+
+.memos-plus-unified-task-destination {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.memos-plus-unified-task-destination-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+.memos-plus-unified-task-destination-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.memos-plus-unified-task-destination-value {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .memos-plus-unified-task-modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .memos-plus-unified-task-destination-row > button {
+    min-height: 40px;
+  }
+
+  .memos-plus-unified-task-destination-value {
+    flex-basis: 100%;
+  }
+}
+
 .memos-plus-task-target-fields {
   display: grid;
   gap: 10px;

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const formSource = readFileSync("src/taskOptionsForm.ts", "utf8");
 const taskModalSource = readFileSync("src/taskOptionsModal.ts", "utf8");
 const projectModalSource = readFileSync("src/projectFileSuggestModal.ts", "utf8");
+const unifiedComposerSource = readFileSync("src/unifiedTaskComposer.ts", "utf8");
 
 describe("shared task options form", () => {
   it("centralizes task option controls for task and project send modals", () => {
@@ -22,7 +23,8 @@ describe("shared task options form", () => {
     expect(formSource).toContain("reminderMinutesBefore");
     expect(formSource).toContain("allDay");
     expect(taskModalSource).toContain("createTaskOptionsForm");
-    expect(projectModalSource).toContain("createTaskOptionsForm");
+    expect(projectModalSource).toContain("createUnifiedTaskComposer");
+    expect(unifiedComposerSource).toContain("createTaskOptionsForm");
   });
 
   it("keeps task markdown generation outside of modal form rendering", () => {

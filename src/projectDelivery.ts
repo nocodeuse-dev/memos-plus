@@ -20,6 +20,7 @@ export interface ProjectDeliveryHost {
   settings: MemosPlusSettings;
   persistSettings: () => Promise<void>;
   selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
+  onTaskWritten?: (file: TFile, task: ProjectTaskOptions) => Promise<void>;
 }
 
 export interface ProjectDeliveryResult {
@@ -32,7 +33,8 @@ export interface ProjectDeliveryResult {
 export interface SendContentToProjectOptions {
   initialMode: "project" | "tag" | "recent" | "search";
   manualCalloutMode: boolean;
-  onSaveDefault?: (task?: ProjectTaskOptions) => Promise<void>;
+  onSaveDefault?: (task?: ProjectTaskOptions, content?: string) => Promise<void>;
+  presetTask?: ProjectTaskOptions;
 }
 
 export async function maybeOpenTargetFileAfterSend(app: App, settings: MemosPlusSettings, file: TFile): Promise<void> {
@@ -53,11 +55,23 @@ export async function sendContentToProject(
 ): Promise<ProjectDeliveryResult | null> {
   const initialTemplate = chooseInitialFormatRule(host.settings, options.initialMode);
   const templates = availableTemplates(host.settings, initialTemplate);
-  const choice = await selectProjectTarget(host, content, options.initialMode, options.onSaveDefault, templates, initialTemplate);
+  const choice = await selectProjectTarget(host, content, options.initialMode, options.onSaveDefault, templates, initialTemplate, options.presetTask);
   if (!choice) {
     return null;
   }
 
+  return deliverContentToProjectChoice(host, choice.content ?? content, choice, {
+    manualCalloutMode: options.manualCalloutMode,
+    task: options.presetTask ?? choice.task
+  });
+}
+
+export async function deliverContentToProjectChoice(
+  host: ProjectDeliveryHost,
+  content: string,
+  choice: ProjectSendChoice,
+  options: { manualCalloutMode: boolean; task?: ProjectTaskOptions }
+): Promise<ProjectDeliveryResult | null> {
   const template = choice.template;
   const prepared = prepareCalloutContent(content, host.settings, options.manualCalloutMode || template?.insertFormat === "callout", {
     file: choice.file.basename,
@@ -66,12 +80,14 @@ export async function sendContentToProject(
     now: new Date()
   });
   if (choice.fileTarget) {
-    await host.store.sendToFileTarget(choice.file, prepared.content, choice.fileTarget, choice.task, {
+    const task = options.task ?? choice.task;
+    await host.store.sendToFileTarget(choice.file, prepared.content, choice.fileTarget, task, {
       preformatted: prepared.preformatted,
       template
     });
     host.settings.recentFileTargetPaths = updateRecentFileTargetPaths(host.settings.recentFileTargetPaths, choice.file.path);
     await host.persistSettings();
+    if (task?.isTask) await host.onTaskWritten?.(choice.file, task);
     return {
       mode: "file",
       file: choice.file,
@@ -87,9 +103,10 @@ export async function selectProjectTarget(
   host: ProjectDeliveryHost,
   content: string,
   initialMode: "project" | "tag" | "recent" | "search" = "project",
-  onSaveDefault?: () => Promise<void>,
+  onSaveDefault?: (task?: ProjectTaskOptions, content?: string) => Promise<void>,
   templates?: ManagedTemplate[],
-  initialTemplate?: ManagedTemplate
+  initialTemplate?: ManagedTemplate,
+  presetTask?: ProjectTaskOptions
 ): Promise<ProjectSendChoice | null> {
   const selectedInitialTemplate = initialTemplate ?? chooseInitialFormatRule(host.settings, initialMode);
   const formatRules = templates ?? availableTemplates(host.settings, selectedInitialTemplate);
@@ -189,6 +206,7 @@ export async function selectProjectTarget(
       await host.persistSettings();
     },
     onSaveDefault,
+    presetTask,
     onChoose: () => undefined
   };
   if (Platform.isMobile && host.settings.mobileInteractionMode === "view" && host.selectProjectTargetOnMobile) {

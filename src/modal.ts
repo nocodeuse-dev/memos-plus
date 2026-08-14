@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from "obsidian";
+import { App, Modal, Setting, type TFile } from "obsidian";
 import { createComposerSession, type ComposerSession } from "./composerSession";
 import type { Language } from "./i18n";
 import { t } from "./i18n";
@@ -8,6 +8,7 @@ import type { QuickCaptureInitialContentMode } from "./quickCaptureContent";
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
 import type { MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
+import type { ProjectTaskOptions } from "./tasksFormat";
 
 export interface QuickCaptureModalOptions {
   settings: MemosPlusSettings;
@@ -19,6 +20,7 @@ export interface QuickCaptureModalOptions {
   showClipboardEmptyNotice?: boolean;
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
   selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
+  onTaskWritten?: (file: TFile, task: ProjectTaskOptions) => Promise<void>;
 }
 
 export class QuickCaptureModal extends Modal {
@@ -47,6 +49,7 @@ export class QuickCaptureModal extends Modal {
       refreshViews: this.options.refreshViews,
       registerCleanup: (cleanup) => this.cleanups.push(cleanup),
       resolveMarkdownLink: this.options.resolveMarkdownLink,
+      onTaskWritten: this.options.onTaskWritten,
       selectProjectTargetOnMobile: async (options) => {
         const selectProjectTargetOnMobile = this.options.selectProjectTargetOnMobile;
         if (!selectProjectTargetOnMobile) {

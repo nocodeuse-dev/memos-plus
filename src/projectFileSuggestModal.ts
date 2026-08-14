@@ -34,7 +34,8 @@ import { logMemosPlusDiagnostic } from "./diagnostics";
 import { focusOnDesktopOnly } from "./modalFocus";
 import { registerMemosPlusModalClose, registerMemosPlusModalOpen, withMobileClickLock } from "./mobileModalSafety";
 import { debounce, modalDebounceDelay, modalResultLimit } from "./performance";
-import { createTaskOptionsForm } from "./taskOptionsForm";
+import { createUnifiedTaskComposer, renderUnifiedTaskSummary } from "./unifiedTaskComposer";
+import { parseNaturalLanguageTask } from "./taskNaturalLanguage";
 import {
   findManagedTemplateForHeading,
   resolveTemplateTaskDecision,
@@ -61,6 +62,7 @@ export interface ModalPerformanceSettings {
 export interface ProjectSendChoice {
   file: TFile;
   section: string;
+  content?: string;
   task?: ProjectTaskOptions;
   mode?: "file";
   fileTarget?: FileSendTarget;
@@ -117,7 +119,8 @@ export interface ProjectSendModalOptions {
   onSaveFileTemplateTabs: (tabs: FileTemplateTab[]) => Promise<void>;
   onSaveFileTemplateLibraryPreferences?: (state: { defaultTabId?: string; tabOrder?: string[] }) => Promise<void>;
   onSaveTabPreferences: (state: { tabOrder: string[]; hiddenTabs: string[] }) => Promise<void>;
-  onSaveDefault?: (task?: ProjectTaskOptions) => Promise<void>;
+  onSaveDefault?: (task?: ProjectTaskOptions, content?: string) => Promise<void>;
+  presetTask?: ProjectTaskOptions;
   onChoose: (choice: ProjectSendChoice | null) => void;
 }
 
@@ -1461,6 +1464,10 @@ export class ProjectSendModal extends Modal {
     const taskHeading = position === "new-heading" ? targetOptions.newHeadingName ?? heading : heading;
     const headingBoundTemplate = this.headingBoundTemplateForHeading(taskHeading);
     const template = this.templateForHeading(taskHeading);
+    if (this.options.presetTask) {
+      this.chooseFile(file, heading, position, template, this.options.presetTask, createHeadingIfMissing, targetOptions);
+      return;
+    }
     const decision = this.taskDecisionFor(taskHeading, template);
     const promptForHeadingBoundTask = shouldPromptForHeadingBoundTask(template, headingBoundTemplate, this.options.taskSettings.promptOnCreate);
     const taskIntent = resolveSendTaskIntent(this.forceAsTask, decision, promptForHeadingBoundTask);
@@ -1468,7 +1475,7 @@ export class ProjectSendModal extends Modal {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(this.options.language, `fileSend.position.${position === "file-start" ? "fileStart" : position === "new-heading" ? "newHeading" : "fileEnd"}`)}`,
         backAction ?? (() => this.renderCurrentMode()),
-        (task) => this.chooseFile(file, heading, position, template, task, createHeadingIfMissing, targetOptions),
+        (task, taskContent) => this.chooseFile(file, heading, position, template, task, createHeadingIfMissing, targetOptions, taskContent),
         true,
         this.taskContentModeForTemplate(template),
         this.forceAsTask
@@ -1510,7 +1517,7 @@ export class ProjectSendModal extends Modal {
   private renderTaskOptions(
     title: string,
     backAction: () => void,
-    onConfirm: (task?: ProjectTaskOptions) => void,
+    onConfirm: (task: ProjectTaskOptions | undefined, content: string) => void,
     defaultAsTask: boolean,
     taskContentMode: TaskContentMode = "task-with-detail",
     forceAsTask = false
@@ -1519,19 +1526,24 @@ export class ProjectSendModal extends Modal {
     const contentEl = this.renderFileStepHeader(t(lang, "projectSend.taskOptions"), backAction);
     contentEl.createDiv({ cls: "memos-plus-project-section-hint", text: title });
 
-    const taskOptionsForm = createTaskOptionsForm(contentEl, {
+    const taskComposer = createUnifiedTaskComposer(contentEl, {
       language: lang,
+      content: this.options.content,
       taskSettings: this.options.taskSettings,
       defaultAsTask,
       allowPlain: !forceAsTask,
       taskContentMode,
-      renderMetadataOptions: this.options.taskSettings.enabled || forceAsTask
+      detailsOpen: true,
+      showContentInput: false
     });
 
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
     const confirm = footer.createEl("button", { cls: "memos-plus-save-button", text: t(lang, "projectSend.confirm") });
     confirm.addEventListener("click", () => {
-      void withMobileClickLock(confirm, () => onConfirm(taskOptionsForm.value()));
+      void withMobileClickLock(confirm, () => {
+        const value = taskComposer.value();
+        onConfirm(value.task, value.content);
+      });
     });
   }
 
@@ -1670,13 +1682,14 @@ export class ProjectSendModal extends Modal {
     template = this.currentTemplate(),
     task?: ProjectTaskOptions,
     createHeadingIfMissing = false,
-    targetOptions: Partial<FileSendTarget> = {}
+    targetOptions: Partial<FileSendTarget> = {},
+    content?: string
   ): void {
     if (this.settled) {
       return;
     }
     this.settled = true;
-    this.options.onChoose({ file, section: heading, task, mode: "file", fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions }, template });
+    this.options.onChoose({ file, section: heading, content, task, mode: "file", fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions }, template });
     this.close();
   }
 
@@ -1694,11 +1707,12 @@ export class ProjectSendModal extends Modal {
     setIcon(direct, "send");
     direct.createSpan({ text: t(lang, "projectSend.directSend") });
     direct.addEventListener("click", () => void withMobileClickLock(direct, () => {
+      if (this.options.presetTask) return this.saveDefault(direct, this.options.presetTask);
       if (this.forceAsTask) {
         this.renderTaskOptions(
           t(lang, "projectSend.directSend"),
           () => this.renderCurrentMode(),
-          (task) => void this.saveDefault(direct, task),
+          (task, taskContent) => void this.saveDefault(direct, task, taskContent),
           true,
           this.taskContentModeForTemplate(),
           true
@@ -1710,23 +1724,31 @@ export class ProjectSendModal extends Modal {
   }
 
   private renderAsTaskToggle(container: HTMLElement): void {
+    if (this.options.presetTask) return;
     const label = container.createEl("label", { cls: "memos-plus-project-as-task" });
     const checkbox = label.createEl("input", { attr: { type: "checkbox" } });
     checkbox.checked = this.forceAsTask;
     label.createSpan({ text: t(this.options.language, "projectSend.asTask") });
+    const preview = container.createDiv({ cls: "memos-plus-project-as-task-preview" });
+    const renderPreview = (): void => {
+      preview.empty();
+      if (this.forceAsTask) renderUnifiedTaskSummary(preview, parseNaturalLanguageTask(this.options.content), this.options.language);
+    };
     checkbox.addEventListener("change", () => {
       this.forceAsTask = checkbox.checked;
+      renderPreview();
     });
+    renderPreview();
   }
 
-  private async saveDefault(button: HTMLButtonElement, task?: ProjectTaskOptions): Promise<void> {
+  private async saveDefault(button: HTMLButtonElement, task?: ProjectTaskOptions, content?: string): Promise<void> {
     const onSaveDefault = this.options.onSaveDefault;
     if (!onSaveDefault) {
       return;
     }
     button.disabled = true;
     try {
-      await onSaveDefault(task);
+      await onSaveDefault(task, content);
       this.settled = true;
       this.options.onChoose(null);
       this.close();

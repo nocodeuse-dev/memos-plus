@@ -90,10 +90,11 @@ describe("quick task panel integration boundaries", () => {
     expect(panelSource).toContain("handleOutsidePointerDown");
   });
 
-  it("reuses the existing task index, creation, completion, source and editor APIs", () => {
+  it("reuses the shared task composer plus the existing task index, completion, source and editor APIs", () => {
     expect(panelSource).toContain("this.plugin.taskIndex.getItems()");
-    expect(panelSource).toContain("parseNaturalLanguageTask(text)");
-    expect(panelSource).toContain("this.plugin.createTaskCalendarInboxTask");
+    expect(panelSource).toContain("this.plugin.openUnifiedTaskComposer");
+    expect(panelSource).not.toContain("parseNaturalLanguageTask(text)");
+    expect(panelSource).not.toContain("this.plugin.createTaskCalendarInboxTask");
     expect(panelSource).toContain("this.plugin.toggleTaskCalendarTask(task)");
     expect(panelSource).toContain("this.plugin.openTaskCalendarTask(task)");
     expect(panelSource).toContain("this.plugin.openTaskCalendarTaskEditor(task)");

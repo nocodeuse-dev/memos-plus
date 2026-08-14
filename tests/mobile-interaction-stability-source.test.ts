@@ -81,7 +81,7 @@ describe("mobile interaction stability source", () => {
   });
 
   it("does not refocus the composer from send validation or failure handling on mobile", () => {
-    expect(composerActionsSource).toContain('import { Menu, Notice, Platform, type App } from "obsidian";');
+    expect(composerActionsSource).toContain('import { Menu, Notice, Platform, TFile, type App } from "obsidian";');
     expect(composerActionsSource).toContain("focusComposerOnDesktop(composer)");
     expect(composerActionsSource).toContain("function focusComposerOnDesktop(composer: ComposerWidget): void");
     expect(composerActionsSource).toContain("if (Platform.isMobile)");

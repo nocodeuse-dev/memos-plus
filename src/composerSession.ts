@@ -1,4 +1,4 @@
-import { Notice, Platform, type App } from "obsidian";
+import { Notice, Platform, type App, type TFile } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import { createComposerActions, type ComposerActions, type ComposerActionsOptions, type ComposerProjectMode } from "./composerActions";
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
@@ -31,6 +31,7 @@ import {
 import type { DefaultSendAction, MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
 import { openTaskOptionsModal, renderTaskContentWithOptions } from "./taskOptionsModal";
+import type { ProjectTaskOptions } from "./tasksFormat";
 
 export interface ComposerSessionHost {
   app: App;
@@ -42,6 +43,7 @@ export interface ComposerSessionHost {
   registerCleanup?: (cleanup: () => void) => void;
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
   selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
+  onTaskWritten?: (file: TFile, task: ProjectTaskOptions) => Promise<void>;
 }
 
 export interface ComposerSessionOptions extends ComposerActionsOptions {
@@ -115,7 +117,8 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
       settings: host.settings,
       persistSettings: host.persistSettings,
       refreshViews: host.refreshViews,
-      selectProjectTargetOnMobile: host.selectProjectTargetOnMobile
+      selectProjectTargetOnMobile: host.selectProjectTargetOnMobile,
+      onTaskWritten: host.onTaskWritten
     },
     () => widget,
     {

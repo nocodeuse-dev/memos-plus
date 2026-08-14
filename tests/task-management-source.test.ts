@@ -49,9 +49,9 @@ describe("unified task management source integration", () => {
 
   it("keeps quick task creation in the unified workspace", () => {
     expect(calendarViewSource).toContain("memos-plus-task-calendar-quick-input");
-    expect(calendarViewSource).toContain("parseNaturalLanguageTask(text)");
-    expect(calendarViewSource).toContain("memos-plus-task-calendar-quick-preview");
-    expect(calendarViewSource).toContain("createTaskCalendarInboxTask(taskText, options.dueDate, options)");
+    expect(calendarViewSource).toContain("this.plugin.openUnifiedTaskComposer");
+    expect(calendarViewSource).not.toContain("parseNaturalLanguageTask(text)");
+    expect(calendarViewSource).not.toContain("createTaskCalendarInboxTask(taskText, options.dueDate, options)");
     expect(mainSource).toContain('id: "quick-add-task"');
     expect(mainSource).toContain("focusQuickTask: true");
   });

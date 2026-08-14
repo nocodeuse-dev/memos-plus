@@ -34,6 +34,7 @@ interface TaskOptionsFormOptions {
   taskContentMode?: TaskContentMode;
   renderMetadataOptions?: boolean;
   hideSyncTarget?: boolean;
+  initialTask?: ProjectTaskOptions;
 }
 
 export interface TaskOptionsForm {
@@ -56,6 +57,7 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
   if (contentModeField) contentModeField.value = defaultContentMode;
   const selectedContentMode = (): TaskContentMode => (contentModeField ? (contentModeField.value as TaskContentMode) : defaultContentMode);
   const shouldRenderMetadataOptions = options.renderMetadataOptions ?? true;
+  const initialTask = options.initialTask;
 
   let metadataValue = (): Omit<ProjectTaskOptions, "isTask" | "contentMode"> => ({});
   if (shouldRenderMetadataOptions) {
@@ -68,9 +70,9 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
       ["calendar", t(lang, "projectSend.syncTarget.calendar")]
     ]);
     if (options.hideSyncTarget) syncTarget.closest<HTMLElement>(".memos-plus-task-option-field")?.addClass("is-hidden");
-    syncTarget.value = defaultTarget;
+    syncTarget.value = normalizeTaskSyncTarget(initialTask?.syncTarget ?? defaultTarget);
     const project = createTextField(form, t(lang, "projectSend.project"), t(lang, "projectSend.projectPlaceholder"));
-    project.value = options.taskSettings.defaultProjectTag ?? "";
+    project.value = initialTask?.projectTag ?? options.taskSettings.defaultProjectTag ?? "";
     const priority = createSelectField(form, t(lang, "projectSend.priority"), [
       ["none", t(lang, "taskPriority.none")],
       ["highest", t(lang, "taskPriority.highest")],
@@ -79,35 +81,45 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
       ["low", t(lang, "taskPriority.low")],
       ["lowest", t(lang, "taskPriority.lowest")]
     ]);
-    priority.value = options.taskSettings.defaultPriority;
+    priority.value = normalizeTaskPriority(initialTask?.priority ?? options.taskSettings.defaultPriority);
 
     const taskFields = createTargetGroup(form, "tasks");
     const startDate = createDateField(taskFields, t(lang, "projectSend.startDate"));
+    startDate.value = initialTask?.startDate ?? "";
     const scheduledDate = createDateField(taskFields, t(lang, "projectSend.scheduledDate"));
-    scheduledDate.value = options.taskSettings.defaultScheduledDate;
+    scheduledDate.value = initialTask?.scheduledDate ?? options.taskSettings.defaultScheduledDate;
     const taskDueDate = createDateField(taskFields, t(lang, "projectSend.dueDate"));
-    taskDueDate.value = options.taskSettings.defaultDueDate;
+    taskDueDate.value = initialTask?.dueDate ?? options.taskSettings.defaultDueDate;
     const doneDate = createDateField(taskFields, t(lang, "projectSend.doneDate"));
+    doneDate.value = initialTask?.doneDate ?? "";
 
     const reminderFields = createTargetGroup(form, "reminders");
     const reminderDueDate = createDateField(reminderFields, t(lang, "projectSend.dueDate"));
-    reminderDueDate.value = options.taskSettings.defaultDueDate;
+    reminderDueDate.value = initialTask?.dueDate ?? options.taskSettings.defaultDueDate;
     const dueTime = createTimeField(reminderFields, t(lang, "projectSend.dueTime"));
+    dueTime.value = initialTask?.dueTime ?? "";
     const reminderDate = createDateField(reminderFields, t(lang, "projectSend.reminderDate"));
+    reminderDate.value = initialTask?.reminderDate ?? "";
     const reminderTime = createTimeField(reminderFields, t(lang, "projectSend.reminderTime"));
+    reminderTime.value = initialTask?.reminderTime ?? "";
     const reminderLead = createNumberField(reminderFields, t(lang, "projectSend.reminderMinutesBefore"), "0", "10080");
+    reminderLead.value = initialTask?.reminderMinutesBefore === undefined ? "" : String(initialTask.reminderMinutesBefore);
     const reminderAllDay = createCheckboxField(reminderFields, t(lang, "projectSend.allDay"), false);
+    reminderAllDay.checked = initialTask?.allDay ?? false;
 
     const calendarFields = createTargetGroup(form, "calendar");
     const calendarDate = createDateField(calendarFields, t(lang, "projectSend.date"));
-    calendarDate.value = options.taskSettings.defaultScheduledDate || options.taskSettings.defaultDueDate;
+    calendarDate.value = initialTask?.startDate ?? (options.taskSettings.defaultScheduledDate || options.taskSettings.defaultDueDate);
     const startTime = createTimeField(calendarFields, t(lang, "projectSend.startTime"));
-    startTime.value = "09:00";
+    startTime.value = initialTask?.startTime ?? "09:00";
     const endDate = createDateField(calendarFields, t(lang, "projectSend.endDate"));
+    endDate.value = initialTask?.endDate ?? "";
     const endTime = createTimeField(calendarFields, t(lang, "projectSend.endTime"));
-    endTime.value = "10:00";
+    endTime.value = initialTask?.endTime ?? "10:00";
     const calendarLead = createNumberField(calendarFields, t(lang, "projectSend.reminderMinutesBefore"), "0", "10080");
+    calendarLead.value = initialTask?.reminderMinutesBefore === undefined ? "" : String(initialTask.reminderMinutesBefore);
     const calendarAllDay = createCheckboxField(calendarFields, t(lang, "projectSend.allDay"), false);
+    calendarAllDay.checked = initialTask?.allDay ?? false;
 
     const recurrence = createSelectField(form, t(lang, "projectSend.recurrence"), [
       ["none", t(lang, "taskRecurrence.none")],
@@ -118,9 +130,10 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
       ["yearly", t(lang, "taskRecurrence.yearly")],
       ["custom", t(lang, "taskRecurrence.custom")]
     ]);
-    recurrence.value = options.taskSettings.defaultRecurrence;
+    recurrence.value = normalizeTaskRecurrence(initialTask?.recurrence ?? options.taskSettings.defaultRecurrence);
     const customRecurrence = createTextField(form, t(lang, "projectSend.customRecurrence"), "every 2 weeks");
-    const addCreatedDate = createCheckboxField(form, t(lang, "projectSend.addCreatedDate"), options.taskSettings.addCreatedDate);
+    customRecurrence.value = initialTask?.customRecurrence ?? "";
+    const addCreatedDate = createCheckboxField(form, t(lang, "projectSend.addCreatedDate"), initialTask?.addCreatedDate ?? options.taskSettings.addCreatedDate);
 
     const controls = Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select"));
     const updateState = (): void => {

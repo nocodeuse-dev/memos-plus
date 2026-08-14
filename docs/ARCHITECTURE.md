@@ -23,8 +23,8 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - 项目分类兼容：旧 `projectSections` 字段仍用于创建项目文件的默认标题骨架和旧配置迁移；投递弹窗不再显示固定分类按钮。
 - Tasks 格式兼容：可生成 Obsidian Tasks 风格任务行。
 - Apple 任务同步：macOS 桌面端将带指定标签的普通 Markdown 任务与 Apple Reminders 双向同步；只有统一任务表单明确选择 Calendar 的时间段任务才写入 Apple Calendar，移动端不直接访问系统 API。
-- 日程与任务工作台：独立工作区按当前日/周只读显示默认常用或用户指定的 Apple 日历日程，并复用全库 Markdown `TaskIndex` 管理今天、收件箱、即将到来、逾期、全部和已完成任务；项目只作为任务列表与时间轴共用的筛选条件。右侧任务可拖到时间轴排期，点击后在同一右栏编辑既有 Markdown 任务；快速输入先用本地规则解析日期、时间、提醒、标签和优先级并预览，确认后才写入，不建立第二套任务数据库，也不改写 Apple 同步桥接层。
-- 快速任务面板：右下角状态栏入口由 `src/quickTaskPanel.ts` 提供短生命周期浮层/移动端底部抽屉，直接读取现有 `TaskIndex`，并调用插件已有的任务创建、完成、来源定位和共享编辑器方法；`src/quickTaskPanelModel.ts` 只负责今天、近 7 天、重要、逾期的纯筛选，不建立缓存、索引或同步状态。
+- 日程与任务工作台：独立工作区按当前日/周只读显示默认常用或用户指定的 Apple 日历日程，并复用全库 Markdown `TaskIndex` 管理今天、收件箱、即将到来、逾期、全部和已完成任务；项目只作为任务列表与时间轴共用的筛选条件。右侧任务可拖到时间轴排期，点击后在同一右栏编辑既有 Markdown 任务；快速输入调用共享 `UnifiedTaskComposer` 解析日期、时间、提醒、标签和优先级，并可复用现有文件/标题目标选择，不建立第二套任务数据库，也不改写 Apple 同步桥接层。
+- 快速任务面板：右下角状态栏入口由 `src/quickTaskPanel.ts` 提供短生命周期浮层/移动端底部抽屉，直接读取现有 `TaskIndex`；新增任务调用共享 `UnifiedTaskComposer`，完成、来源定位和编辑继续调用插件既有方法。`src/quickTaskPanelModel.ts` 只负责今天、近 7 天、重要、逾期的纯筛选，不建立缓存、索引或同步状态。
 - Callout 相关功能：输入框工具栏可切换 Callout 模式，长内容/链接内容可自动包装为 Obsidian Callout。
 - 设置页面：使用顶部横向胶囊标签栏，入口为 `发送规则 / 输入工具 / 记录设置 / 任务设置 / 新建文件模板库 / 筛选与侧栏 / 界面布局 / 显示设置 / 性能与缓存 / 高级设置`；`界面布局` 标签内再用二级切换配置 `桌面主页 / 侧边栏 / 移动端` 的真实界面缩略预览和右侧属性面板。
 - 图片粘贴处理：支持 Memos Plus 内置保存、交给 Image Auto Upload、自动检测三种模式。
@@ -63,6 +63,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/taskCalendarView.ts`：独立“日程与任务”ItemView，负责桌面三栏与移动端标签切换、任务搜索、优先级/项目筛选、分批加载、自然语言快速新增预览、完成、编辑、跳转和当前日/周的日程渲染。
 - `src/quickTaskPanel.ts` / `src/quickTaskPanelModel.ts`：右下角快速任务入口与纯筛选模型。面板只在打开期间订阅 `TaskIndex`，关闭后移除 DOM 和监听；最后标签保存到 `taskCalendar.quickPanelTab`。
 - `src/taskNaturalLanguage.ts`：无 AI、无索引的中文快速任务规则解析器；只处理明确日期词、星期、时段、提前提醒、标签和优先级，解析失败时返回完整原文。
+- `src/unifiedTaskComposerModel.ts` / `src/unifiedTaskComposer.ts`：首页“作为任务”、快速任务面板和日程工作台共用的任务草稿映射与 UI；统一组合自然语言结果、任务字段、默认/当前/智能发送目标，并把最终写入交还现有 Store、TaskIndex 和 Apple 同步服务。
 - `src/appleCalendarAgenda.ts`：仅 macOS 桌面端使用的 Apple Calendar 日程服务；读取前先检查运行时并使用短期内存缓存。仅在创建表单明确提交时创建所选可写日历事件，不保存日程事件到 `data.json`。
 - `src/taskCalendarEventModal.ts`：明确用户操作后才打开的日程创建表单。先读取可写 Apple 日历，用户填写并点击“创建日程”后才调用日历写入；取消/关闭不会写入。
 - `src/taskCalendarEventDetailModal.ts`：日程详情与明确操作。用户可从事件创建带日期的 Markdown 任务，或将事件摘要交给既有快速记录组件；两项都不修改 Apple 事件。

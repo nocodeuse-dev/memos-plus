@@ -146,7 +146,8 @@ export class MemosPlusQuickInputView extends ItemView {
         refreshViews: () => this.plugin.refreshViews(),
         registerCleanup: (cleanup) => this.register(cleanup),
         resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text),
-        selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options)
+        selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options),
+        onTaskWritten: (file, task) => this.plugin.onUnifiedTaskWritten(file, task)
       },
       {
         surface: "sidebar",

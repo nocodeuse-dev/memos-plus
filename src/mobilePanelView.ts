@@ -21,7 +21,8 @@ import {
 import { t } from "./i18n";
 import { withMobileClickLock } from "./mobileModalSafety";
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
-import { createTaskOptionsForm } from "./taskOptionsForm";
+import { createUnifiedTaskComposer, renderUnifiedTaskSummary } from "./unifiedTaskComposer";
+import { parseNaturalLanguageTask } from "./taskNaturalLanguage";
 import { findManagedTemplateForHeading, resolveTemplateTaskDecision, shouldPromptForHeadingBoundTask, type ManagedTemplate } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode } from "./tasksFormat";
 import type MemosPlusPlugin from "../main";
@@ -551,11 +552,12 @@ export class MemosPlusMobilePanelView extends ItemView {
       setIcon(direct, "send");
       direct.createSpan({ text: t(options.language, "projectSend.directSend") });
       direct.addEventListener("click", () => void withMobileClickLock(direct, () => {
+        if (options.presetTask) return this.saveDefault(direct, options.presetTask);
         if (this.forceAsTask) {
           this.renderTaskOptions(
             t(options.language, "projectSend.directSend"),
             () => this.renderTargetPicker(),
-            (task) => void this.saveDefault(direct, task),
+            (task, taskContent) => void this.saveDefault(direct, task, taskContent),
             this.defaultTaskContentMode(),
             true
           );
@@ -591,23 +593,31 @@ export class MemosPlusMobilePanelView extends ItemView {
   private renderAsTaskToggle(container: HTMLElement): void {
     const options = this.options;
     if (!options) return;
+    if (options.presetTask) return;
     const label = container.createEl("label", { cls: "memos-plus-project-as-task" });
     const checkbox = label.createEl("input", { attr: { type: "checkbox" } });
     checkbox.checked = this.forceAsTask;
     label.createSpan({ text: t(options.language, "projectSend.asTask") });
+    const preview = container.createDiv({ cls: "memos-plus-project-as-task-preview" });
+    const renderPreview = (): void => {
+      preview.empty();
+      if (this.forceAsTask) renderUnifiedTaskSummary(preview, parseNaturalLanguageTask(options.content), options.language);
+    };
     checkbox.addEventListener("change", () => {
       this.forceAsTask = checkbox.checked;
+      renderPreview();
     });
+    renderPreview();
   }
 
-  private async saveDefault(button: HTMLButtonElement, task?: ProjectTaskOptions): Promise<void> {
+  private async saveDefault(button: HTMLButtonElement, task?: ProjectTaskOptions, content?: string): Promise<void> {
     const options = this.options;
     if (!options?.onSaveDefault) {
       return;
     }
     button.disabled = true;
     try {
-      await options.onSaveDefault(task);
+      await options.onSaveDefault(task, content);
       this.resolveOnce(null);
       void this.leaf.detach();
     } catch (error) {
@@ -957,6 +967,10 @@ export class MemosPlusMobilePanelView extends ItemView {
     const taskHeading = position === "new-heading" ? targetOptions.newHeadingName ?? heading : heading;
     const headingBoundTemplate = this.headingBoundTemplateForHeading(taskHeading);
     const template = this.templateForHeading(taskHeading);
+    if (options.presetTask) {
+      this.chooseFile(file, heading, position, options.presetTask, createHeadingIfMissing, targetOptions, template);
+      return;
+    }
     const decision = resolveTemplateTaskDecision(template, {
       content: options.content,
       heading: taskHeading
@@ -969,7 +983,7 @@ export class MemosPlusMobilePanelView extends ItemView {
         () => void this.renderHeadingPicker(info).catch((error) => {
           console.warn("[Memos Plus] Failed to render mobile heading picker", error);
         }),
-        (task) => this.chooseFile(file, heading, position, task, createHeadingIfMissing, targetOptions, template),
+        (task, taskContent) => this.chooseFile(file, heading, position, task, createHeadingIfMissing, targetOptions, template, taskContent),
         this.defaultTaskContentMode(template),
         this.forceAsTask
       );
@@ -981,7 +995,7 @@ export class MemosPlusMobilePanelView extends ItemView {
   private renderTaskOptions(
     title: string,
     backAction: () => void,
-    onConfirm: (task?: ProjectTaskOptions) => void,
+    onConfirm: (task: ProjectTaskOptions | undefined, content: string) => void,
     taskContentMode: TaskContentMode,
     forceAsTask = false
   ): void {
@@ -993,17 +1007,22 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.contentEl.empty();
     this.renderTopBar(t(options.language, "projectSend.taskOptions"), backAction);
     this.contentEl.createDiv({ cls: "memos-plus-project-section-hint", text: title });
-    const taskOptionsForm = createTaskOptionsForm(this.contentEl, {
+    const taskComposer = createUnifiedTaskComposer(this.contentEl, {
       language: options.language,
+      content: options.content,
       taskSettings: options.taskSettings,
       defaultAsTask: true,
       allowPlain: !forceAsTask,
       taskContentMode,
-      renderMetadataOptions: options.taskSettings.enabled || forceAsTask
+      detailsOpen: true,
+      showContentInput: false
     });
     const footer = this.contentEl.createDiv({ cls: "memos-plus-project-footer memos-plus-mobile-panel-footer" });
     const confirm = footer.createEl("button", { cls: "memos-plus-save-button", attr: { type: "button" }, text: t(options.language, "projectSend.confirm") });
-    confirm.addEventListener("click", () => void withMobileClickLock(confirm, () => onConfirm(taskOptionsForm.value())));
+    confirm.addEventListener("click", () => void withMobileClickLock(confirm, () => {
+      const value = taskComposer.value();
+      onConfirm(value.task, value.content);
+    }));
   }
 
   private chooseFile(
@@ -1013,11 +1032,13 @@ export class MemosPlusMobilePanelView extends ItemView {
     task?: ProjectTaskOptions,
     createHeadingIfMissing = false,
     targetOptions: Partial<FileSendTarget> = {},
-    template = this.currentTemplate()
+    template = this.currentTemplate(),
+    content?: string
   ): void {
     this.resolveOnce({
       file,
       section: heading,
+      content,
       task,
       mode: "file",
       fileTarget: { heading, position, createHeadingIfMissing, ...targetOptions },

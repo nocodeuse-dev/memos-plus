@@ -27,8 +27,8 @@ describe("project send modal source", () => {
 
   it("saves directly to the normal memo destination", () => {
     expect(modalSource).toContain("projectSend.directSend");
-    expect(modalSource).toContain("onSaveDefault?: (task?: ProjectTaskOptions) => Promise<void>");
-    expect(modalSource).toContain("await onSaveDefault(task)");
+    expect(modalSource).toContain("onSaveDefault?: (task?: ProjectTaskOptions, content?: string) => Promise<void>");
+    expect(modalSource).toContain("await onSaveDefault(task, content)");
     expect(composerActionsSource).toContain("onSaveDefault: saveDefault");
     expect(viewSource).toContain("createComposerSession");
     expect(modalSource).toContain("if (this.options.onSaveDefault)");

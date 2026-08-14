@@ -46,6 +46,8 @@ import { taskAtEditorCursor } from "./src/currentTaskEditor";
 import { TaskCalendarEditSession } from "./src/taskCalendarEditSession";
 import { openTaskCalendarTaskEditorModal } from "./src/taskCalendarTaskEditorModal";
 import { QuickTaskPanel } from "./src/quickTaskPanel";
+import { deliverContentToProjectChoice } from "./src/projectDelivery";
+import { openUnifiedTaskComposer, type OpenUnifiedTaskComposerOptions } from "./src/unifiedTaskComposer";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -359,7 +361,8 @@ export default class MemosPlusPlugin extends Plugin {
         persistSettings: () => this.persistSettings(),
         refreshViews: () => this.refreshViews(),
         resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
-        selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options)
+        selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options),
+        onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task)
       }).open();
       return null;
     }
@@ -403,7 +406,8 @@ export default class MemosPlusPlugin extends Plugin {
       initialContentMode,
       showClipboardEmptyNotice,
       resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
-      selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options)
+      selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options),
+      onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task)
     }).open();
   }
 
@@ -416,7 +420,8 @@ export default class MemosPlusPlugin extends Plugin {
       initialContent,
       initialContentMode: "none",
       resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
-      selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options)
+      selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options),
+      onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task)
     }).open();
   }
 
@@ -594,8 +599,7 @@ export default class MemosPlusPlugin extends Plugin {
       } else {
         throw new Error("Task inbox path is occupied by a folder");
       }
-      if (file instanceof TFile) await this.taskIndex.updateFile(file);
-      if (this.settings.appleSyncEnabled) await this.syncAppleNow(false);
+      if (file instanceof TFile) await this.onUnifiedTaskWritten(file, task ?? { isTask: true });
       new Notice(t(this.settings.language, "notice.taskCalendarTaskCreated"));
       return true;
     } catch (error) {
@@ -603,6 +607,44 @@ export default class MemosPlusPlugin extends Plugin {
       new Notice(t(this.settings.language, "notice.taskCalendarTaskFailed"));
       return false;
     }
+  }
+
+  openUnifiedTaskComposer(options: OpenUnifiedTaskComposerOptions): Promise<boolean> {
+    return openUnifiedTaskComposer(this, options);
+  }
+
+  async createUnifiedTask(content: string, task: ProjectTaskOptions, target: ProjectSendChoice | null): Promise<boolean> {
+    const text = content.trim();
+    if (!text) return false;
+    if (!target) return this.createTaskCalendarInboxTask(text, task.dueDate, task);
+    try {
+      const delivery = await deliverContentToProjectChoice(
+        {
+          app: this.app,
+          store: this.store,
+          settings: this.settings,
+          persistSettings: () => this.persistSettings(),
+          selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options),
+          onTaskWritten: (file, writtenTask) => this.onUnifiedTaskWritten(file, writtenTask)
+        },
+        text,
+        target,
+        { manualCalloutMode: false, task }
+      );
+      if (!delivery) return false;
+      await this.refreshViews("unifiedTaskCreated");
+      new Notice(`${t(this.settings.language, "notice.sentToFile")}${delivery.file.basename}`);
+      return true;
+    } catch (error) {
+      console.error("Memos Plus: failed to create unified task", error);
+      new Notice(t(this.settings.language, "notice.taskCalendarTaskFailed"));
+      return false;
+    }
+  }
+
+  async onUnifiedTaskWritten(file: TFile, task: ProjectTaskOptions): Promise<void> {
+    await this.taskIndex.updateFile(file);
+    if (this.settings.appleSyncEnabled && task.syncTarget !== "tasks") await this.syncAppleNow(false);
   }
 
   async toggleTaskCalendarTask(item: TaskIndexItem): Promise<boolean> {

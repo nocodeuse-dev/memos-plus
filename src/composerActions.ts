@@ -1,4 +1,4 @@
-import { Menu, Notice, Platform, type App } from "obsidian";
+import { Menu, Notice, Platform, TFile, type App } from "obsidian";
 import { prepareCalloutContent } from "./callout";
 import type { ComposerWidget } from "./composerWidget";
 import { t } from "./i18n";
@@ -18,6 +18,7 @@ export interface ComposerActionsHost {
   persistSettings: () => Promise<void>;
   refreshViews: () => Promise<void>;
   selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
+  onTaskWritten?: (file: TFile, task: ProjectTaskOptions) => Promise<void>;
 }
 
 export interface ComposerActionsOptions {
@@ -40,14 +41,14 @@ export function createComposerActions(
 ): ComposerActions {
   const currentAction = (): DefaultSendAction => options.defaultSendAction?.() ?? host.settings.defaultSendAction;
 
-  const saveDefault = async (task?: ProjectTaskOptions): Promise<void> => {
+  const saveDefault = async (task?: ProjectTaskOptions, contentOverride?: string): Promise<void> => {
     const composer = getComposer();
     if (!composer) {
       return;
     }
     try {
       const now = new Date();
-      const rawContent = composer.getValue();
+      const rawContent = contentOverride ?? composer.getValue();
       const activeFile = host.app.workspace.getActiveFile()?.basename ?? "";
       const prepared = prepareCalloutContent(rawContent, host.settings, composer.manualCalloutMode, {
         now,
@@ -57,6 +58,10 @@ export function createComposerActions(
         ? renderTaskContentWithDetail(prepared.content, task, host.settings, { contentMode: task.contentMode ?? "task-with-detail", now })
         : prepared.content;
       await host.store.addMemo(content, now, { preformatted: prepared.preformatted || Boolean(task?.isTask) });
+      if (task?.isTask) {
+        const file = host.app.vault.getAbstractFileByPath(host.store.memoFilePathForYear(String(now.getFullYear())));
+        if (file instanceof TFile) await host.onTaskWritten?.(file, task);
+      }
       if (host.settings.clearAfterSave) {
         composer.clear();
       }
@@ -89,7 +94,8 @@ export function createComposerActions(
           store: host.store,
           settings: host.settings,
           persistSettings: host.persistSettings,
-          selectProjectTargetOnMobile: host.selectProjectTargetOnMobile
+          selectProjectTargetOnMobile: host.selectProjectTargetOnMobile,
+          onTaskWritten: host.onTaskWritten
         },
         content,
         {
