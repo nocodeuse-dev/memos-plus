@@ -26,6 +26,8 @@ describe("task settings prompt wiring", () => {
     expect(saveDefaultSource).not.toContain("taskPromptOnCreate");
     expect(saveDefaultSource).not.toContain("openTaskOptionsModal");
     expect(saveDefaultSource).not.toContain("renderTaskContentWithOptions");
+    expect(saveDefaultSource).toContain("task?.isTask");
+    expect(saveDefaultSource).toContain(": prepared.content");
     expect(saveDefaultSource).toContain("prepareCalloutContent");
     expect(saveDefaultSource).toContain("host.store.addMemo");
   });

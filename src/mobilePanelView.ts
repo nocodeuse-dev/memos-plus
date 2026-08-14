@@ -27,6 +27,7 @@ import type { ProjectTaskOptions, TaskContentMode } from "./tasksFormat";
 import type MemosPlusPlugin from "../main";
 import { logMemosPlusDiagnostic } from "./diagnostics";
 import { getSmartSendMatchedPriorityTags, loadSmartSendRecommendations, type SmartSendRecommendations } from "./smartSend";
+import { resolveSendTaskIntent } from "./sendTaskIntent";
 
 export const MEMOS_PLUS_MOBILE_PANEL_VIEW_TYPE = "memos-plus-mobile-panel";
 
@@ -56,6 +57,7 @@ export class MemosPlusMobilePanelView extends ItemView {
   private mobileTemplateTabsScrollLeft = 0;
   private mobileTemplateQuery = "";
   private renderToken = 0;
+  private forceAsTask = false;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
     super(leaf);
@@ -130,6 +132,7 @@ export class MemosPlusMobilePanelView extends ItemView {
     this.mobileTemplateTabId = FILE_TEMPLATE_LIBRARY_TAB_ALL;
     this.mobileTemplateTabsScrollLeft = 0;
     this.mobileTemplateQuery = "";
+    this.forceAsTask = false;
     this.nextRenderToken();
   }
 
@@ -542,11 +545,24 @@ export class MemosPlusMobilePanelView extends ItemView {
       return;
     }
     const footer = this.contentEl.createDiv({ cls: "memos-plus-project-footer memos-plus-mobile-panel-footer" });
+    this.renderAsTaskToggle(footer);
     if (options.onSaveDefault) {
       const direct = footer.createEl("button", { cls: "memos-plus-project-add", attr: { type: "button" } });
       setIcon(direct, "send");
       direct.createSpan({ text: t(options.language, "projectSend.directSend") });
-      direct.addEventListener("click", () => void withMobileClickLock(direct, () => this.saveDefault(direct)));
+      direct.addEventListener("click", () => void withMobileClickLock(direct, () => {
+        if (this.forceAsTask) {
+          this.renderTaskOptions(
+            t(options.language, "projectSend.directSend"),
+            () => this.renderTargetPicker(),
+            (task) => void this.saveDefault(direct, task),
+            this.defaultTaskContentMode(),
+            true
+          );
+          return;
+        }
+        return this.saveDefault(direct);
+      }));
     }
     if (options.enableFileTargets) {
       const createFile = footer.createEl("button", { cls: "memos-plus-project-add", attr: { type: "button" } });
@@ -572,14 +588,26 @@ export class MemosPlusMobilePanelView extends ItemView {
     return this.options?.tabTemplateBindings?.[this.activeTabId] ?? "";
   }
 
-  private async saveDefault(button: HTMLButtonElement): Promise<void> {
+  private renderAsTaskToggle(container: HTMLElement): void {
+    const options = this.options;
+    if (!options) return;
+    const label = container.createEl("label", { cls: "memos-plus-project-as-task" });
+    const checkbox = label.createEl("input", { attr: { type: "checkbox" } });
+    checkbox.checked = this.forceAsTask;
+    label.createSpan({ text: t(options.language, "projectSend.asTask") });
+    checkbox.addEventListener("change", () => {
+      this.forceAsTask = checkbox.checked;
+    });
+  }
+
+  private async saveDefault(button: HTMLButtonElement, task?: ProjectTaskOptions): Promise<void> {
     const options = this.options;
     if (!options?.onSaveDefault) {
       return;
     }
     button.disabled = true;
     try {
-      await options.onSaveDefault();
+      await options.onSaveDefault(task);
       this.resolveOnce(null);
       void this.leaf.detach();
     } catch (error) {
@@ -934,25 +962,28 @@ export class MemosPlusMobilePanelView extends ItemView {
       heading: taskHeading
     });
     const promptForHeadingBoundTask = shouldPromptForHeadingBoundTask(template, headingBoundTemplate, options.taskSettings.promptOnCreate);
-    if (decision === "ask" || (decision === "task" && promptForHeadingBoundTask)) {
+    const taskIntent = resolveSendTaskIntent(this.forceAsTask, decision, promptForHeadingBoundTask);
+    if (taskIntent === "prompt") {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(options.language, position === "file-start" ? "fileSend.position.fileStart" : "fileSend.position.fileEnd")}`,
         () => void this.renderHeadingPicker(info).catch((error) => {
           console.warn("[Memos Plus] Failed to render mobile heading picker", error);
         }),
         (task) => this.chooseFile(file, heading, position, task, createHeadingIfMissing, targetOptions, template),
-        this.defaultTaskContentMode(template)
+        this.defaultTaskContentMode(template),
+        this.forceAsTask
       );
       return;
     }
-    this.chooseFile(file, heading, position, decision === "task" ? this.defaultTaskOptions(template) : undefined, createHeadingIfMissing, targetOptions, template);
+    this.chooseFile(file, heading, position, taskIntent === "default-task" ? this.defaultTaskOptions(template) : undefined, createHeadingIfMissing, targetOptions, template);
   }
 
   private renderTaskOptions(
     title: string,
     backAction: () => void,
     onConfirm: (task?: ProjectTaskOptions) => void,
-    taskContentMode: TaskContentMode
+    taskContentMode: TaskContentMode,
+    forceAsTask = false
   ): void {
     const options = this.options;
     if (!options) {
@@ -966,8 +997,9 @@ export class MemosPlusMobilePanelView extends ItemView {
       language: options.language,
       taskSettings: options.taskSettings,
       defaultAsTask: true,
+      allowPlain: !forceAsTask,
       taskContentMode,
-      renderMetadataOptions: options.taskSettings.enabled
+      renderMetadataOptions: options.taskSettings.enabled || forceAsTask
     });
     const footer = this.contentEl.createDiv({ cls: "memos-plus-project-footer memos-plus-mobile-panel-footer" });
     const confirm = footer.createEl("button", { cls: "memos-plus-save-button", attr: { type: "button" }, text: t(options.language, "projectSend.confirm") });

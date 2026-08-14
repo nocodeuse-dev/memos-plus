@@ -44,6 +44,7 @@ import {
 } from "./templateManager";
 import type { ProjectTaskOptions, TaskContentMode, TaskPriority, TaskRecurrence } from "./tasksFormat";
 import { getSmartSendMatchedPriorityTags, loadSmartSendRecommendations, type SmartSendRecommendations } from "./smartSend";
+import { resolveSendTaskIntent } from "./sendTaskIntent";
 
 export type ProjectSendInitialMode = "project" | "tag" | "recent" | "search";
 type SendMode = "smart" | "search" | "custom-tag";
@@ -116,7 +117,7 @@ export interface ProjectSendModalOptions {
   onSaveFileTemplateTabs: (tabs: FileTemplateTab[]) => Promise<void>;
   onSaveFileTemplateLibraryPreferences?: (state: { defaultTabId?: string; tabOrder?: string[] }) => Promise<void>;
   onSaveTabPreferences: (state: { tabOrder: string[]; hiddenTabs: string[] }) => Promise<void>;
-  onSaveDefault?: () => Promise<void>;
+  onSaveDefault?: (task?: ProjectTaskOptions) => Promise<void>;
   onChoose: (choice: ProjectSendChoice | null) => void;
 }
 
@@ -646,6 +647,7 @@ export class ProjectSendModal extends Modal {
   private draggedTabId = "";
   private closed = false;
   private renderToken = 0;
+  private forceAsTask = false;
 
   constructor(app: App, private readonly options: ProjectSendModalOptions) {
     super(app);
@@ -765,6 +767,7 @@ export class ProjectSendModal extends Modal {
     contentEl.createDiv({ cls: "memos-plus-project-empty", text: t(lang, "projectSend.directSend") });
     if (this.options.onSaveDefault) {
       const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
+      this.renderAsTaskToggle(footer);
       this.renderDirectSendButton(footer);
     }
   }
@@ -1148,6 +1151,7 @@ export class ProjectSendModal extends Modal {
     search.value = this.fileQuery;
     const list = contentEl.createDiv({ cls: "memos-plus-project-list memos-plus-project-search-results" });
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer memos-plus-project-search-footer" });
+    this.renderAsTaskToggle(footer);
     if (this.options.onSaveDefault) {
       this.renderDirectSendButton(footer);
     }
@@ -1459,17 +1463,19 @@ export class ProjectSendModal extends Modal {
     const template = this.templateForHeading(taskHeading);
     const decision = this.taskDecisionFor(taskHeading, template);
     const promptForHeadingBoundTask = shouldPromptForHeadingBoundTask(template, headingBoundTemplate, this.options.taskSettings.promptOnCreate);
-    if (decision === "ask" || (decision === "task" && promptForHeadingBoundTask)) {
+    const taskIntent = resolveSendTaskIntent(this.forceAsTask, decision, promptForHeadingBoundTask);
+    if (taskIntent === "prompt") {
       this.renderTaskOptions(
         `${file.basename} · ${taskHeading || t(this.options.language, `fileSend.position.${position === "file-start" ? "fileStart" : position === "new-heading" ? "newHeading" : "fileEnd"}`)}`,
         backAction ?? (() => this.renderCurrentMode()),
         (task) => this.chooseFile(file, heading, position, template, task, createHeadingIfMissing, targetOptions),
         true,
-        this.taskContentModeForTemplate(template)
+        this.taskContentModeForTemplate(template),
+        this.forceAsTask
       );
       return;
     }
-    const task = decision === "task" ? this.defaultTaskOptions(template) : undefined;
+    const task = taskIntent === "default-task" ? this.defaultTaskOptions(template) : undefined;
     this.chooseFile(file, heading, position, template, task, createHeadingIfMissing, targetOptions);
   }
 
@@ -1501,7 +1507,14 @@ export class ProjectSendModal extends Modal {
     return mode === "ask" ? "task-with-detail" : mode;
   }
 
-  private renderTaskOptions(title: string, backAction: () => void, onConfirm: (task?: ProjectTaskOptions) => void, defaultAsTask: boolean, taskContentMode: TaskContentMode = "task-with-detail"): void {
+  private renderTaskOptions(
+    title: string,
+    backAction: () => void,
+    onConfirm: (task?: ProjectTaskOptions) => void,
+    defaultAsTask: boolean,
+    taskContentMode: TaskContentMode = "task-with-detail",
+    forceAsTask = false
+  ): void {
     const lang = this.options.language;
     const contentEl = this.renderFileStepHeader(t(lang, "projectSend.taskOptions"), backAction);
     contentEl.createDiv({ cls: "memos-plus-project-section-hint", text: title });
@@ -1510,8 +1523,9 @@ export class ProjectSendModal extends Modal {
       language: lang,
       taskSettings: this.options.taskSettings,
       defaultAsTask,
+      allowPlain: !forceAsTask,
       taskContentMode,
-      renderMetadataOptions: this.options.taskSettings.enabled
+      renderMetadataOptions: this.options.taskSettings.enabled || forceAsTask
     });
 
     const footer = contentEl.createDiv({ cls: "memos-plus-project-footer" });
@@ -1545,6 +1559,7 @@ export class ProjectSendModal extends Modal {
       return;
     }
     const footer = container.createDiv({ cls: "memos-plus-project-footer memos-plus-project-search-footer" });
+    this.renderAsTaskToggle(footer);
     if (this.options.onSaveDefault) {
       this.renderDirectSendButton(footer);
     }
@@ -1678,17 +1693,40 @@ export class ProjectSendModal extends Modal {
     const direct = container.createEl("button", { cls: "memos-plus-project-add", attr: { type: "button" } });
     setIcon(direct, "send");
     direct.createSpan({ text: t(lang, "projectSend.directSend") });
-    direct.addEventListener("click", () => void withMobileClickLock(direct, () => this.saveDefault(direct)));
+    direct.addEventListener("click", () => void withMobileClickLock(direct, () => {
+      if (this.forceAsTask) {
+        this.renderTaskOptions(
+          t(lang, "projectSend.directSend"),
+          () => this.renderCurrentMode(),
+          (task) => void this.saveDefault(direct, task),
+          true,
+          this.taskContentModeForTemplate(),
+          true
+        );
+        return;
+      }
+      return this.saveDefault(direct);
+    }));
   }
 
-  private async saveDefault(button: HTMLButtonElement): Promise<void> {
+  private renderAsTaskToggle(container: HTMLElement): void {
+    const label = container.createEl("label", { cls: "memos-plus-project-as-task" });
+    const checkbox = label.createEl("input", { attr: { type: "checkbox" } });
+    checkbox.checked = this.forceAsTask;
+    label.createSpan({ text: t(this.options.language, "projectSend.asTask") });
+    checkbox.addEventListener("change", () => {
+      this.forceAsTask = checkbox.checked;
+    });
+  }
+
+  private async saveDefault(button: HTMLButtonElement, task?: ProjectTaskOptions): Promise<void> {
     const onSaveDefault = this.options.onSaveDefault;
     if (!onSaveDefault) {
       return;
     }
     button.disabled = true;
     try {
-      await onSaveDefault();
+      await onSaveDefault(task);
       this.settled = true;
       this.options.onChoose(null);
       this.close();

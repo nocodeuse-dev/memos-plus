@@ -6,6 +6,8 @@ import { maybeOpenTargetFileAfterSend, sendContentToProject, type ProjectDeliver
 import type { ProjectSendChoice, ProjectSendModalOptions } from "./projectFileSuggestModal";
 import type { DefaultSendAction, MemosPlusSettings } from "./settings";
 import type { MemosPlusStore } from "./store";
+import { renderTaskContentWithDetail } from "./taskContent";
+import type { ProjectTaskOptions } from "./tasksFormat";
 
 export type ComposerProjectMode = "project" | "tag" | "recent" | "search";
 
@@ -38,7 +40,7 @@ export function createComposerActions(
 ): ComposerActions {
   const currentAction = (): DefaultSendAction => options.defaultSendAction?.() ?? host.settings.defaultSendAction;
 
-  const saveDefault = async (): Promise<void> => {
+  const saveDefault = async (task?: ProjectTaskOptions): Promise<void> => {
     const composer = getComposer();
     if (!composer) {
       return;
@@ -51,7 +53,10 @@ export function createComposerActions(
         now,
         file: activeFile
       });
-      await host.store.addMemo(prepared.content, now, { preformatted: prepared.preformatted });
+      const content = task?.isTask
+        ? renderTaskContentWithDetail(prepared.content, task, host.settings, { contentMode: task.contentMode ?? "task-with-detail", now })
+        : prepared.content;
+      await host.store.addMemo(content, now, { preformatted: prepared.preformatted || Boolean(task?.isTask) });
       if (host.settings.clearAfterSave) {
         composer.clear();
       }
@@ -162,7 +167,7 @@ export function createComposerActions(
   return {
     handleSend,
     openSendMenu,
-    saveDefault,
+    saveDefault: () => saveDefault(),
     sendToProject
   };
 }

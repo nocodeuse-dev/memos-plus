@@ -12,6 +12,7 @@ import type { MemosPlusStore } from "./store";
 import { updateRecentFileTargetPaths } from "./fileSend";
 import { ProjectSendModal, type ProjectSendChoice, type ProjectSendModalOptions } from "./projectFileSuggestModal";
 import { createDefaultProjectTemplate, resolveTemplateClearAfterSend, type ManagedTemplate } from "./templateManager";
+import type { ProjectTaskOptions } from "./tasksFormat";
 
 export interface ProjectDeliveryHost {
   app: App;
@@ -31,7 +32,7 @@ export interface ProjectDeliveryResult {
 export interface SendContentToProjectOptions {
   initialMode: "project" | "tag" | "recent" | "search";
   manualCalloutMode: boolean;
-  onSaveDefault?: () => Promise<void>;
+  onSaveDefault?: (task?: ProjectTaskOptions) => Promise<void>;
 }
 
 export async function maybeOpenTargetFileAfterSend(app: App, settings: MemosPlusSettings, file: TFile): Promise<void> {

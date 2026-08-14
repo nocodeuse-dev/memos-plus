@@ -27,8 +27,8 @@ describe("project send modal source", () => {
 
   it("saves directly to the normal memo destination", () => {
     expect(modalSource).toContain("projectSend.directSend");
-    expect(modalSource).toContain("onSaveDefault?: () => Promise<void>");
-    expect(modalSource).toContain("await onSaveDefault()");
+    expect(modalSource).toContain("onSaveDefault?: (task?: ProjectTaskOptions) => Promise<void>");
+    expect(modalSource).toContain("await onSaveDefault(task)");
     expect(composerActionsSource).toContain("onSaveDefault: saveDefault");
     expect(viewSource).toContain("createComposerSession");
     expect(modalSource).toContain("if (this.options.onSaveDefault)");
@@ -37,6 +37,33 @@ describe("project send modal source", () => {
     expect(viewSource).not.toContain("projectInsertHeading: this.plugin.settings.projectInsertHeading");
     expect(modalSource.match(/renderDirectSendButton\(footer\)/g)?.length).toBeGreaterThanOrEqual(2);
     expect(modalSource).toContain("renderDefaultMemoTemplate");
+  });
+
+  it("lets the user force any file or heading send through exactly one task settings step", () => {
+    const desktopChoiceSource = modalSource.slice(modalSource.indexOf("private handleFileTargetChoice("), modalSource.indexOf("private taskDecisionFor("));
+    const mobileChoiceSource = mobilePanelSource.slice(mobilePanelSource.indexOf("private handleFileTargetChoice("), mobilePanelSource.indexOf("private renderTaskOptions("));
+
+    expect(modalSource).toContain("private forceAsTask = false");
+    expect(mobilePanelSource).toContain("private forceAsTask = false");
+    expect(modalSource).toContain("private renderAsTaskToggle(");
+    expect(mobilePanelSource).toContain("private renderAsTaskToggle(");
+    expect(modalSource).toContain('checkbox.checked = this.forceAsTask');
+    expect(mobilePanelSource).toContain('checkbox.checked = this.forceAsTask');
+    expect(desktopChoiceSource).toContain("resolveSendTaskIntent(this.forceAsTask");
+    expect(mobileChoiceSource).toContain("resolveSendTaskIntent(this.forceAsTask");
+    expect(desktopChoiceSource.match(/this\.renderTaskOptions\(/g)).toHaveLength(1);
+    expect(mobileChoiceSource.match(/this\.renderTaskOptions\(/g)).toHaveLength(1);
+    expect(modalSource).toContain("allowPlain: !forceAsTask");
+    expect(mobilePanelSource).toContain("allowPlain: !forceAsTask");
+    expect(stylesSource).toContain(".memos-plus-project-as-task");
+  });
+
+  it("keeps normal sending unchanged while allowing forced default sends to reuse task rendering", () => {
+    const saveDefaultSource = composerActionsSource.slice(composerActionsSource.indexOf("const saveDefault = async"), composerActionsSource.indexOf("const sendToProject = async"));
+    expect(saveDefaultSource).toContain("task?.isTask");
+    expect(saveDefaultSource).toContain("renderTaskContentWithDetail");
+    expect(saveDefaultSource).toContain(": prepared.content");
+    expect(saveDefaultSource).toContain("prepared.preformatted || Boolean(task?.isTask)");
   });
 
   it("supports persisted custom tag tabs in the project send modal", () => {
