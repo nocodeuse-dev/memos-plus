@@ -3565,7 +3565,7 @@
 
 .memos-plus-task-calendar-layout {
   display: grid;
-  grid-template-columns: var(--memos-plus-task-calendar-nav-width, 232px) 5px minmax(340px, 1fr) 5px var(--memos-plus-task-calendar-task-width, 390px);
+  grid-template-columns: var(--memos-plus-task-calendar-nav-width, 232px) 5px minmax(340px, 1fr) 5px var(--memos-plus-task-calendar-task-width, 420px);
   min-height: 0;
   flex: 1;
   overflow: hidden;
@@ -3866,15 +3866,21 @@
 .memos-plus-task-calendar-timed-task.is-completed .memos-plus-task-calendar-timed-task-title { text-decoration: line-through; }
 
 .memos-plus-task-calendar-mobile-tabs { display: none; }
-.memos-plus-task-calendar.is-sidebar-collapsed .memos-plus-task-calendar-layout { grid-template-columns: 44px 0 minmax(320px, 1fr) 5px var(--memos-plus-task-calendar-task-width, 390px); }
+.memos-plus-task-calendar.is-sidebar-collapsed .memos-plus-task-calendar-layout { grid-template-columns: 44px 0 minmax(320px, 1fr) 5px var(--memos-plus-task-calendar-task-width, 420px); }
 .memos-plus-task-calendar.is-sidebar-collapsed .memos-plus-task-calendar-resizer.is-left { visibility: hidden; pointer-events: none; }
 .memos-plus-task-calendar.is-sidebar-collapsed .memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse) { display: none; }
-.memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-layout { grid-template-columns: var(--memos-plus-task-calendar-nav-width, 232px) 5px minmax(340px, 1fr) 0 36px; }
+.memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-layout { grid-template-columns: var(--memos-plus-task-calendar-nav-width, 232px) 5px minmax(340px, 1fr) 0 44px; }
 .memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-resizer.is-right { visibility: hidden; pointer-events: none; }
 .memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-tasks > :not(.memos-plus-task-calendar-pane-header) { display: none; }
+.memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-tasks { overflow: hidden; padding: 8px 6px; }
+.memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-pane-header { justify-content: center; gap: 0; }
+.memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-pane-header h3 { display: none; }
+.memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-tasks-toggle { width: 32px; height: 32px; color: var(--text-accent); }
+.memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-tasks-toggle:hover,
+.memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-tasks-toggle:focus-visible { background: var(--background-modifier-hover); color: var(--text-normal); }
 
 @container memos-plus-task-calendar (max-width: 1080px) {
-  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout { grid-template-columns: 44px 0 minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 390px)); }
+  .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout { grid-template-columns: 44px 0 minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 420px)); }
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-resizer.is-left { visibility: hidden; pointer-events: none; }
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse) { display: none; }
 }

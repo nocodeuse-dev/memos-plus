@@ -57,7 +57,7 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   sidebarExpandedManually: false,
   tasksPaneHidden: false,
   navigationWidth: 232,
-  taskPaneWidth: 390,
+  taskPaneWidth: 420,
   agendaCacheMinutes: 5,
   agendaCalendarNames: [],
   showAllDayEvents: true,
@@ -81,7 +81,9 @@ export interface TaskCalendarMonthDay {
 export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSettings {
   const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const navigationWidth = raw.navigationWidth === 152 ? DEFAULT_TASK_CALENDAR_SETTINGS.navigationWidth : raw.navigationWidth;
-  const taskPaneWidth = raw.taskPaneWidth === 320 ? DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth : raw.taskPaneWidth;
+  const taskPaneWidth = raw.taskPaneWidth === 320 || raw.taskPaneWidth === 390
+    ? DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth
+    : raw.taskPaneWidth;
   return {
     showRibbon: typeof raw.showRibbon === "boolean" ? raw.showRibbon : DEFAULT_TASK_CALENDAR_SETTINGS.showRibbon,
     defaultView: normalizeNavigation(raw.defaultView, DEFAULT_TASK_CALENDAR_SETTINGS.defaultView),

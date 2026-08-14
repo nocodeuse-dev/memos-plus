@@ -63,7 +63,7 @@ describe("Schedule and tasks state", () => {
       sidebarCollapsed: false,
       sidebarExpandedManually: false,
       navigationWidth: 232,
-      taskPaneWidth: 390,
+      taskPaneWidth: 420,
       showAllDayEvents: true,
       showHomeEntry: true,
       showMobileQuickActions: true
@@ -103,8 +103,13 @@ describe("Schedule and tasks state", () => {
   it("migrates the legacy compact pane defaults to readable desktop widths", () => {
     expect(normalizeTaskCalendarSettings({ navigationWidth: 152, taskPaneWidth: 320 })).toMatchObject({
       navigationWidth: 232,
-      taskPaneWidth: 390
+      taskPaneWidth: 420
     });
+  });
+
+  it("migrates the previous task pane default while preserving custom widths", () => {
+    expect(normalizeTaskCalendarSettings({ taskPaneWidth: 390 }).taskPaneWidth).toBe(420);
+    expect(normalizeTaskCalendarSettings({ taskPaneWidth: 549 }).taskPaneWidth).toBe(549);
   });
 
   it("lets a manual desktop toggle override responsive auto-collapse without changing mobile state", () => {
@@ -342,7 +347,7 @@ describe("Schedule and tasks integration boundaries", () => {
 
   it("keeps desktop panes readable and collapses navigation before squeezing task text", () => {
     expect(stylesSource).toContain("--memos-plus-task-calendar-nav-width, 232px");
-    expect(stylesSource).toContain("--memos-plus-task-calendar-task-width, 390px");
+    expect(stylesSource).toContain("--memos-plus-task-calendar-task-width, 420px");
     expect(stylesSource).toContain("@container memos-plus-task-calendar (max-width: 1080px)");
     expect(stylesSource).toContain(":not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout");
     expect(stylesSource).toContain(".memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse)");
@@ -353,6 +358,8 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-body { display: block;");
     expect(stylesSource).toContain("-webkit-line-clamp: 2");
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-source");
+    expect(stylesSource).toContain(".memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-pane-header h3 { display: none; }");
+    expect(stylesSource).toContain(".memos-plus-task-calendar.is-tasks-hidden .memos-plus-task-calendar-tasks-toggle { width: 32px; height: 32px;");
   });
 
   it("keeps task scheduling and editing inside the existing workspace components", () => {
