@@ -1,4 +1,4 @@
-import { Notice, Platform, Plugin, TFile, WorkspaceLeaf, normalizePath, requestUrl, setIcon, type ObsidianProtocolData } from "obsidian";
+import { Notice, Platform, Plugin, TFile, WorkspaceLeaf, normalizePath, requestUrl, setIcon, type Editor, type ObsidianProtocolData } from "obsidian";
 import { MemosPlusSettingTab, MemosPlusSettings, normalizeSettings } from "./src/settings";
 import { MemosPlusStore } from "./src/store";
 import { QuickCaptureModal } from "./src/modal";
@@ -42,6 +42,9 @@ import type { OrganizerFilterId } from "./src/organizerPanel";
 import { openTaskOptionsModal, renderTaskContentWithOptions } from "./src/taskOptionsModal";
 import { normalizeAppleSyncTag } from "./src/appleSync";
 import type { ProjectTaskOptions } from "./src/tasksFormat";
+import { taskAtEditorCursor } from "./src/currentTaskEditor";
+import { TaskCalendarEditSession } from "./src/taskCalendarEditSession";
+import { openTaskCalendarTaskEditorModal } from "./src/taskCalendarTaskEditorModal";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -129,6 +132,14 @@ export default class MemosPlusPlugin extends Plugin {
     this.registerView(MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE, (leaf: WorkspaceLeaf) => new TaskCalendarView(leaf, this));
     this.registerEditorSuggest(new MemosPlusTagSuggest(this.app));
     this.registerEditorSuggest(new MemosPlusLinkSuggest(this.app));
+    this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
+      const task = taskAtEditorCursor(editor, info.file);
+      if (!task) return;
+      menu.addItem((item) => item
+        .setTitle(t(this.settings.language, "taskCalendar.editTask"))
+        .setIcon("settings-2")
+        .onClick(() => this.runAsyncOperation("edit task from editor menu", () => this.openTaskCalendarTaskEditor(task))));
+    }));
 
     this.addRibbonIcon("message-square-plus", t(this.settings.language, "command.open"), () => {
       this.runAsyncOperation("activate view from ribbon", () => this.activateView());
@@ -174,6 +185,14 @@ export default class MemosPlusPlugin extends Plugin {
       id: "quick-add-task",
       name: t(this.settings.language, "command.quickAddTask"),
       callback: () => this.runAsyncOperation("focus task calendar quick task", () => this.openTaskCalendar({ focusQuickTask: true }))
+    });
+
+    this.addCommand({
+      id: "edit-current-task",
+      name: t(this.settings.language, "command.editCurrentTask"),
+      editorCallback: (editor, view) => {
+        this.runAsyncOperation("edit current Markdown task", () => this.openCurrentTaskEditor(editor, view.file));
+      }
     });
 
     this.addCommand({
@@ -603,6 +622,53 @@ export default class MemosPlusPlugin extends Plugin {
     return this.editTaskIndexItem(item);
   }
 
+  async openCurrentTaskEditor(editor: Editor, file: TFile | null): Promise<void> {
+    const task = taskAtEditorCursor(editor, file);
+    if (!task) {
+      new Notice(t(this.settings.language, "notice.currentLineNotTask"));
+      return;
+    }
+    await this.openTaskCalendarTaskEditor(task);
+  }
+
+  async openTaskCalendarTaskEditor(item: TaskIndexItem): Promise<void> {
+    await openTaskCalendarTaskEditorModal(this, item);
+  }
+
+  createTaskCalendarEditSession(item: TaskIndexItem): TaskCalendarEditSession {
+    return new TaskCalendarEditSession({
+      task: item,
+      context: {
+        projectTagPrefix: this.settings.projectTag,
+        appleSyncTag: this.settings.appleSyncTag
+      },
+      persist: (sourceTask, patch) => this.updateTaskCalendarTask(sourceTask, patch, false),
+      shouldSync: (task) => this.shouldSyncEditedTask(task),
+      sync: () => this.syncAppleNow(false)
+    });
+  }
+
+  taskCalendarAppleStatus(task: TaskIndexItem): { label: string; title: string; error: boolean } | null {
+    const target = task.syncTarget || (task.appleSyncTagged || task.appleSyncId ? "reminders" : "");
+    if (!target) return null;
+    const targetLabel = t(this.settings.language, target === "calendar" ? "taskCalendar.appleCalendar" : "taskCalendar.appleReminders");
+    const recordKey = task.appleSyncId ? `${target}:${task.appleSyncId}` : "";
+    const pending = Boolean(recordKey && this.settings.appleSyncState.pending[recordKey]);
+    const synced = Boolean(recordKey && this.settings.appleSyncState.records[recordKey]);
+    const error = this.settings.appleSyncState.lastError;
+    if (pending) return {
+      label: `↻ ${t(this.settings.language, "taskCalendar.applePending")}`,
+      title: t(this.settings.language, "taskCalendar.applePending"),
+      error: false
+    };
+    if (error) return { label: `⚠ ${t(this.settings.language, "taskCalendar.appleFailed")}`, title: error, error: true };
+    return {
+      label: synced ? `✓ ${targetLabel}` : `↻ ${t(this.settings.language, "taskCalendar.applePending")}`,
+      title: synced ? t(this.settings.language, "taskCalendar.appleSynced") : t(this.settings.language, "taskCalendar.applePending"),
+      error: false
+    };
+  }
+
   async updateTaskCalendarTask(item: TaskIndexItem, patch: TaskCalendarTaskPatch, syncApple = true): Promise<boolean> {
     try {
       const result = await updateIndexedTaskFromCalendar(this.app, item, patch, {
@@ -665,6 +731,12 @@ export default class MemosPlusPlugin extends Plugin {
       showTaskMutationFailure(this.settings.language);
       return false;
     }
+  }
+
+  private shouldSyncEditedTask(task: TaskIndexItem): boolean {
+    if (!this.settings.appleSyncEnabled) return false;
+    if (task.syncTarget === "calendar" || task.syncTarget === "reminders" || task.appleSyncTagged || task.appleSyncId) return true;
+    return task.line.includes(normalizeAppleSyncTag(this.settings.appleSyncTag));
   }
 
   async saveSettings(): Promise<void> {

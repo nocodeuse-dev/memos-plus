@@ -30,22 +30,18 @@ import {
 } from "./taskCalendarAgendaGrid";
 import type { TaskIndexItem } from "./taskIndex";
 import type { TaskPriorityFilterValue } from "./taskSearch";
-import type { TaskRecurrence } from "./tasksFormat";
 import type { ProjectTaskOptions } from "./tasksFormat";
 import { parseNaturalLanguageTask, type ParsedNaturalLanguageTask } from "./taskNaturalLanguage";
 import { TaskCalendarEventModal } from "./taskCalendarEventModal";
 import { TaskCalendarEventDetailModal } from "./taskCalendarEventDetailModal";
 import { QuickCaptureModal } from "./modal";
 import {
-  parseTaskCalendarDetailMetadata,
-  taskCalendarPostponeDate,
   taskCalendarTaskKey,
   taskCalendarTaskProjectTag,
-  taskCalendarTaskRecurrence,
-  taskCalendarTaskTags,
   type TaskCalendarTaskPatch
 } from "./taskCalendarTaskEditor";
-import { TaskCalendarEditSession, type TaskCalendarEditSnapshot } from "./taskCalendarEditSession";
+import { TaskCalendarEditSession } from "./taskCalendarEditSession";
+import { renderTaskCalendarTaskEditor } from "./taskCalendarTaskEditorUi";
 
 export const MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE = "memos-plus-task-calendar-view";
 
@@ -1021,112 +1017,31 @@ export class TaskCalendarView extends ItemView {
   }
 
   private renderTaskDetails(container: HTMLElement, task: TaskIndexItem): void {
-    const lang = this.plugin.settings.language;
     const session = this.getTaskEditSession(task);
-    task = session.getSnapshot().task;
-    const detail = parseTaskCalendarDetailMetadata(task.line);
-    const form = container.createDiv({ cls: "memos-plus-task-calendar-task-details" });
-    const toolbar = form.createDiv({ cls: "memos-plus-task-calendar-task-detail-toolbar" });
-    const back = this.iconButton(toolbar, "arrow-left", t(lang, "taskCalendar.backToTasks"), () => {
-      this.releaseTaskEditSession();
-      this.selectedTaskKey = "";
-      this.renderForced();
-    });
-    back.addClass("memos-plus-task-calendar-task-detail-back");
-    toolbar.createDiv({ cls: "memos-plus-task-calendar-task-detail-path", text: task.filePath });
-    const status = toolbar.createSpan({ cls: "memos-plus-task-calendar-task-detail-sync" });
-    const retry = toolbar.createEl("button", { cls: "memos-plus-task-calendar-task-detail-retry", type: "button", text: t(lang, "taskCalendar.retry") });
-    retry.addEventListener("click", () => session.retry());
-    session.setListener((snapshot) => this.updateTaskEditStatus(status, retry, snapshot));
-
-    const title = taskDetailTextField(form, t(lang, "taskCalendar.detail.title"), task.title);
-    const row = form.createDiv({ cls: "memos-plus-task-calendar-task-detail-grid" });
-    const date = taskDetailInput(row, t(lang, "taskCalendar.detail.date"), "date", taskDate(task));
-    const time = taskDetailInput(row, t(lang, "taskCalendar.detail.time"), "time", task.dueTime || task.startTime);
-    const reminderDate = taskDetailInput(row, t(lang, "taskCalendar.detail.reminderDate"), "date", task.reminderDate);
-    const reminderTime = taskDetailInput(row, t(lang, "taskCalendar.detail.reminderTime"), "time", task.reminderTime);
-    const reminderLead = taskDetailInput(row, t(lang, "taskCalendar.detail.reminderLead"), "number", task.reminderMinutesBefore === undefined ? "" : String(task.reminderMinutesBefore));
-    reminderLead.min = "0";
-    reminderLead.max = "10080";
-
-    const priority = taskDetailSelect(form, t(lang, "taskCalendar.detail.priority"), [
-      ["none", t(lang, "taskPriority.none")],
-      ["highest", t(lang, "taskPriority.highest")],
-      ["high", t(lang, "taskPriority.high")],
-      ["medium", t(lang, "taskPriority.medium")],
-      ["low", t(lang, "taskPriority.low")],
-      ["lowest", t(lang, "taskPriority.lowest")]
-    ], task.priority);
-    const currentRecurrence = taskCalendarTaskRecurrence(task.line);
-    const recurrence = taskDetailSelect(form, t(lang, "taskCalendar.detail.recurrence"), [
-      ["none", t(lang, "taskRecurrence.none")],
-      ["daily", t(lang, "taskRecurrence.daily")],
-      ["weekdays", t(lang, "taskRecurrence.weekdays")],
-      ["weekly", t(lang, "taskRecurrence.weekly")],
-      ["monthly", t(lang, "taskRecurrence.monthly")],
-      ["yearly", t(lang, "taskRecurrence.yearly")],
-      ["custom", t(lang, "taskRecurrence.custom")]
-    ], currentRecurrence.recurrence);
-    const customRecurrence = taskDetailTextField(form, t(lang, "taskCalendar.detail.customRecurrence"), currentRecurrence.customRecurrence);
-    customRecurrence.closest<HTMLElement>(".memos-plus-task-calendar-task-detail-field")?.toggleClass("is-hidden", recurrence.value !== "custom");
-
-    const currentProject = taskCalendarTaskProjectTag(task.line, this.plugin.settings.projectTag);
-    const projectOptions: Array<[string, string]> = [["", t(lang, "taskCalendar.noProject")]];
-    for (const candidate of this.taskProjects) projectOptions.push([normalizeVisibleProjectTag(candidate.tag ?? candidate.label), candidate.label]);
-    if (currentProject && !projectOptions.some(([value]) => value === currentProject)) projectOptions.push([currentProject, currentProject]);
-    const project = taskDetailSelect(form, t(lang, "taskCalendar.detail.project"), projectOptions, currentProject);
-    const tags = taskDetailTextField(form, t(lang, "taskCalendar.detail.tags"), taskCalendarTaskTags(task.line, {
+    renderTaskCalendarTaskEditor(container, {
+      language: this.plugin.settings.language,
+      task,
+      session,
+      projects: this.taskProjects,
       projectTagPrefix: this.plugin.settings.projectTag,
-      appleSyncTag: this.plugin.settings.appleSyncTag
-    }).join(" "));
-    const notes = taskDetailTextarea(form, t(lang, "taskCalendar.detail.notes"), detail.notes ?? "");
-    const related = taskDetailTextField(form, t(lang, "taskCalendar.detail.relatedNote"), detail.relatedNote ?? "");
-
-    title.addEventListener("input", () => session.apply({ title: title.value }, 260));
-    date.addEventListener("change", () => session.apply({ date: date.value }));
-    time.addEventListener("change", () => session.apply({ time: time.value }));
-    reminderDate.addEventListener("change", () => session.apply({ reminderDate: reminderDate.value }));
-    reminderTime.addEventListener("change", () => session.apply({ reminderTime: reminderTime.value }));
-    reminderLead.addEventListener("input", () => {
-      const lead = reminderLead.value.trim() ? Math.max(0, Math.min(10080, Math.round(Number(reminderLead.value)))) : undefined;
-      session.apply({ reminderMinutesBefore: reminderLead.value.trim() && Number.isFinite(lead) ? lead : null }, 180);
+      appleSyncTag: this.plugin.settings.appleSyncTag,
+      appleStatus: (currentTask) => this.taskAppleSyncDetail(currentTask),
+      onBack: () => {
+        this.releaseTaskEditSession();
+        this.selectedTaskKey = "";
+        this.renderForced();
+      },
+      onOpenSource: (currentTask) => void this.plugin.openTaskCalendarTask(currentTask),
+      onTasksEdit: this.plugin.canEditTaskCalendarTask()
+        ? (currentTask) => void this.plugin.editTaskCalendarTask(currentTask)
+        : undefined,
+      onToggleCompleted: async (currentTask) => {
+        const updated = await this.plugin.toggleTaskCalendarTask(currentTask);
+        return updated
+          ? this.plugin.taskIndex.getItems().find((item) => taskCalendarTaskKey(item) === taskCalendarTaskKey(currentTask)) ?? null
+          : null;
+      }
     });
-    priority.addEventListener("change", () => session.apply({ priority: priority.value as TaskPriorityFilterValue }));
-    recurrence.addEventListener("change", () => {
-      customRecurrence.closest<HTMLElement>(".memos-plus-task-calendar-task-detail-field")?.toggleClass("is-hidden", recurrence.value !== "custom");
-      session.apply({ recurrence: recurrence.value as TaskRecurrence, customRecurrence: customRecurrence.value });
-    });
-    customRecurrence.addEventListener("input", () => session.apply({ recurrence: "custom", customRecurrence: customRecurrence.value }, 220));
-    project.addEventListener("change", () => session.apply({ projectTag: project.value }));
-    tags.addEventListener("input", () => session.apply({ tags: tags.value.split(/[\s,，]+/u).filter(Boolean) }, 220));
-    notes.addEventListener("input", () => session.apply({ notes: notes.value }, 320));
-    related.addEventListener("input", () => session.apply({ relatedNote: related.value }, 260));
-
-    const postpone = form.createDiv({ cls: "memos-plus-task-calendar-postpone" });
-    postpone.createSpan({ text: t(lang, "taskCalendar.postpone") });
-    for (const [kind, label] of [["today", "taskCalendar.postpone.today"], ["tomorrow", "taskCalendar.postpone.tomorrow"], ["next-week", "taskCalendar.postpone.nextWeek"]] as const) {
-      const button = postpone.createEl("button", { type: "button", text: t(lang, label) });
-      button.addEventListener("click", () => {
-        const value = taskCalendarPostponeDate(kind);
-        date.value = value;
-        session.apply({ date: value });
-      });
-    }
-    const choose = postpone.createEl("button", { type: "button", text: t(lang, "taskCalendar.postpone.choose") });
-    choose.addEventListener("click", () => {
-      date.focus();
-      if ("showPicker" in date) date.showPicker();
-    });
-
-    const actions = form.createDiv({ cls: "memos-plus-task-calendar-task-detail-actions" });
-    const open = actions.createEl("button", { type: "button", text: t(lang, "taskCalendar.openSource") });
-    open.addEventListener("click", () => void this.plugin.openTaskCalendarTask(task));
-    if (this.plugin.canEditTaskCalendarTask()) {
-      const tasksEdit = actions.createEl("button", { type: "button", text: t(lang, "taskCalendar.tasksEdit") });
-      tasksEdit.addEventListener("click", () => void this.plugin.editTaskCalendarTask(task));
-    }
-    const save = actions.createEl("button", { cls: "mod-cta", type: "button", text: t(lang, "common.save") });
-    save.addEventListener("click", () => session.flushNow());
   }
 
   private getTaskEditSession(task: TaskIndexItem): TaskCalendarEditSession {
@@ -1134,16 +1049,7 @@ export class TaskCalendarView extends ItemView {
       return this.taskEditSession;
     }
     this.releaseTaskEditSession();
-    this.taskEditSession = new TaskCalendarEditSession({
-      task,
-      context: {
-        projectTagPrefix: this.plugin.settings.projectTag,
-        appleSyncTag: this.plugin.settings.appleSyncTag
-      },
-      persist: (sourceTask, patch) => this.plugin.updateTaskCalendarTask(sourceTask, patch, false),
-      shouldSync: (currentTask) => this.shouldSyncEditedTask(currentTask),
-      sync: () => this.plugin.syncAppleNow(false)
-    });
+    this.taskEditSession = this.plugin.createTaskCalendarEditSession(task);
     return this.taskEditSession;
   }
 
@@ -1163,72 +1069,8 @@ export class TaskCalendarView extends ItemView {
     this.scheduleRender();
   }
 
-  private shouldSyncEditedTask(task: TaskIndexItem): boolean {
-    if (!this.plugin.settings.appleSyncEnabled) return false;
-    if (task.syncTarget === "calendar" || task.syncTarget === "reminders" || task.appleSyncTagged) return true;
-    return taskLineContainsTag(task.line, this.plugin.settings.appleSyncTag.replace(/^#+/u, ""));
-  }
-
-  private updateTaskEditStatus(status: HTMLElement, retry: HTMLButtonElement, snapshot: TaskCalendarEditSnapshot): void {
-    const lang = this.plugin.settings.language;
-    status.removeClass("is-error", "is-saving", "is-modified");
-    retry.toggle(snapshot.canRetry);
-    if (snapshot.saveState === "save-failed") {
-      status.addClass("is-error");
-      status.setText(t(lang, "taskCalendar.saveFailed"));
-      status.setAttr("title", snapshot.saveError);
-      return;
-    }
-    status.removeAttribute("title");
-    if (snapshot.saveState === "modified") {
-      status.addClass("is-modified");
-      status.setText(t(lang, "taskCalendar.modified"));
-      return;
-    }
-    if (snapshot.saveState === "saving") {
-      status.addClass("is-saving");
-      status.setText(t(lang, "taskCalendar.saving"));
-      return;
-    }
-    if (snapshot.syncState === "syncing") {
-      status.addClass("is-saving");
-      status.setText(t(lang, "taskCalendar.syncing"));
-      return;
-    }
-    if (snapshot.syncState === "sync-failed") {
-      status.addClass("is-error");
-      status.setText(t(lang, "taskCalendar.appleFailed"));
-      return;
-    }
-    if (snapshot.syncState === "synced") {
-      status.setText(t(lang, "taskCalendar.appleSynced"));
-      return;
-    }
-    const apple = this.taskAppleSyncDetail(snapshot.task);
-    status.setText(apple?.label ?? t(lang, "taskCalendar.saved"));
-    status.toggleClass("is-error", apple?.error === true);
-    if (apple?.title) status.setAttr("title", apple.title);
-  }
-
   private taskAppleSyncDetail(task: TaskIndexItem): { label: string; title: string; error: boolean } | null {
-    const target = task.syncTarget || (task.appleSyncTagged || task.appleSyncId ? "reminders" : "");
-    if (!target) return null;
-    const targetLabel = t(this.plugin.settings.language, target === "calendar" ? "taskCalendar.appleCalendar" : "taskCalendar.appleReminders");
-    const recordKey = task.appleSyncId ? `${target}:${task.appleSyncId}` : "";
-    const pending = Boolean(recordKey && this.plugin.settings.appleSyncState.pending[recordKey]);
-    const synced = Boolean(recordKey && this.plugin.settings.appleSyncState.records[recordKey]);
-    const error = this.plugin.settings.appleSyncState.lastError;
-    if (pending) return {
-      label: `↻ ${t(this.plugin.settings.language, "taskCalendar.applePending")}`,
-      title: t(this.plugin.settings.language, "taskCalendar.applePending"),
-      error: false
-    };
-    if (error) return { label: `⚠ ${t(this.plugin.settings.language, "taskCalendar.appleFailed")}`, title: error, error: true };
-    return {
-      label: synced ? `✓ ${targetLabel}` : `↻ ${t(this.plugin.settings.language, "taskCalendar.applePending")}`,
-      title: synced ? t(this.plugin.settings.language, "taskCalendar.appleSynced") : t(this.plugin.settings.language, "taskCalendar.applePending"),
-      error: false
-    };
+    return this.plugin.taskCalendarAppleStatus(task);
   }
 
   private async loadAgenda(startDate: string, endDate: string, calendarNames: string[], excludeGeneratedCalendars: boolean, force: boolean): Promise<void> {
@@ -1399,11 +1241,6 @@ function sameProjectFilter(left: TaskCalendarProjectFilter, right: TaskCalendarP
   return Boolean(right) && left.label === right?.label && left.filePath === right?.filePath && left.tag === right?.tag;
 }
 
-function taskLineContainsTag(line: string, tag: string): boolean {
-  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|\\s)#${escaped}(?=$|\\s|[.,，。;；:：!?！？)])`, "iu").test(line);
-}
-
 function priorityDetails(priority: TaskIndexItem["priority"], lang: "zh" | "en"): string {
   const icon = ({ highest: "🔺", high: "⏫", medium: "🔼", low: "🔽", lowest: "⏬", none: "" } as const)[priority] || "";
   const labelKey = ({
@@ -1455,38 +1292,6 @@ function nextScheduleLabel(tasks: TaskIndexItem[], events: AppleCalendarAgendaEv
 function minutesFromTime(value: string): number {
   const match = value.match(/^(\d{1,2}):(\d{2})$/u);
   return match ? Number(match[1]) * 60 + Number(match[2]) : 24 * 60;
-}
-
-function taskDetailField(container: HTMLElement, label: string): HTMLElement {
-  const field = container.createEl("label", { cls: "memos-plus-task-calendar-task-detail-field" });
-  field.createSpan({ text: label });
-  return field;
-}
-
-function taskDetailInput(container: HTMLElement, label: string, type: string, value: string): HTMLInputElement {
-  const input = taskDetailField(container, label).createEl("input", { attr: { type } });
-  input.value = value;
-  return input;
-}
-
-function taskDetailTextField(container: HTMLElement, label: string, value: string): HTMLInputElement {
-  return taskDetailInput(container, label, "text", value);
-}
-
-function taskDetailTextarea(container: HTMLElement, label: string, value: string): HTMLTextAreaElement {
-  const textarea = taskDetailField(container, label).createEl("textarea");
-  textarea.value = value;
-  textarea.rows = 3;
-  return textarea;
-}
-
-function taskDetailSelect(container: HTMLElement, label: string, options: Array<[string, string]>, value: string): HTMLSelectElement {
-  const select = taskDetailField(container, label).createEl("select");
-  for (const [optionValue, optionLabel] of options) {
-    const option = select.createEl("option", { value: optionValue, text: optionLabel });
-    option.selected = optionValue === value;
-  }
-  return select;
 }
 
 function normalizeVisibleProjectTag(value: string): string {

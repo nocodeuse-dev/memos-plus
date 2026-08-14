@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const mainSource = readFileSync("main.ts", "utf8");
 const viewSource = readFileSync("src/view.ts", "utf8");
 const calendarViewSource = readFileSync("src/taskCalendarView.ts", "utf8");
+const editorUiSource = readFileSync("src/taskCalendarTaskEditorUi.ts", "utf8");
 const actionsSource = readFileSync("src/taskActions.ts", "utf8");
 const stylesSource = readFileSync("styles.css", "utf8");
 
@@ -39,7 +40,8 @@ describe("unified task management source integration", () => {
     expect(calendarViewSource).toContain("memos-plus-task-calendar-task-priority");
     expect(calendarViewSource).toContain("memos-plus-task-calendar-task-project");
     expect(calendarViewSource).toContain("this.plugin.refreshTaskCalendarTasks()");
-    expect(calendarViewSource).toContain("this.plugin.editTaskCalendarTask(task)");
+    expect(calendarViewSource).toContain("this.plugin.editTaskCalendarTask(currentTask)");
+    expect(calendarViewSource).toContain("renderTaskCalendarTaskEditor");
     expect(calendarViewSource).toContain("this.plugin.openTaskCalendarQuickCapture()");
     expect(calendarViewSource).toContain("this.visibleTaskCount += Platform.isMobile ? 40 : 80");
   });
@@ -56,7 +58,7 @@ describe("unified task management source integration", () => {
   it("uses the same project filter for the task list and time axis", () => {
     expect(calendarViewSource).toContain('taskCalendarTasks(items, "all", selectedDate, { project: this.taskProject })');
     expect(calendarViewSource).toContain("this.renderAgenda(agenda, range.days, selectedDate, state.showAllDayEvents, agendaTasks)");
-    expect(calendarViewSource).toContain("session.apply({ projectTag: project.value })");
+    expect(editorUiSource).toContain("session.apply({ projectTag: project.value })");
   });
 
   it("delegates recurrence-aware toggles and edits to the official Tasks API when available", () => {

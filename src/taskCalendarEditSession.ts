@@ -72,9 +72,9 @@ export class TaskCalendarEditSession {
     this.scheduleSave(debounceMs);
   }
 
-  flushNow(): void {
+  flushNow(): Promise<void> {
     this.clearSaveTimer();
-    void this.flush();
+    return this.flush();
   }
 
   retry(): void {

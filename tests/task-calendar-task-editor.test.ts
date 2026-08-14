@@ -73,4 +73,18 @@ describe("task calendar inline editor", () => {
     const updated = updateTaskCalendarTaskLine(task(source), { reminderMinutesBefore: null }, context);
     expect(updated).not.toContain("reminderMinutesBefore");
   });
+
+  it("switches between Tasks and Apple Reminders without losing task details", () => {
+    const source = "- [ ] 复诊 📅 2026-08-10 ⏰ 17:31 #检查";
+    const reminder = updateTaskCalendarTaskLine(task(source), { syncTarget: "reminders" }, context);
+    expect(reminder).toContain("#Apple同步");
+    expect(reminder).toContain("%22target%22%3A%22reminders%22");
+    expect(reminder).toContain("%22dueTime%22%3A%2217%3A31%22");
+
+    const tasks = updateTaskCalendarTaskLine(task(reminder), { syncTarget: "tasks" }, context);
+    expect(tasks).not.toContain("#Apple同步");
+    expect(tasks).not.toContain("memos-plus-task-meta");
+    expect(tasks).toContain("📅 2026-08-10");
+    expect(tasks).toContain("⏰ 17:31");
+  });
 });

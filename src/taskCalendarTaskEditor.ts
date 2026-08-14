@@ -4,6 +4,8 @@ import {
   attachMemosPlusTaskMetadata,
   normalizeTaskRecurrence,
   parseMemosPlusTaskMetadata,
+  stripMemosPlusTaskMetadata,
+  type TaskSyncTarget,
   type TaskRecurrence
 } from "./tasksFormat";
 
@@ -26,6 +28,7 @@ export interface TaskCalendarTaskPatch {
   tags?: string[];
   notes?: string;
   relatedNote?: string;
+  syncTarget?: TaskSyncTarget;
 }
 
 export interface TaskCalendarTaskEditContext {
@@ -95,6 +98,17 @@ export function updateTaskCalendarTaskLine(
   context: TaskCalendarTaskEditContext
 ): string {
   let line = task.line;
+  const sourceMetadata = parseMemosPlusTaskMetadata(line);
+  let target = task.syncTarget || (task.appleSyncTagged ? "reminders" : "");
+  if (patch.syncTarget !== undefined) {
+    const syncTag = normalizeTag(context.appleSyncTag);
+    if (syncTag) line = removeExactTag(line, syncTag);
+    line = stripMemosPlusTaskMetadata(line);
+    target = patch.syncTarget === "tasks" ? "" : patch.syncTarget;
+    if (target && syncTag) line = appendVisibleToken(line, syncTag);
+    if (target === "calendar") line = line.replace(DATE_RE, (value) => value.replace("📅", "🛫"));
+    if (target === "reminders") line = line.replace(START_DATE_RE, (value) => value.replace("🛫", "📅"));
+  }
   if (patch.title !== undefined) {
     const title = patch.title.trim();
     if (title && task.title && line.includes(task.title)) line = line.replace(task.title, title);
@@ -108,7 +122,6 @@ export function updateTaskCalendarTaskLine(
     const rule = recurrenceRule(recurrence, custom);
     line = replaceVisibleToken(line, RECURRENCE_RE, rule ? `🔁 ${rule}` : "");
   }
-  const target = task.syncTarget || (task.appleSyncTagged ? "reminders" : "");
   if (patch.date !== undefined) {
     const marker = target === "calendar" ? "🛫" : "📅";
     const opposite = target === "calendar" ? DATE_RE : START_DATE_RE;
@@ -128,17 +141,18 @@ export function updateTaskCalendarTaskLine(
     for (const tag of uniqueTags(patch.tags)) line = appendVisibleToken(line, tag);
   }
 
-  const existingMetadata = parseMemosPlusTaskMetadata(line);
+  const existingMetadata = parseMemosPlusTaskMetadata(line) ?? sourceMetadata;
   const recurrenceMetadata = patch.recurrence !== undefined || patch.customRecurrence !== undefined
     ? recurrenceMetadataValue(taskCalendarTaskRecurrence(line))
     : existingMetadata?.recurrence;
   const reminderMinutesBefore = patch.reminderMinutesBefore === null
     ? undefined
     : patch.reminderMinutesBefore ?? existingMetadata?.reminderMinutesBefore;
+  const visibleTime = line.match(TIME_RE)?.[0]?.replace(/^⏰\s*/u, "") ?? "";
   if (target === "reminders") {
     line = attachMemosPlusTaskMetadata(line, {
       target: "reminders",
-      dueTime: patch.time ?? existingMetadata?.dueTime,
+      dueTime: patch.time ?? existingMetadata?.dueTime ?? existingMetadata?.startTime ?? visibleTime,
       reminderDate: patch.reminderDate ?? existingMetadata?.reminderDate,
       reminderTime: patch.reminderTime ?? existingMetadata?.reminderTime,
       reminderMinutesBefore,
@@ -148,7 +162,7 @@ export function updateTaskCalendarTaskLine(
   } else if (target === "calendar") {
     line = attachMemosPlusTaskMetadata(line, {
       target: "calendar",
-      startTime: patch.time ?? existingMetadata?.startTime,
+      startTime: patch.time ?? existingMetadata?.startTime ?? existingMetadata?.dueTime ?? visibleTime,
       endDate: existingMetadata?.endDate,
       endTime: existingMetadata?.endTime,
       reminderMinutesBefore,

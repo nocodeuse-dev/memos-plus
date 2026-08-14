@@ -244,6 +244,7 @@ describe("Schedule and tasks integration boundaries", () => {
   const eventModalSource = readFileSync("src/taskCalendarEventModal.ts", "utf8");
   const eventDetailModalSource = readFileSync("src/taskCalendarEventDetailModal.ts", "utf8");
   const viewSource = readFileSync("src/taskCalendarView.ts", "utf8");
+  const editorUiSource = readFileSync("src/taskCalendarTaskEditorUi.ts", "utf8");
   const stylesSource = readFileSync("styles.css", "utf8");
   const mainSource = readFileSync("main.ts", "utf8");
 
@@ -309,7 +310,7 @@ describe("Schedule and tasks integration boundaries", () => {
   it("renders parsed task time and Apple sync status and listens for task-index changes", () => {
     expect(viewSource).toContain("task.dueTime");
     expect(viewSource).toContain("taskAppleSyncStatus(task)");
-    expect(viewSource).toContain("appleSyncState.pending[recordKey]");
+    expect(mainSource).toContain("appleSyncState.pending[recordKey]");
     expect(viewSource).toContain("taskCalendarTimedTaskPlacement(task, days)");
     expect(viewSource).toContain("this.plugin.taskIndex.onChange(() => this.handleTaskIndexChange())");
     expect(viewSource).toContain("memos-plus-task-calendar-task-heading");
@@ -367,20 +368,21 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain('draggable: "true"');
     expect(viewSource).toContain("updateTaskCalendarTask(task, patch)");
     expect(viewSource).toContain("memos-plus-task-calendar-task-details");
-    expect(viewSource).toContain("taskCalendarPostponeDate(kind)");
+    expect(editorUiSource).toContain("taskCalendarPostponeDate(kind)");
+    expect(viewSource).toContain("renderTaskCalendarTaskEditor(container");
     expect(viewSource).toContain("new Menu()");
     expect(viewSource).toContain("navigationWidth");
     expect(viewSource).toContain("taskPaneWidth");
   });
 
   it("keeps inline field feedback independent from Markdown indexing and Apple sync", () => {
-    expect(viewSource).toContain('title.addEventListener("input"');
-    expect(viewSource).toContain('date.addEventListener("change"');
-    expect(viewSource).toContain('priority.addEventListener("change"');
-    expect(viewSource).toContain('tags.addEventListener("input"');
-    expect(viewSource).toContain("new TaskCalendarEditSession");
-    expect(viewSource).toContain("updateTaskCalendarTask(sourceTask, patch, false)");
-    expect(viewSource).not.toContain('form.addEventListener("focusout"');
+    expect(editorUiSource).toContain('title.addEventListener("input"');
+    expect(editorUiSource).toContain('date.addEventListener("change"');
+    expect(editorUiSource).toContain('priority.addEventListener("change"');
+    expect(editorUiSource).toContain('tags.addEventListener("input"');
+    expect(viewSource).toContain("this.plugin.createTaskCalendarEditSession(task)");
+    expect(mainSource).toContain("updateTaskCalendarTask(sourceTask, patch, false)");
+    expect(editorUiSource).not.toContain('form.addEventListener("focusout"');
     expect(mainSource).toContain("void this.syncAppleNow(false)");
   });
 

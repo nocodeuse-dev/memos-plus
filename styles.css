@@ -3909,12 +3909,16 @@
 .memos-plus-task-calendar-task-detail-field input,
 .memos-plus-task-calendar-task-detail-field select,
 .memos-plus-task-calendar-task-detail-field textarea { width: 100%; min-width: 0; border: 1px solid var(--background-modifier-border); border-radius: 5px; padding: 5px 7px; background: var(--background-primary); color: var(--text-normal); font: inherit; }
+.memos-plus-task-calendar-task-detail-field.is-checkbox { flex-direction: row; align-items: center; justify-content: space-between; }
+.memos-plus-task-calendar-task-detail-field.is-checkbox input { width: auto; min-width: 18px; height: 18px; margin: 0; }
 .memos-plus-task-calendar-task-detail-field textarea { resize: vertical; }
 .memos-plus-task-calendar-postpone { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding-top: 3px; }
 .memos-plus-task-calendar-postpone > span { margin-right: 3px; color: var(--text-muted); font-size: var(--font-ui-smaller); }
 .memos-plus-task-calendar-postpone button,
 .memos-plus-task-calendar-task-detail-actions button { min-height: 28px; border: 1px solid var(--background-modifier-border); border-radius: 5px; padding: 4px 8px; background: var(--background-secondary); color: var(--text-normal); cursor: pointer; }
 .memos-plus-task-calendar-task-detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding-top: 4px; }
+.memos-plus-task-editor-modal { width: min(720px, calc(100vw - 32px)); max-height: min(82vh, 780px); overflow: auto; }
+.memos-plus-task-editor-modal .memos-plus-task-calendar-task-details { overflow: visible; }
 
 @media (max-width: 640px) {
   .memos-plus-task-calendar-header { padding: 9px 10px; }
