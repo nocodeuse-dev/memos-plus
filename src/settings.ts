@@ -186,6 +186,7 @@ export interface MemosPlusSettings {
   appleSyncTarget: AppleSyncTarget;
   appleSyncTag: string;
   appleRemindersList: string;
+  appleReminderImportLists: string[];
   appleCalendarName: string;
   appleSyncInboxPath: string;
   appleSyncIntervalMinutes: number;
@@ -330,6 +331,7 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   appleSyncTarget: "reminders",
   appleSyncTag: "#Apple同步",
   appleRemindersList: "Memos Plus",
+  appleReminderImportLists: [],
   appleCalendarName: "Memos Plus",
   appleSyncInboxPath: "我的资源/Memos/Apple 同步.md",
   appleSyncIntervalMinutes: 15,
@@ -604,6 +606,7 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     appleSyncTarget: normalizeAppleSyncTarget(raw.appleSyncTarget),
     appleSyncTag: normalizeAppleSyncTag(raw.appleSyncTag),
     appleRemindersList: normalizeTextSetting(raw.appleRemindersList, DEFAULT_SETTINGS.appleRemindersList),
+    appleReminderImportLists: normalizeTextList(raw.appleReminderImportLists),
     appleCalendarName: normalizeTextSetting(raw.appleCalendarName, DEFAULT_SETTINGS.appleCalendarName),
     appleSyncInboxPath: normalizeVaultPath(raw.appleSyncInboxPath, DEFAULT_SETTINGS.appleSyncInboxPath),
     appleSyncIntervalMinutes: normalizeAppleSyncInterval(raw.appleSyncIntervalMinutes),
@@ -4369,6 +4372,18 @@ export class MemosPlusSettingTab extends PluginSettingTab {
       });
     this.renderAppleSyncContainerSetting(container, available);
     new Setting(container)
+      .setName(t(lang, "settings.appleReminderImportLists"))
+      .setDesc(t(lang, "settings.appleReminderImportListsDesc"))
+      .addTextArea((textArea) => {
+        textArea
+          .setPlaceholder(t(lang, "settings.appleReminderImportListsPlaceholder"))
+          .setValue(this.plugin.settings.appleReminderImportLists.join("\n"))
+          .onChange(async (value) => {
+            this.plugin.settings.appleReminderImportLists = normalizeTextList(value);
+            await this.plugin.persistSettings();
+          });
+      });
+    new Setting(container)
       .setName(t(lang, "settings.appleSyncInboxPath"))
       .setDesc(t(lang, "settings.appleSyncInboxPathDesc"))
       .addText((textInput) => {
@@ -4587,6 +4602,19 @@ function normalizeVaultPath(value: unknown, fallback: string): string {
 
 function normalizeTextSetting(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeTextList(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,，]+/u) : [];
+  const seen = new Set<string>();
+  return source.flatMap((item) => {
+    if (typeof item !== "string") return [];
+    const normalized = item.trim();
+    const key = normalized.toLocaleLowerCase();
+    if (!normalized || seen.has(key)) return [];
+    seen.add(key);
+    return [normalized];
+  });
 }
 
 function normalizeOptionalHexColor(value: unknown, fallback: string): string {

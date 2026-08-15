@@ -35,6 +35,7 @@ export interface AppleSyncBridge {
   probe(kind: AppleSyncTarget): Promise<AppleSyncProbeResult>;
   createContainer(kind: AppleSyncTarget, name: string): Promise<AppleSyncContainerResult>;
   list(kind: AppleSyncTarget, container: string): Promise<AppleSyncRemoteItem[]>;
+  listMany?(kind: AppleSyncTarget, containers: string[]): Promise<AppleSyncRemoteItem[]>;
   upsert(input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem>;
   remove(kind: AppleSyncTarget, container: string, remoteId: string, localId?: string): Promise<boolean>;
 }
@@ -43,6 +44,7 @@ interface JxaRequest {
   operation: "probe" | "create-container" | "list" | "upsert" | "remove";
   kind?: AppleSyncTarget;
   container?: string;
+  containers?: string[];
   remoteId?: string;
   localId?: string;
   title?: string;
@@ -121,12 +123,36 @@ function createContainer(request) {
 }
 
 function listItems(request) {
+  if (request.kind === "reminders" && Array.isArray(request.containers)) {
+    return listReminderItemsMany(request.containers, request.container);
+  }
   return request.kind === "calendar" ? listCalendarItems(request.container) : listReminderItems(request.container);
 }
 
 function listReminderItems(containerName) {
   const app = Application("Reminders");
   const list = requiredCollection(app.lists.whose({ name: String(containerName || "") })(), "Reminders list", containerName);
+  return reminderRecordsForList(list);
+}
+
+function listReminderItemsMany(containerNames, requiredContainerName) {
+  const app = Application("Reminders");
+  const seen = {};
+  return containerNames.reduce(function (items, value) {
+    const name = String(value || "").trim();
+    const key = name.toLowerCase();
+    if (!name || seen[key]) return items;
+    seen[key] = true;
+    const matches = app.lists.whose({ name: name })();
+    if (matches.length === 0) {
+      if (name === String(requiredContainerName || "")) requiredCollection(matches, "Reminders list", name);
+      return items;
+    }
+    return items.concat(reminderRecordsForList(matches[0]));
+  }, []);
+}
+
+function reminderRecordsForList(list) {
   const reminders = list.reminders;
   const ids = safeArray(function () { return reminders.id(); });
   const names = safeArray(function () { return reminders.name(); });
@@ -449,6 +475,12 @@ export class MacOsAppleSyncBridge implements AppleSyncBridge {
 
   async list(kind: AppleSyncTarget, container: string): Promise<AppleSyncRemoteItem[]> {
     return this.run<AppleSyncRemoteItem[]>({ operation: "list", kind, container });
+  }
+
+  async listMany(kind: AppleSyncTarget, containers: string[]): Promise<AppleSyncRemoteItem[]> {
+    const unique = Array.from(new Set(containers.map((name) => name.trim()).filter(Boolean)));
+    if (unique.length <= 1) return this.list(kind, unique[0] ?? "");
+    return this.run<AppleSyncRemoteItem[]>({ operation: "list", kind, container: unique[0], containers: unique });
   }
 
   async upsert(input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem> {

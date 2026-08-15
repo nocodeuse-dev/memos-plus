@@ -8,6 +8,7 @@ export type AppleSyncDirection = "none" | "push" | "pull";
 
 export interface AppleSyncRemoteItem {
   kind: AppleSyncTarget;
+  container?: string;
   id: string;
   localId: string;
   title: string;
@@ -30,6 +31,7 @@ export interface AppleSyncRemoteItem {
 export interface AppleSyncRecord {
   localId: string;
   kind: AppleSyncTarget;
+  container?: string;
   remoteId: string;
   localSignature: string;
   remoteSignature: string;
@@ -109,6 +111,7 @@ export function normalizeAppleSyncState(value: unknown): AppleSyncState {
       records[key] = {
         localId,
         kind,
+        container: text(raw.container),
         remoteId,
         localSignature: text(raw.localSignature),
         remoteSignature: text(raw.remoteSignature),

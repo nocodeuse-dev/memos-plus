@@ -85,12 +85,18 @@ class MemoryRemindersBridge implements AppleSyncBridge {
 
   probe = vi.fn(async () => ({ reminderLists: ["提醒"], calendars: [], defaultReminderList: "提醒" }));
   createContainer = vi.fn(async (_kind: AppleSyncTarget, name: string) => ({ name, writable: true }));
-  list = vi.fn(async (kind: AppleSyncTarget) => this.items.filter((item) => item.kind === kind).map((item) => ({ ...item })));
+  list = vi.fn(async (kind: AppleSyncTarget, container: string) => this.items
+    .filter((item) => item.kind === kind && (item.container ?? "提醒") === container)
+    .map((item) => ({ ...item, container })));
+  listMany = vi.fn(async (kind: AppleSyncTarget, containers: string[]) => this.items
+    .filter((item) => item.kind === kind && containers.includes(item.container ?? "提醒"))
+    .map((item) => ({ ...item, container: item.container ?? "提醒" })));
 
   upsert = vi.fn(async (input: AppleSyncUpsertInput): Promise<AppleSyncRemoteItem> => {
     const existing = input.remoteId ? this.items.find((item) => item.id === input.remoteId) : undefined;
     const next: AppleSyncRemoteItem = {
       kind: input.kind,
+      container: input.container,
       id: existing?.id ?? `remote-${++this.sequence}`,
       localId: input.localId,
       title: input.title,
@@ -234,6 +240,90 @@ describe("Apple Reminders bidirectional synchronization", () => {
     expect(test.bridge.items[0]?.localId).not.toBe("");
   });
 
+  it("imports new incomplete reminders from additional lists without bulk-importing completed history", async () => {
+    const test = harness();
+    test.settings.appleRemindersList = "Memos Plus";
+    test.settings.appleReminderImportLists = ["提醒"];
+    test.bridge.items.push(
+      {
+        kind: "reminders",
+        container: "提醒",
+        id: "mac-open-1",
+        localId: "",
+        title: "Mac 新提醒",
+        completed: false,
+        dueDate: "2026-08-15",
+        dueTime: "21:30",
+        priority: 0,
+        modifiedAt: "2026-08-15T10:00:00.000Z",
+        notes: ""
+      },
+      {
+        kind: "reminders",
+        container: "提醒",
+        id: "mac-completed-history",
+        localId: "",
+        title: "历史已完成",
+        completed: true,
+        completionDate: "2026-08-01",
+        dueDate: "2026-08-01",
+        dueTime: "",
+        priority: 0,
+        modifiedAt: "2026-08-01T10:00:00.000Z",
+        notes: ""
+      }
+    );
+
+    const first = await test.service.syncNow();
+    const second = await test.service.syncNow();
+    const source = test.vault.source("Apple Sync Test.md");
+    const record = Object.values(test.settings.appleSyncState.records).find((item) => item.remoteId === "mac-open-1");
+
+    expect(first.imported).toBe(1);
+    expect(second.imported).toBe(0);
+    expect(source).toContain("Mac 新提醒 📅 2026-08-15 ⏰ 21:30 #Apple同步");
+    expect(source).not.toContain("历史已完成");
+    expect(record?.container).toBe("提醒");
+    expect(test.bridge.listMany).toHaveBeenCalledWith("reminders", ["Memos Plus", "提醒"]);
+    expect(test.bridge.upsert).toHaveBeenCalledWith(expect.objectContaining({ container: "提醒", remoteId: "mac-open-1" }));
+
+    test.bridge.items.push({
+      kind: "reminders",
+      container: "提醒",
+      id: "mac-open-2",
+      localId: "",
+      title: "稍后新建的提醒",
+      completed: false,
+      dueDate: "2026-08-16",
+      dueTime: "09:00",
+      priority: 0,
+      modifiedAt: "2026-08-15T11:00:00.000Z",
+      notes: ""
+    });
+    const later = await test.service.syncNow();
+    expect(later.imported).toBe(1);
+    expect(test.vault.source("Apple Sync Test.md").match(/稍后新建的提醒/gu)).toHaveLength(1);
+
+    const imported = test.bridge.items.find((item) => item.id === "mac-open-1")!;
+    test.bridge.items[test.bridge.items.indexOf(imported)] = {
+      ...imported,
+      title: "Mac 修改后的提醒",
+      modifiedAt: "2026-08-16T10:00:00.000Z"
+    };
+    const pulled = await test.service.syncNow();
+    expect(pulled.pulled).toBe(1);
+    expect(test.vault.source("Apple Sync Test.md")).toContain("Mac 修改后的提醒");
+    expect(Object.values(test.settings.appleSyncState.records).find((item) => item.remoteId === "mac-open-1")?.container).toBe("提醒");
+
+    const upsertCalls = test.bridge.upsert.mock.calls.length;
+    test.settings.appleReminderImportLists = [];
+    const paused = await test.service.syncNow();
+    expect(paused.skipped).toBeGreaterThan(0);
+    expect(test.bridge.upsert).toHaveBeenCalledTimes(upsertCalls);
+    expect(test.bridge.remove).not.toHaveBeenCalled();
+    expect(test.vault.source("Apple Sync Test.md")).toContain("Mac 修改后的提醒");
+  });
+
   it("reassociates the same iCloud reminder when its device-local identifier changes", async () => {
     const test = harness("- [ ] 跨设备任务 📅 2026-08-12 #Apple同步\n");
     await test.service.syncNow();
@@ -283,7 +373,7 @@ describe("Apple Reminders bidirectional synchronization", () => {
   it("classifies an iCloud list timeout as waiting and retries without recording a sync failure", async () => {
     const localId = "timeout-local-id";
     const test = harness(`- [ ] iCloud 读取中 #Apple同步 <!-- memos-plus-apple-id:${localId} -->\n`);
-    test.bridge.list.mockRejectedValueOnce(new Error("Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。"));
+    test.bridge.listMany.mockRejectedValueOnce(new Error("Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。"));
 
     const result = await test.service.syncNow();
 

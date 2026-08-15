@@ -61,7 +61,10 @@ Markdown tasks carrying the configured sync tag are exported. Stable local and
 Apple Reminder identifiers prevent duplicates and allow linked deletions to
 propagate in either direction. Calendar events remain a separate agenda source.
 The settings page lists the real Reminders lists, and a dedicated `Memos Plus`
-list is created only after an explicit button click.
+list is created only after an explicit button click. Optional additional
+Reminders lists can import new incomplete reminders while leaving completed
+history untouched; imported tasks remember their source list for later edits,
+completion, and deletion synchronization.
 
 ## Development
 

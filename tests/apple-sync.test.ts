@@ -156,6 +156,7 @@ describe("Apple sync safety and merge helpers", () => {
         [key]: {
           localId: "local-1",
           kind: "reminders",
+          container: "提醒",
           remoteId: "remote-1",
           localSignature: "a",
           remoteSignature: remoteAppleSyncSignature(remoteReminder),
@@ -164,6 +165,7 @@ describe("Apple sync safety and merge helpers", () => {
       }
     });
     expect(normalized.records[key]?.remoteId).toBe("remote-1");
+    expect(normalized.records[key]?.container).toBe("提醒");
   });
 });
 
@@ -191,6 +193,8 @@ describe("Apple sync source integration", () => {
     expect(bridgeSource).toContain("const bodies = safeArray(function () { return reminders.body(); });");
     expect(bridgeSource).toContain("const completionDates = safeArray(function () { return reminders.completionDate(); });");
     expect(bridgeSource).toContain("reminderRecordFromValues");
+    expect(bridgeSource).toContain("listReminderItemsMany");
+    expect(bridgeSource).toContain("containers: unique");
     expect(bridgeSource).toContain("timeoutMs: 60_000");
     expect(bridgeSource).toContain("Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。");
   });
@@ -256,7 +260,7 @@ describe("Apple sync source integration", () => {
   });
 
   it("validates the Apple container before writing local sync ids", () => {
-    const remoteListIndex = serviceSource.indexOf("const remoteItems = await this.options.bridge.list(kind, container)");
+    const remoteListIndex = serviceSource.indexOf("const remoteItems = await this.listRemoteReminders(reminderContainers)");
     const ensureIdsIndex = serviceSource.indexOf("localTasks = await this.ensureLocalIds(localTasks,");
     expect(remoteListIndex).toBeGreaterThan(-1);
     expect(ensureIdsIndex).toBeGreaterThan(remoteListIndex);
@@ -266,7 +270,7 @@ describe("Apple sync source integration", () => {
     expect(serviceSource).toContain('const kind = "reminders" as const');
     expect(serviceSource).toContain("const container = settings.appleRemindersList");
     expect(serviceSource).not.toContain("const kind = settings.appleSyncTarget");
-    expect(serviceSource).toContain("this.options.bridge.remove(kind, container, remote.id, record.localId)");
+    expect(serviceSource).toContain("this.options.bridge.remove(kind, reminderContainer(remote, record.container || container), remote.id, record.localId)");
     expect(serviceSource).toContain("findRemoteForRecord");
     expect(serviceSource).toContain("markAppleSyncPending");
     expect(mainSource).toContain("scheduleAppleSyncRetry");

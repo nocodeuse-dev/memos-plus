@@ -102,8 +102,9 @@ export class AppleSyncService {
       // Apple Calendar remains the event source for the schedule workspace.
       const kind = "reminders" as const;
       const container = settings.appleRemindersList;
+      const reminderContainers = uniqueReminderContainers(container, settings.appleReminderImportLists);
       // Validate and read the Apple container before writing sync IDs into Markdown.
-      const remoteItems = await this.options.bridge.list(kind, container);
+      const remoteItems = await this.listRemoteReminders(reminderContainers);
       const remoteById = new Map(remoteItems.map((item) => [item.id, item]));
       const remoteByLocalId = new Map(remoteItems.filter((item) => item.localId).map((item) => [item.localId, item]));
       const claimedRemoteIds = new Set<string>();
@@ -127,11 +128,16 @@ export class AppleSyncService {
       const deferredDeletionIds = new Set<string>();
       for (const [key, record] of Object.entries(state.records)) {
         if (record.kind !== "reminders") continue;
+        if (record.container && !reminderContainers.includes(record.container)) {
+          deferredDeletionIds.add(record.localId);
+          result.skipped += 1;
+          continue;
+        }
         const local = allLocalById.get(record.localId);
         let remote = findRemoteForRecord(record, remoteItems, remoteById, remoteByLocalId, claimedRemoteIds);
         if (local && remote) {
           if (remote.localId !== record.localId) {
-            remote = await this.relinkRemote(remote, record.localId);
+            remote = await this.relinkRemote(remote, record.localId, reminderContainer(remote, record.container || container));
           }
           rememberRemote(remote, record.localId);
           delete state.pending[key];
@@ -154,7 +160,7 @@ export class AppleSyncService {
         }
         delete state.pending[key];
         if (!local && remote) {
-          await this.options.bridge.remove(kind, container, remote.id, record.localId);
+          await this.options.bridge.remove(kind, reminderContainer(remote, record.container || container), remote.id, record.localId);
           remoteById.delete(remote.id);
           if (remote.localId) remoteByLocalId.delete(remote.localId);
           delete state.records[key];
@@ -194,7 +200,7 @@ export class AppleSyncService {
           remote = findRemoteForLocalTask(task, settings.appleSyncTag, remoteItems, claimedRemoteIds);
         }
         if (remote && remote.localId !== localId) {
-          remote = await this.relinkRemote(remote, localId);
+          remote = await this.relinkRemote(remote, localId, reminderContainer(remote, record?.container || container));
         }
         if (remote) {
           rememberRemote(remote, localId);
@@ -209,7 +215,7 @@ export class AppleSyncService {
               continue;
             }
           }
-          const created = await this.pushTask(task, localId, undefined);
+          const created = await this.pushTask(task, localId, undefined, container);
           state.records[key] = syncedRecord(localId, created, localSignature);
           delete state.pending[key];
           rememberRemote(created, localId);
@@ -238,7 +244,7 @@ export class AppleSyncService {
           direction = "push";
         }
         if (direction === "push") {
-          const updated = await this.pushTask(task, localId, remote.id);
+          const updated = await this.pushTask(task, localId, remote.id, reminderContainer(remote, record?.container || container));
           state.records[key] = syncedRecord(localId, updated, localSignature);
           result.pushed += 1;
         } else if (direction === "pull") {
@@ -261,6 +267,10 @@ export class AppleSyncService {
         const knownLocalId = remote.localId;
         const knownRecord = knownLocalId ? state.records[appleSyncRecordKey(kind, knownLocalId)] : undefined;
         if ((knownLocalId && allLocalById.has(knownLocalId)) || knownRecord) continue;
+        if (remote.completed && reminderContainer(remote, container) !== container) {
+          result.skipped += 1;
+          continue;
+        }
         const localId = knownLocalId || createLocalId();
         const key = appleSyncRecordKey(kind, localId);
         if (knownLocalId && !markAppleSyncPending(state, key, localId, "linked-remote-awaiting-local", now)) {
@@ -273,9 +283,10 @@ export class AppleSyncService {
           result.skipped += 1;
           continue;
         }
-        const linkedRemote = await this.options.bridge.upsert({
+        const remoteContainer = reminderContainer(remote, container);
+        const linkedRemote = withReminderContainer(await this.options.bridge.upsert({
           kind,
-          container,
+          container: remoteContainer,
           remoteId: remote.id,
           localId,
           title: remote.title,
@@ -287,7 +298,7 @@ export class AppleSyncService {
           reminderMinutesBefore: remote.reminderMinutesBefore,
           allDay: remote.allDay,
           priority: remote.priority
-        });
+        }), remoteContainer);
         const signature = remoteAppleSyncSignature(linkedRemote);
         state.records[key] = syncedRecord(localId, linkedRemote, signature);
         delete state.pending[key];
@@ -369,13 +380,26 @@ export class AppleSyncService {
     return this.options.taskIndex.getItems().filter(predicate);
   }
 
-  private async pushTask(task: TaskIndexItem, localId: string, remoteId: string | undefined): Promise<AppleSyncRemoteItem> {
+  private async listRemoteReminders(containers: string[]): Promise<AppleSyncRemoteItem[]> {
+    if (this.options.bridge.listMany) {
+      return (await this.options.bridge.listMany("reminders", containers)).map((item) => ({
+        ...item,
+        container: reminderContainer(item, containers[0] ?? "")
+      }));
+    }
+    const groups = await Promise.all(containers.map(async (container) => (
+      await this.options.bridge.list("reminders", container)
+    ).map((item) => ({ ...item, container: reminderContainer(item, container) }))));
+    return groups.flat();
+  }
+
+  private async pushTask(task: TaskIndexItem, localId: string, remoteId: string | undefined, container: string): Promise<AppleSyncRemoteItem> {
     const settings = this.options.getSettings();
     const kind = "reminders" as const;
     const reminder = taskReminderForApple(task);
-    return this.options.bridge.upsert({
+    return withReminderContainer(await this.options.bridge.upsert({
       kind,
-      container: settings.appleRemindersList,
+      container,
       remoteId,
       localId,
       title: appleTitleForKind(taskTitleForApple(task, settings.appleSyncTag), task.completed, kind),
@@ -387,13 +411,13 @@ export class AppleSyncService {
       reminderMinutesBefore: reminder.reminderMinutesBefore,
       allDay: reminder.allDay,
       priority: taskPriorityToApple(task.priority)
-    });
+    }), container);
   }
 
-  private async relinkRemote(remote: AppleSyncRemoteItem, localId: string): Promise<AppleSyncRemoteItem> {
-    return this.options.bridge.upsert({
+  private async relinkRemote(remote: AppleSyncRemoteItem, localId: string, container: string): Promise<AppleSyncRemoteItem> {
+    return withReminderContainer(await this.options.bridge.upsert({
       kind: "reminders",
-      container: this.options.getSettings().appleRemindersList,
+      container,
       remoteId: remote.id,
       localId,
       title: remote.title,
@@ -405,7 +429,7 @@ export class AppleSyncService {
       reminderMinutesBefore: remote.reminderMinutesBefore,
       allDay: remote.allDay,
       priority: remote.priority
-    });
+    }), container);
   }
 
   private async syncCalendarTasks(state: ReturnType<typeof normalizeAppleSyncState>, result: AppleSyncResult): Promise<void> {
@@ -519,9 +543,11 @@ function findRemoteForRecord(
   if (byLocalId) return byLocalId;
   const byRemoteId = remoteById.get(record.remoteId);
   if (byRemoteId && (!byRemoteId.localId || byRemoteId.localId === record.localId)) return byRemoteId;
+  const recordContainer = record.container?.trim() ?? "";
   const signatureMatches = remoteItems.filter((item) =>
     !claimedRemoteIds.has(item.id)
     && (!item.localId || item.localId === record.localId)
+    && (!recordContainer || reminderContainer(item, recordContainer) === recordContainer)
     && remoteAppleSyncSignature(item) === record.remoteSignature
   );
   return signatureMatches.length === 1 ? signatureMatches[0] : undefined;
@@ -599,11 +625,31 @@ function syncedRecord(localId: string, remote: AppleSyncRemoteItem, localSignatu
   return {
     localId,
     kind: remote.kind,
+    container: remote.container?.trim() || undefined,
     remoteId: remote.id,
     localSignature,
     remoteSignature: remoteAppleSyncSignature(remote),
     lastSyncedAt: new Date().toISOString()
   };
+}
+
+function uniqueReminderContainers(primary: string, imports: string[]): string[] {
+  const seen = new Set<string>();
+  return [primary, ...imports].flatMap((value) => {
+    const normalized = value.trim();
+    const key = normalized.toLocaleLowerCase();
+    if (!normalized || seen.has(key)) return [];
+    seen.add(key);
+    return [normalized];
+  });
+}
+
+function reminderContainer(item: Pick<AppleSyncRemoteItem, "container">, fallback: string): string {
+  return item.container?.trim() || fallback;
+}
+
+function withReminderContainer(item: AppleSyncRemoteItem, container: string): AppleSyncRemoteItem {
+  return { ...item, container: reminderContainer(item, container) };
 }
 
 function createLocalId(): string {

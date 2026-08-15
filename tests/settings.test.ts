@@ -121,6 +121,12 @@ describe("DEFAULT_SETTINGS", () => {
     });
   });
 
+  it("normalizes additional Apple Reminder import lists without enabling broad import by default", () => {
+    expect(DEFAULT_SETTINGS.appleReminderImportLists).toEqual([]);
+    expect(normalizeSettings({ appleReminderImportLists: ["提醒", " 提醒 ", "工作"] }).appleReminderImportLists).toEqual(["提醒", "工作"]);
+    expect(normalizeSettings({ appleReminderImportLists: "提醒, 工作\n个人" }).appleReminderImportLists).toEqual(["提醒", "工作", "个人"]);
+  });
+
   it("migrates the old weekly schedule-and-tasks default into upcoming", () => {
     expect(normalizeSettings({ taskCalendar: { defaultView: "week" } }).taskCalendar.defaultView).toBe("upcoming");
   });
