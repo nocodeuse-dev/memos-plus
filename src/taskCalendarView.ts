@@ -94,6 +94,7 @@ export class TaskCalendarView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.viewActive = true;
+    this.plugin.settings.taskCalendar.selectedDate = todayTaskCalendarDate();
     this.contentEl.addClass("memos-plus-task-calendar-view");
     this.unsubscribeTasks = this.plugin.taskIndex.onChange(() => this.handleTaskIndexChange());
     this.render();
@@ -125,7 +126,11 @@ export class TaskCalendarView extends ItemView {
 
   openDefault(): void {
     const navigation = this.plugin.settings.taskCalendar.defaultView;
-    this.applyOpenOptions({ navigation, viewMode: navigation === "upcoming" ? "week" : this.plugin.settings.taskCalendar.viewMode });
+    this.applyOpenOptions({
+      navigation,
+      selectedDate: todayTaskCalendarDate(),
+      viewMode: navigation === "upcoming" ? "week" : this.plugin.settings.taskCalendar.viewMode
+    });
   }
 
   openAll(): void {

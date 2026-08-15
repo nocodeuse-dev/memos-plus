@@ -402,6 +402,12 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(mainSource).toContain("任务收件箱");
   });
 
+  it("opens and restores the workspace on the current date by default", () => {
+    expect(viewSource).toContain("this.plugin.settings.taskCalendar.selectedDate = todayTaskCalendarDate();");
+    expect(viewSource).toContain("openDefault(): void");
+    expect(viewSource).toContain("selectedDate: todayTaskCalendarDate(),");
+  });
+
   it("keeps home and mobile shortcuts as explicit navigation actions", () => {
     const viewSource = readFileSync("src/view.ts", "utf8");
     expect(viewSource).toContain("renderTaskCalendarHomeEntry");
