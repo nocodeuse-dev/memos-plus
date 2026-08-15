@@ -1,4 +1,5 @@
 import { isMacOsDesktopRuntime } from "./appleSyncBridge";
+import { runAppleJxa } from "./appleJxaRunner";
 
 export interface AppleCalendarAgendaEvent {
   id: string;
@@ -31,7 +32,7 @@ export interface CreateAppleCalendarEventInput {
 
 const APPLE_CALENDAR_AGENDA_JXA = String.raw`
 function run(argv) {
-  const request = JSON.parse(argv[0] || "{}");
+  const request = JSON.parse(typeof MEMOS_PLUS_REQUEST_JSON === "string" ? MEMOS_PLUS_REQUEST_JSON : ((argv && argv[0]) || "{}"));
   if (request.operation === "create") return JSON.stringify(createEvent(request));
   const start = new Date(String(request.startDate) + "T00:00:00");
   const end = new Date(String(request.endDate) + "T00:00:00");
@@ -170,25 +171,11 @@ export class AppleCalendarAgendaService {
   }
 
   private runJxa<T>(request: Record<string, unknown>): Promise<T> {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- callers check the macOS-only guard before Node access.
-    const { execFile } = require("node:child_process") as typeof import("node:child_process");
-    return new Promise<T>((resolve, reject) => {
-      execFile(
-        "/usr/bin/osascript",
-        ["-l", "JavaScript", "-e", APPLE_CALENDAR_AGENDA_JXA, JSON.stringify(request)],
-        { timeout: APPLE_CALENDAR_AGENDA_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },
-        (error, stdout, stderr) => {
-          if (error) {
-            reject(new Error(normalizeAppleCalendarAgendaError(stderr || error.message)));
-            return;
-          }
-          try {
-            resolve(JSON.parse(stdout.trim()) as T);
-          } catch {
-            reject(new Error("Apple Calendar returned an invalid response"));
-          }
-        }
-      );
+    return runAppleJxa<T>(APPLE_CALENDAR_AGENDA_JXA, request, {
+      timeoutMs: APPLE_CALENDAR_AGENDA_TIMEOUT_MS,
+      timeoutMessage: "读取 Apple 日历超时或暂时不可用，请稍后点击“刷新日程”重试。",
+      invalidResponseMessage: "Apple Calendar returned an invalid response",
+      normalizeError: normalizeAppleCalendarAgendaError
     });
   }
 }
@@ -200,9 +187,7 @@ const agendaCache = new Map<string, { expiresAt: number; result: AppleCalendarAg
 const agendaRequests = new Map<string, Promise<AppleCalendarAgendaResult>>();
 
 /**
- * Node's child-process timeout error embeds the full `osascript -e` command in
- * `error.message`.  That command contains the whole JXA program, which must
- * never be rendered in the agenda UI (and makes the three-column view unusable).
+ * Keep low-level automation failures bounded before they reach the agenda UI.
  */
 export function normalizeAppleCalendarAgendaError(message: string): string {
   const clean = message.replace(/\s+/g, " ").trim();

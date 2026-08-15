@@ -256,14 +256,14 @@ describe("Schedule and tasks integration boundaries", () => {
 
   it("reads Apple Calendar only after the macOS guard and keeps agenda access separate from syncing", () => {
     const guardIndex = agendaSource.indexOf("if (!this.isAvailable())");
-    const requireIndex = agendaSource.indexOf('require("node:child_process")');
+    const runnerIndex = agendaSource.indexOf("this.runJxa<");
     expect(guardIndex).toBeGreaterThan(-1);
-    expect(requireIndex).toBeGreaterThan(guardIndex);
+    expect(runnerIndex).toBeGreaterThan(guardIndex);
     expect(agendaSource).not.toContain("upsert");
     expect(agendaSource).not.toContain("createContainer");
     expect(agendaSource).not.toContain("tasks.json");
     expect(agendaSource).toContain("APPLE_CALENDAR_AGENDA_TIMEOUT_MS");
-    expect(agendaSource).toContain("normalizeAppleCalendarAgendaError(stderr || error.message)");
+    expect(agendaSource).toContain("normalizeError: normalizeAppleCalendarAgendaError");
     expect(agendaSource).toContain("excludeGeneratedCalendars");
     expect(agendaSource).toContain("generatedCalendar(name)");
     expect(agendaSource).toContain("agendaRequests");

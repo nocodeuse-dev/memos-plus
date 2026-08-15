@@ -80,6 +80,22 @@ describe("TaskIndex helpers", () => {
     expect(taskDisplayTitle(item.text)).toBe("8月10日测试任务");
   });
 
+  it("keeps malformed duplicate task metadata out of the indexed title", () => {
+    const encoded = encodeURIComponent(JSON.stringify({ target: "reminders", dueTime: "17:31" }));
+    const legacy = `<!-- memos-plus-task- meta:${encoded} -->`;
+    const line = `- [ ] 大型同步任务 ${legacy.repeat(12_288)} 📅 2026-08-10 #Apple同步`;
+    const [item] = parseTaskIndexItemsFromMarkdown(line, {
+      filePath: "我的资源/Memos/任务收件箱.md",
+      fileName: "任务收件箱",
+      mtime: 456
+    });
+
+    expect(Buffer.byteLength(line)).toBeGreaterThan(1_000_000);
+    expect(item.title).toBe("大型同步任务");
+    expect(item.dueTime).toBe("17:31");
+    expect(item.title).not.toContain("<!--");
+  });
+
   it("falls back to the visible time marker and emits an immediate update when time changes", async () => {
     const file = {
       path: "我的资源/Memos/Apple 同步.md",

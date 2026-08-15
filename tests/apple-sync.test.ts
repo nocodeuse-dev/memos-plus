@@ -16,7 +16,7 @@ import {
 } from "../src/appleSync";
 import { AppleSyncService } from "../src/appleSyncService";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/settings";
-import type { AppleSyncBridge } from "../src/appleSyncBridge";
+import { normalizeAppleBridgeError, type AppleSyncBridge } from "../src/appleSyncBridge";
 import type { TaskIndex } from "../src/taskIndex";
 
 vi.mock("obsidian", () => ({
@@ -128,6 +128,27 @@ describe("Apple sync safety and merge helpers", () => {
     expect(updated.match(/#项目\/memosplus/gu)).toHaveLength(1);
   });
 
+  it("removes legacy duplicated task metadata from local and remote titles idempotently", () => {
+    const encoded = encodeURIComponent(JSON.stringify({ target: "reminders", dueTime: "14:30" }));
+    const legacy = `<!-- memos-plus-task- meta:${encoded} -->`;
+    const detail = "<!-- memos-plus-task-detail:%7B%22notes%22%3A%22保留%22%7D -->";
+    const line = `- [ ] 旧标题 ${legacy.repeat(6)} #项目/测试 #Apple同步 ${detail} <!-- memos-plus-apple-id:local-1 --> <!-- memos-plus-task-meta:${encoded} -->`;
+    const pollutedRemote = { ...remoteReminder, completed: false, completionDate: "", title: `Apple 干净标题 ${legacy.repeat(3)}` };
+
+    expect(taskTitleForApple({ text: line.replace(/^- \[ \] /u, "") }, "#Apple同步")).toBe("旧标题 #项目/测试");
+    const first = updateTaskLineFromApple(line, pollutedRemote, "#Apple同步", "local-1");
+    let repeated = first;
+    for (let index = 0; index < 12; index += 1) repeated = updateTaskLineFromApple(repeated, pollutedRemote, "#Apple同步", "local-1");
+
+    expect(repeated).toBe(first);
+    expect(first).not.toContain("memos-plus-task- meta:");
+    expect(first.match(/memos-plus-task-meta:/gu)).toHaveLength(1);
+    expect(first.match(/memos-plus-apple-id:/gu)).toHaveLength(1);
+    expect(first.match(/#Apple同步/gu)).toHaveLength(1);
+    expect(first).toContain("#项目/测试");
+    expect(first).toContain("memos-plus-task-detail:");
+  });
+
   it("keeps state records keyed by target and local id", () => {
     const key = appleSyncRecordKey("reminders", "local-1");
     const normalized = normalizeAppleSyncState({
@@ -151,10 +172,13 @@ describe("Apple sync source integration", () => {
   const serviceSource = readFileSync("src/appleSyncService.ts", "utf8");
   const mainSource = readFileSync("main.ts", "utf8");
 
-  it("uses execFile without a shell and limits deletion to linked reminders", () => {
-    expect(bridgeSource).toContain('execFile(\n        "/usr/bin/osascript"');
-    expect(bridgeSource).toContain('require("node:child_process")');
-    expect(bridgeSource).not.toContain('await import("node:child_process")');
+  it("uses the bounded stdin JXA runner and limits deletion to linked reminders", () => {
+    const runnerSource = readFileSync("src/appleJxaRunner.ts", "utf8");
+    expect(bridgeSource).toContain("runAppleJxa<T>(APPLE_SYNC_JXA, request");
+    expect(runnerSource).toContain('args: ["-l", "JavaScript"]');
+    expect(runnerSource).toContain("child.stdin.end(invocation.input");
+    expect(runnerSource).toContain('require("node:child_process")');
+    expect(runnerSource).not.toContain('await import("node:child_process")');
     expect(bridgeSource).not.toContain("shell: true");
     expect(bridgeSource).toContain('request.kind !== "reminders"');
     expect(bridgeSource).toContain("app.delete(reminder)");
@@ -167,16 +191,20 @@ describe("Apple sync source integration", () => {
     expect(bridgeSource).toContain("const bodies = safeArray(function () { return reminders.body(); });");
     expect(bridgeSource).toContain("const completionDates = safeArray(function () { return reminders.completionDate(); });");
     expect(bridgeSource).toContain("reminderRecordFromValues");
-    expect(bridgeSource).toContain("timeout: 60_000");
+    expect(bridgeSource).toContain("timeoutMs: 60_000");
     expect(bridgeSource).toContain("Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。");
   });
 
-  it("loads the desktop child-process bridge only after the macOS runtime guard", () => {
+  it("loads the shared child-process runner only after the macOS runtime guard", () => {
     const guardIndex = bridgeSource.indexOf("if (!isMacOsDesktopRuntime())");
-    const requireIndex = bridgeSource.indexOf('require("node:child_process")');
+    const runnerIndex = bridgeSource.indexOf("return runAppleJxa<T>");
 
     expect(guardIndex).toBeGreaterThan(-1);
-    expect(requireIndex).toBeGreaterThan(guardIndex);
+    expect(runnerIndex).toBeGreaterThan(guardIndex);
+  });
+
+  it("turns raw oversized-process errors into an actionable message", () => {
+    expect(normalizeAppleBridgeError("spawn /usr/bin/osascript E2BIG")).toContain("过大的 Apple 同步请求");
   });
 
   it("does not start Apple access unless the feature is enabled", () => {

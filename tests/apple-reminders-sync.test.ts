@@ -162,6 +162,52 @@ async function finishMissingGrace(test: ReturnType<typeof harness>): Promise<voi
 }
 
 describe("Apple Reminders bidirectional synchronization", () => {
+  it("self-heals duplicated legacy metadata before the first Apple write", async () => {
+    const encoded = encodeURIComponent(JSON.stringify({ target: "reminders", dueTime: "17:30", reminderMinutesBefore: 30 }));
+    const legacy = `<!-- memos-plus-task- meta:${encoded} -->`;
+    const canonical = `<!-- memos-plus-task-meta:${encoded} -->`;
+    const test = harness(`- [ ] 被污染任务 ${legacy.repeat(256)} 📅 2026-08-14 ⏰ 17:30 #Apple同步 ${canonical}\n`);
+
+    const first = await test.service.syncNow();
+    const second = await test.service.syncNow();
+    const source = test.vault.source("Tasks.md");
+    const record = Object.values(test.settings.appleSyncState.records)[0];
+
+    expect(first.pushed).toBe(1);
+    expect(second.unchanged).toBe(1);
+    expect(test.bridge.items).toHaveLength(1);
+    expect(test.bridge.items[0]?.title).toBe("被污染任务");
+    expect(source).not.toContain("memos-plus-task- meta:");
+    expect(source.match(/memos-plus-task-meta:/gu)).toHaveLength(1);
+    expect(record?.localSignature).not.toContain("memos-plus-task- meta:");
+    expect(record?.remoteSignature).not.toContain("memos-plus-task- meta:");
+    expect(record?.localSignature.length).toBeLessThan(4_096);
+    expect(record?.remoteSignature.length).toBeLessThan(4_096);
+  });
+
+  it("cleans an already polluted Apple title once and then remains unchanged", async () => {
+    const test = harness("- [ ] 远端自愈 📅 2026-08-14 #Apple同步\n");
+    await test.service.syncNow();
+    const encoded = encodeURIComponent(JSON.stringify({ target: "reminders", dueTime: "17:30" }));
+    const legacy = `<!-- memos-plus-task- meta:${encoded} -->`;
+    test.bridge.items[0] = {
+      ...test.bridge.items[0]!,
+      title: `远端自愈 ${legacy.repeat(64)}`,
+      modifiedAt: "2026-08-11T02:00:00.000Z"
+    };
+
+    const repaired = await test.service.syncNow();
+    const stable = await test.service.syncNow();
+
+    expect(repaired.pushed).toBe(1);
+    expect(stable.unchanged).toBe(1);
+    expect(test.bridge.items).toHaveLength(1);
+    expect(test.bridge.items[0]?.title).toBe("远端自愈");
+    const record = Object.values(test.settings.appleSyncState.records)[0];
+    expect(record?.localSignature.length).toBeLessThan(4_096);
+    expect(record?.remoteSignature.length).toBeLessThan(4_096);
+  });
+
   it("imports an Apple reminder once and keeps its stable identifier", async () => {
     const test = harness();
     test.bridge.items.push({

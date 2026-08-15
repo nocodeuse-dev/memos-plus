@@ -20,7 +20,7 @@ import {
   type AppleSyncRecord,
   type AppleSyncRemoteItem
 } from "./appleSync";
-import { parseMemosPlusTaskMetadata } from "./tasksFormat";
+import { canonicalizeMemosPlusTaskMetadata, parseMemosPlusTaskMetadata } from "./tasksFormat";
 import { isMacOsDesktopRuntime, type AppleSyncBridge, type AppleSyncProbeResult } from "./appleSyncBridge";
 import type { MemosPlusSettings } from "./settings";
 import type { TaskIndex, TaskIndexItem } from "./taskIndex";
@@ -231,6 +231,12 @@ export class AppleSyncService {
         if (direction === "none" && remote.completed && remote.completionDate && task.doneDate !== remote.completionDate) {
           direction = "pull";
         }
+        // A legacy malformed task-meta marker could previously leak into the
+        // Reminder title. Force one clean write-back instead of considering a
+        // sanitized comparison signature sufficient.
+        if (remote.title.trim() !== appleTitleForKind(remote.title, remote.completed, kind)) {
+          direction = "push";
+        }
         if (direction === "push") {
           const updated = await this.pushTask(task, localId, remote.id);
           state.records[key] = syncedRecord(localId, updated, localSignature);
@@ -335,7 +341,7 @@ export class AppleSyncService {
         localId = createLocalId();
       }
       seen.add(localId);
-      const replacement = attachAppleSyncId(task.line, localId);
+      const replacement = attachAppleSyncId(canonicalizeMemosPlusTaskMetadata(task.line), localId);
       if (replacement === task.line) {
         continue;
       }

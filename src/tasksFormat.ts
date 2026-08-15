@@ -41,7 +41,12 @@ export interface MemosPlusTaskMetadata {
   recurrence?: string;
 }
 
-const TASK_METADATA_RE = /<!--\s*memos-plus-task-meta:([^\s>]+)\s*-->/u;
+// Older damaged sync rounds may contain `memos-plus-task- meta` (with
+// horizontal whitespace before `meta`). Match that legacy form as well as the
+// canonical marker, and always treat every occurrence on the task line as
+// internal metadata. Deliberately avoid `\s` here so a marker cannot consume
+// across Markdown lines.
+const TASK_METADATA_RE = /<!--[ \t]*memos-plus-task-[ \t]*meta[ \t]*:[ \t]*([^\s>]+)[ \t]*-->/giu;
 
 export interface ProjectTaskOptions extends TasksMarkdownOptions {
   isTask: boolean;
@@ -66,7 +71,7 @@ const recurrenceRules: Record<Exclude<TaskRecurrence, "none" | "custom">, string
 };
 
 export function buildTasksMarkdownLine(content: string, options: TasksMarkdownOptions = {}, now = new Date()): string {
-  const body = normalizeTaskContent(content);
+  const body = stripMemosPlusTaskMetadata(normalizeTaskContent(content));
   const tokens = [
     normalizeTaskProjectTag(options.projectTag),
     priorityMarkers[normalizeTaskPriority(options.priority)],
@@ -167,27 +172,30 @@ export function normalizeTaskSyncTarget(value: unknown): TaskSyncTarget {
 }
 
 export function parseMemosPlusTaskMetadata(line: string): MemosPlusTaskMetadata | undefined {
-  const encoded = line.match(TASK_METADATA_RE)?.[1];
-  if (!encoded) return undefined;
-  try {
-    const parsed = JSON.parse(decodeURIComponent(encoded)) as Record<string, unknown>;
-    const target = normalizeTaskSyncTarget(parsed.target);
-    if (target === "tasks") return undefined;
-    return compactMetadata({
-      target,
-      startTime: normalizeTaskTime(parsed.startTime),
-      endDate: normalizeTaskDate(parsed.endDate),
-      endTime: normalizeTaskTime(parsed.endTime),
-      dueTime: normalizeTaskTime(parsed.dueTime),
-      reminderDate: normalizeTaskDate(parsed.reminderDate),
-      reminderTime: normalizeTaskTime(parsed.reminderTime),
-      reminderMinutesBefore: normalizeReminderMinutes(parsed.reminderMinutesBefore),
-      allDay: parsed.allDay === true,
-      recurrence: typeof parsed.recurrence === "string" ? parsed.recurrence.trim() : ""
-    });
-  } catch {
-    return undefined;
+  const encodedValues = Array.from(line.matchAll(TASK_METADATA_RE), (match) => match[1]).reverse();
+  for (const encoded of encodedValues) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(encoded)) as Record<string, unknown>;
+      const target = normalizeTaskSyncTarget(parsed.target);
+      if (target === "tasks") continue;
+      return compactMetadata({
+        target,
+        startTime: normalizeTaskTime(parsed.startTime),
+        endDate: normalizeTaskDate(parsed.endDate),
+        endTime: normalizeTaskTime(parsed.endTime),
+        dueTime: normalizeTaskTime(parsed.dueTime),
+        reminderDate: normalizeTaskDate(parsed.reminderDate),
+        reminderTime: normalizeTaskTime(parsed.reminderTime),
+        reminderMinutesBefore: normalizeReminderMinutes(parsed.reminderMinutesBefore),
+        allDay: parsed.allDay === true,
+        recurrence: typeof parsed.recurrence === "string" ? parsed.recurrence.trim() : ""
+      });
+    } catch {
+      // Keep looking from newest to oldest so one damaged duplicate cannot hide
+      // a valid canonical marker later on the line.
+    }
   }
+  return undefined;
 }
 
 export function stripMemosPlusTaskMetadata(line: string): string {
@@ -197,6 +205,11 @@ export function stripMemosPlusTaskMetadata(line: string): string {
 export function attachMemosPlusTaskMetadata(line: string, metadata: MemosPlusTaskMetadata): string {
   const clean = stripMemosPlusTaskMetadata(line);
   return `${clean} <!-- memos-plus-task-meta:${encodeURIComponent(JSON.stringify(compactMetadata(metadata)))} -->`;
+}
+
+export function canonicalizeMemosPlusTaskMetadata(line: string): string {
+  const metadata = parseMemosPlusTaskMetadata(line);
+  return metadata ? attachMemosPlusTaskMetadata(line, metadata) : stripMemosPlusTaskMetadata(line);
 }
 
 function recurrenceToken(options: TasksMarkdownOptions): string {

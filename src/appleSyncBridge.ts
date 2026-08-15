@@ -1,4 +1,5 @@
 import type { AppleSyncRemoteItem, AppleSyncTarget } from "./appleSync";
+import { runAppleJxa } from "./appleJxaRunner";
 
 export interface AppleSyncProbeResult {
   reminderLists: string[];
@@ -60,7 +61,7 @@ interface JxaRequest {
 
 const APPLE_SYNC_JXA = String.raw`
 function run(argv) {
-  const request = JSON.parse(argv[0] || "{}");
+  const request = JSON.parse(typeof MEMOS_PLUS_REQUEST_JSON === "string" ? MEMOS_PLUS_REQUEST_JSON : ((argv && argv[0]) || "{}"));
   if (request.operation === "probe") return JSON.stringify(probe(request.kind));
   if (request.operation === "create-container") return JSON.stringify(createContainer(request));
   if (request.operation === "list") return JSON.stringify(listItems(request));
@@ -463,26 +464,11 @@ export class MacOsAppleSyncBridge implements AppleSyncBridge {
     if (!isMacOsDesktopRuntime()) {
       throw new Error("Apple sync is available only in Obsidian Desktop on macOS");
     }
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Obsidian app:// cannot resolve dynamic Node imports; the runtime guard prevents mobile execution.
-    const { execFile } = require("node:child_process") as typeof import("node:child_process");
-    return new Promise<T>((resolve, reject) => {
-      execFile(
-        "/usr/bin/osascript",
-        ["-l", "JavaScript", "-e", APPLE_SYNC_JXA, JSON.stringify(request)],
-        { timeout: 60_000, maxBuffer: 10 * 1024 * 1024 },
-        (error, stdout, stderr) => {
-          if (error) {
-            const timedOut = error.killed || error.signal === "SIGTERM";
-            reject(new Error(timedOut ? "Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。" : normalizeAppleBridgeError(stderr || error.message)));
-            return;
-          }
-          try {
-            resolve(JSON.parse(stdout.trim()) as T);
-          } catch {
-            reject(new Error("Apple sync returned an invalid response"));
-          }
-        }
-      );
+    return runAppleJxa<T>(APPLE_SYNC_JXA, request, {
+      timeoutMs: 60_000,
+      timeoutMessage: "Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。",
+      invalidResponseMessage: "Apple sync returned an invalid response",
+      normalizeError: normalizeAppleBridgeError
     });
   }
 }
@@ -498,6 +484,12 @@ export function normalizeAppleBridgeError(message: string): string {
   }
   if (/timed out|timeout|ETIMEDOUT/i.test(clean)) {
     return "Apple 提醒事项仍在等待 iCloud 返回，请稍后自动重试。";
+  }
+  if (/E2BIG|argument list too long/i.test(clean)) {
+    return "macOS 拒绝了过大的 Apple 同步请求；插件会压缩任务元数据并自动重试。";
+  }
+  if (/EAGAIN|EMFILE|ENFILE|ENOMEM|resource temporarily unavailable/i.test(clean)) {
+    return "macOS 暂时无法启动 Apple 同步进程，请稍后自动重试。";
   }
   return clean.slice(0, 500) || "Apple sync failed";
 }

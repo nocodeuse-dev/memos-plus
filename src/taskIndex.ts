@@ -3,7 +3,7 @@ import type { OrganizerFilterId, OrganizerTaskBranchId } from "./organizerPanel"
 import { isOrganizerTaskBranchId } from "./organizerPanel";
 import { yieldToUi } from "./performance";
 import { parseTaskLines, type ParsedTaskLine, type TaskPriorityFilterValue } from "./taskSearch";
-import { parseMemosPlusTaskMetadata, type TaskSyncTarget } from "./tasksFormat";
+import { parseMemosPlusTaskMetadata, stripMemosPlusTaskMetadata, type TaskSyncTarget } from "./tasksFormat";
 
 export interface TaskIndexItem {
   filePath: string;
@@ -332,8 +332,8 @@ function taskIndexItemFromParsedTask(task: ParsedTaskLine, line: string, lineNum
 }
 
 export function taskDisplayTitle(text: string): string {
-  return text
-    .replace(/<!--\s*memos-plus-(?:task-meta:[^\s>]+|task-detail:[^\s>]+|apple-id:[^\s>]+)\s*-->/gu, " ")
+  return stripMemosPlusTaskMetadata(text)
+    .replace(/<!--[ \t]*memos-plus-(?:task-detail:[^\s>]+|apple-id:[^\s>]+)[ \t]*-->/giu, " ")
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
     .replace(/(?:📅|⏳|🛫|➕|✅)\s*\d{4}-\d{2}-\d{2}/gu, " ")
     .replace(/⏰\s*\d{1,2}:\d{2}/gu, " ")

@@ -164,10 +164,9 @@ export function shouldSyncCalendarTask(task: Pick<TaskIndexItem, "line">): boole
 }
 
 export function taskTitleForApple(task: Pick<TaskIndexItem, "text">, tag: string): string {
-  const cleaned = task.text
+  const cleaned = stripMemosPlusTaskMetadata(task.text)
     .replace(APPLE_SYNC_ID_RE, "")
     .replace(TASK_DETAIL_RE, "")
-    .replace(/<!--\s*memos-plus-task-meta:[^\s>]+\s*-->/gu, "")
     .replace(new RegExp(`(^|\\s)${escapeRegExp(normalizeAppleSyncTag(tag))}(?=\\s|$)`, "gu"), " ")
     .replace(/(?:🔺|⏫|🔼|🔽|⏬)/gu, " ")
     .replace(/(?:📅|⏳|🛫|➕|✅)\s*\d{4}-\d{2}-\d{2}/gu, " ")
@@ -237,7 +236,7 @@ function localTimeString(date: Date): string {
 
 export function remoteAppleSyncSignature(item: AppleSyncRemoteItem): string {
   return JSON.stringify({
-    title: item.title.trim(),
+    title: normalizeRemoteTitle(item.title, item.kind),
     completed: item.completed,
     dueDate: item.dueDate,
     dueTime: item.dueTime,
@@ -410,7 +409,11 @@ export function taskReminderForApple(task: Pick<TaskIndexItem, "line">): {
 }
 
 function normalizeRemoteTitle(title: string, kind: AppleSyncTarget): string {
-  const clean = title.trim();
+  const clean = stripMemosPlusTaskMetadata(title)
+    .replace(APPLE_SYNC_ID_RE, " ")
+    .replace(TASK_DETAIL_RE, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
   return dedupeHashTags(kind === "calendar" ? clean.replace(/^✓\s*/u, "").trim() : clean);
 }
 

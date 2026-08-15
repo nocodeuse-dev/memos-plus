@@ -30,6 +30,8 @@ Memos Plus 在 macOS Obsidian 桌面端把两类数据明确分开：Markdown �
 
 该 ID 同时写入 Apple Reminder 正文，并随 iCloud 在设备间同步，是跨 Mac / iPhone 重新关联的主键。Apple 返回的 `x-apple-reminder://…` identifier 只作为本机缓存；identifier 变化后会通过正文 ID 或唯一任务特征重新关联。不要在多个任务之间复制相同的 ID；同步器检测到重复 ID 时会为后续任务重新生成。
 
+精确时间与提醒等 Apple 专用字段保存在唯一的 `memos-plus-task-meta` 隐藏注释中。同步器兼容旧版本可能产生的 `memos-plus-task- meta` 空格形式；发现正常或畸形重复项时，会先读取最后一个有效值、删除所有副本，再写回一个标准注释。这个自愈过程不删除任务、正文、日期、标签、详情或 Apple 关联 ID。
+
 ## 同步内容
 
 Apple 提醒事项：
@@ -63,6 +65,7 @@ Apple 侧没有 Memos Plus ID 的项目会被导入为带同步标签的 Markdow
 ## 桌面与移动端
 
 - 系统桥接只在 macOS Obsidian Desktop 中执行。
+- JXA 程序和请求通过标准输入传给固定参数的 `osascript`，任务标题与日程备注不会进入 macOS argv，因此不会因内容过长触发 `spawn E2BIG`。
 - iPhone 上不会启动子进程、读取 Apple 应用或后台轮询。
 - Apple 应用自身通过 iCloud 把提醒事项/日历同步到 iPhone。
 - 在 iPhone Obsidian 中修改的 Markdown 任务，会在下次打开 macOS Obsidian 并执行同步时推送到 Apple。

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildTasksMarkdownLine, parseMemosPlusTaskMetadata, normalizeTaskPriority, normalizeTaskRecurrence } from "../src/tasksFormat";
+import {
+  attachMemosPlusTaskMetadata,
+  buildTasksMarkdownLine,
+  normalizeTaskPriority,
+  normalizeTaskRecurrence,
+  parseMemosPlusTaskMetadata,
+  stripMemosPlusTaskMetadata
+} from "../src/tasksFormat";
 
 describe("Tasks markdown formatter", () => {
   it("builds an Obsidian Tasks line with priority, due date, and created date", () => {
@@ -94,5 +101,26 @@ describe("Tasks markdown formatter", () => {
 
   it("leaves legacy Tasks lines unchanged when no sync target is selected", () => {
     expect(buildTasksMarkdownLine("历史任务", { dueDate: "2026-08-14", priority: "none" })).toBe("- [ ] 历史任务 📅 2026-08-14");
+  });
+
+  it("collapses every canonical and legacy task metadata marker without removing other comments", () => {
+    const oldMetadata = encodeURIComponent(JSON.stringify({ target: "reminders", dueTime: "09:15" }));
+    const latestMetadata = encodeURIComponent(JSON.stringify({ target: "reminders", dueTime: "17:30", reminderMinutesBefore: 30 }));
+    const legacy = `<!-- memos-plus-task- meta:${oldMetadata} -->`;
+    const canonical = `<!-- memos-plus-task-meta:${latestMetadata} -->`;
+    const line = `- [ ] 复诊 ${legacy} ${legacy} <!-- 普通注释 --> <!-- memos-plus-task-detail:abc --> <!-- memos-plus-apple-id:local-1 --> ${canonical}`;
+
+    expect(parseMemosPlusTaskMetadata(line)).toEqual({ target: "reminders", dueTime: "17:30", reminderMinutesBefore: 30 });
+    const stripped = stripMemosPlusTaskMetadata(line);
+    expect(stripped).not.toContain("memos-plus-task-meta:");
+    expect(stripped).not.toContain("memos-plus-task- meta:");
+    expect(stripped).toContain("<!-- 普通注释 -->");
+    expect(stripped).toContain("memos-plus-task-detail:abc");
+    expect(stripped).toContain("memos-plus-apple-id:local-1");
+
+    const attached = attachMemosPlusTaskMetadata(line, parseMemosPlusTaskMetadata(line)!);
+    expect(attached.match(/memos-plus-task-meta:/gu)).toHaveLength(1);
+    expect(attached).not.toContain("memos-plus-task- meta:");
+    expect(parseMemosPlusTaskMetadata(`- [ ] 旧任务 ${legacy}`)).toEqual({ target: "reminders", dueTime: "09:15" });
   });
 });
