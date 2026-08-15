@@ -3962,6 +3962,11 @@
 .memos-plus-task-calendar-summary-card.is-warning strong { color: var(--text-error); }
 .memos-plus-task-calendar-summary-card.is-completed strong { color: var(--text-success); }
 .memos-plus-task-calendar-summary-label { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.memos-plus-task-calendar-summary-action { border-top: 0; border-bottom: 0; border-left: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.memos-plus-task-calendar-summary-action:hover,
+.memos-plus-task-calendar-summary-action:focus-visible { background: var(--background-modifier-hover); }
+.memos-plus-task-calendar-summary-action.is-active { background: color-mix(in srgb, var(--text-success) 12%, transparent); }
+.memos-plus-task-calendar-summary-action.is-active .memos-plus-task-calendar-summary-label { color: var(--text-normal); }
 
 .memos-plus-task-calendar-nav {
   display: flex;

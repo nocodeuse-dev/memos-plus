@@ -190,6 +190,20 @@ describe("Schedule and tasks state", () => {
     expect(taskCalendarCompletedOnDate(task({ completed: false, dueDate: "2026-08-11" }), "2026-08-11")).toBe(false);
   });
 
+  it("filters the shared task list to tasks completed on the selected day", () => {
+    const tasks = [
+      task({ text: "今天完成", completed: true, doneDate: "2026-08-11", dueDate: "2026-08-10" }),
+      task({ text: "旧任务兼容", completed: true, dueDate: "2026-08-11" }),
+      task({ text: "昨天完成", completed: true, doneDate: "2026-08-10", dueDate: "2026-08-11" }),
+      task({ text: "未完成", completed: false, dueDate: "2026-08-11" })
+    ];
+
+    expect(taskCalendarTasks(tasks, "today", "2026-08-11", { completedOnDate: "2026-08-11" }).map((item) => item.text)).toEqual([
+      "今天完成",
+      "旧任务兼容"
+    ]);
+  });
+
   it("snaps a dropped task to the nearest 15-minute grid time", () => {
     expect(taskCalendarDropTime(737.1, 0)).toBe("17:30");
     expect(taskCalendarDropTime(-20, 0)).toBe("06:00");
@@ -332,6 +346,14 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).not.toContain("tasks.filter((task) => !task.completed && Boolean(task.dueTime)");
     expect(stylesSource).toContain(".memos-plus-task-calendar-timed-task.is-completed");
     expect(stylesSource).toContain("text-decoration: line-through");
+  });
+
+  it("opens today's completed tasks from the summary without duplicating task-row actions", () => {
+    expect(viewSource).toContain("summaryActionCard(");
+    expect(viewSource).toContain("this.openCompletedToday(selectedDate)");
+    expect(viewSource).toContain("completedOnDate");
+    expect(viewSource).toContain('"aria-pressed": String(active)');
+    expect(stylesSource).toContain(".memos-plus-task-calendar-summary-action.is-active");
   });
 
   it("refreshes Reminders with the task index and shows concrete Apple failures", () => {

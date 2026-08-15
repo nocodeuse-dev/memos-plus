@@ -17,6 +17,7 @@ export interface TaskCalendarTaskFilters {
   query?: string;
   priority?: TaskPriorityFilterValue | "all";
   project?: TaskCalendarProjectFilter | null;
+  completedOnDate?: string;
 }
 
 export interface TaskCalendarOpenOptions extends TaskCalendarTaskFilters {
@@ -208,7 +209,10 @@ export function taskCalendarTasks(
   const incomplete = items.filter((item) => !item.completed);
   const matchesDate = (item: TaskIndexItem) => taskDate(item) === date;
   let filtered: TaskIndexItem[];
-  switch (navigation) {
+  const completedOnDate = normalizeDate(filters.completedOnDate ?? "");
+  if (completedOnDate) {
+    filtered = items.filter((item) => taskCalendarCompletedOnDate(item, completedOnDate));
+  } else switch (navigation) {
     case "completed":
       filtered = items.filter((item) => item.completed);
       break;

@@ -75,6 +75,7 @@ export class TaskCalendarView extends ItemView {
   private projectNavExpanded = false;
   private hideCompletedToday = false;
   private quickTaskDraft = "";
+  private completedTasksDate = "";
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
     super(leaf);
@@ -138,6 +139,7 @@ export class TaskCalendarView extends ItemView {
   }
 
   applyOpenOptions(options: TaskCalendarOpenOptions = {}): void {
+    this.completedTasksDate = "";
     this.taskQuery = options.query?.trim().toLocaleLowerCase() ?? "";
     this.taskPriority = options.priority ?? "all";
     this.taskProject = options.project ?? null;
@@ -337,8 +339,9 @@ export class TaskCalendarView extends ItemView {
 
     const taskPane = layout.createDiv({ cls: "memos-plus-task-calendar-tasks" });
     const taskHeader = taskPane.createDiv({ cls: "memos-plus-task-calendar-pane-header" });
+    const showingCompletedToday = this.completedTasksDate === selectedDate;
     taskHeader.createEl("h3", {
-      text: [t(lang, `taskCalendar.nav.${state.navigation}`), this.taskProject?.label].filter(Boolean).join(" · ")
+      text: [showingCompletedToday ? t(lang, "taskCalendar.completedToday") : t(lang, `taskCalendar.nav.${state.navigation}`), this.taskProject?.label].filter(Boolean).join(" · ")
     });
     const hideTasks = this.iconButton(taskHeader, state.tasksPaneHidden ? "panel-right-open" : "panel-right-close", t(lang, "taskCalendar.toggleTasks"), () => void this.updateState({ tasksPaneHidden: !state.tasksPaneHidden }));
     hideTasks.addClass("memos-plus-task-calendar-tasks-toggle");
@@ -382,7 +385,7 @@ export class TaskCalendarView extends ItemView {
           }
         });
       });
-      this.renderTaskControls(taskPane, items, state.navigation, selectedDate);
+      this.renderTaskControls(taskPane, items, state.navigation, selectedDate, showingCompletedToday ? selectedDate : "");
     }
     const calendarNames = state.agendaCalendarNames;
     const agendaKey = this.agendaKey(range.startDate, range.endDate, calendarNames);
@@ -423,7 +426,14 @@ export class TaskCalendarView extends ItemView {
     const summary = container.createDiv({ cls: "memos-plus-task-calendar-today-summary", attr: { "aria-label": t(lang, "taskCalendar.todaySummary") } });
     summaryCard(summary, t(lang, "taskCalendar.summary.todo"), String(dueToday.length));
     summaryCard(summary, t(lang, "taskCalendar.summary.overdue"), String(overdue.length), overdue.length > 0 ? "is-warning" : "");
-    summaryCard(summary, t(lang, "taskCalendar.summary.completed"), String(completedToday.length), "is-completed");
+    summaryActionCard(
+      summary,
+      t(lang, "taskCalendar.summary.completed"),
+      String(completedToday.length),
+      () => this.openCompletedToday(selectedDate),
+      this.completedTasksDate === selectedDate,
+      "is-completed"
+    );
     summaryCard(summary, t(lang, "taskCalendar.summary.events"), String(events.length));
     summaryCard(summary, t(lang, "taskCalendar.summary.next"), next || t(lang, "taskCalendar.summary.none"), "is-wide");
   }
@@ -735,7 +745,8 @@ export class TaskCalendarView extends ItemView {
     container: HTMLElement,
     items: TaskIndexItem[],
     navigation: TaskCalendarNavigation,
-    selectedDate: string
+    selectedDate: string,
+    completedOnDate = ""
   ): void {
     const lang = this.plugin.settings.language;
     const controls = container.createDiv({ cls: "memos-plus-task-calendar-task-controls" });
@@ -787,7 +798,8 @@ export class TaskCalendarView extends ItemView {
       const tasks = taskCalendarTasks(items, navigation, selectedDate, {
         query: this.taskQuery,
         priority: this.taskPriority,
-        project: this.taskProject
+        project: this.taskProject,
+        completedOnDate
       });
       results.createDiv({
         cls: "memos-plus-task-calendar-task-summary",
@@ -1126,6 +1138,18 @@ export class TaskCalendarView extends ItemView {
     void this.updateState({ navigation });
   }
 
+  private openCompletedToday(selectedDate: string): void {
+    this.completedTasksDate = this.completedTasksDate === selectedDate ? "" : selectedDate;
+    this.selectedTaskKey = "";
+    this.resetTaskFilters();
+    const state = this.plugin.settings.taskCalendar;
+    const change: Partial<TaskCalendarSettings> = {};
+    if (!Platform.isMobile && state.tasksPaneHidden) change.tasksPaneHidden = false;
+    if (Platform.isMobile && state.mobileTab !== "tasks") change.mobileTab = "tasks";
+    if (Object.keys(change).length > 0) void this.updateState(change);
+    else this.renderForced();
+  }
+
   private resetTaskFilters(): void {
     this.taskQuery = "";
     this.taskPriority = "all";
@@ -1134,6 +1158,7 @@ export class TaskCalendarView extends ItemView {
   }
 
   private async updateState(change: Partial<TaskCalendarSettings>): Promise<void> {
+    if ("navigation" in change || "selectedDate" in change || "viewMode" in change) this.completedTasksDate = "";
     Object.assign(this.plugin.settings.taskCalendar, change);
     await this.plugin.persistSettings();
     this.renderForced();
@@ -1222,6 +1247,23 @@ function summaryCard(container: HTMLElement, label: string, value: string, extra
   const card = container.createDiv({ cls: `memos-plus-task-calendar-summary-card${extraClass ? ` ${extraClass}` : ""}` });
   card.createSpan({ cls: "memos-plus-task-calendar-summary-label", text: label });
   card.createEl("strong", { text: value });
+}
+
+function summaryActionCard(
+  container: HTMLElement,
+  label: string,
+  value: string,
+  onClick: () => void,
+  active: boolean,
+  extraClass = ""
+): void {
+  const button = container.createEl("button", {
+    cls: `memos-plus-task-calendar-summary-card memos-plus-task-calendar-summary-action${extraClass ? ` ${extraClass}` : ""}${active ? " is-active" : ""}`,
+    attr: { type: "button", "aria-pressed": String(active), title: label }
+  });
+  button.createSpan({ cls: "memos-plus-task-calendar-summary-label", text: label });
+  button.createEl("strong", { text: value });
+  button.addEventListener("click", onClick);
 }
 
 function nextScheduleLabel(tasks: TaskIndexItem[], events: AppleCalendarAgendaEvent[], date: string): string {
