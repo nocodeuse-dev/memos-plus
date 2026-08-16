@@ -644,7 +644,9 @@ export default class MemosPlusPlugin extends Plugin {
 
   async onUnifiedTaskWritten(file: TFile, task: ProjectTaskOptions): Promise<void> {
     await this.taskIndex.updateFile(file);
-    if (this.settings.appleSyncEnabled && task.syncTarget !== "tasks") await this.syncAppleNow(false);
+    if (this.settings.appleSyncEnabled && task.syncTarget !== "tasks") {
+      this.runAsyncOperation("sync Apple after unified task write", () => this.syncAppleNow(false));
+    }
   }
 
   async toggleTaskCalendarTask(item: TaskIndexItem): Promise<boolean> {

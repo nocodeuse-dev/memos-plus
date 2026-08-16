@@ -3465,6 +3465,12 @@
   white-space: normal;
 }
 
+.memos-plus-unified-task-destination-actions > button.is-selected {
+  border-color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 16%, var(--background-modifier-hover));
+  color: var(--text-normal);
+}
+
 @media (max-width: 760px) {
   .memos-plus-unified-task-modal-shell {
     width: calc(100vw - 16px);

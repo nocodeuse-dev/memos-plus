@@ -94,6 +94,23 @@ describe("unified task composer integration", () => {
     expect(mainSource).toContain("task.syncTarget !== \"tasks\"");
   });
 
+  it("closes after the local write instead of waiting for Apple synchronization", () => {
+    const postWrite = mainSource.slice(
+      mainSource.indexOf("async onUnifiedTaskWritten"),
+      mainSource.indexOf("async toggleTaskCalendarTask")
+    );
+    expect(postWrite).toContain('this.runAsyncOperation("sync Apple after unified task write"');
+    expect(postWrite).not.toContain("await this.syncAppleNow");
+    expect(composerSource).toContain('button.setAttr("aria-busy", "true")');
+    expect(composerSource).toContain('button.setText(t(this.plugin.settings.language, "unifiedTask.creating"))');
+  });
+
+  it("shows that the inbox is already selected instead of appearing unresponsive", () => {
+    expect(composerSource).toContain('this.inboxButtonEl?.toggleClass("is-selected", !target)');
+    expect(composerSource).toContain('this.inboxButtonEl?.setAttr("aria-pressed", String(!target))');
+    expect(stylesSource).toContain(".memos-plus-unified-task-destination-actions > button.is-selected");
+  });
+
   it("sizes the outer modal shell and keeps destination actions out of the path row", () => {
     expect(composerSource).toContain('this.modalEl.addClass("memos-plus-unified-task-modal-shell")');
     expect(composerSource).toContain('destination.createDiv({ cls: "memos-plus-unified-task-destination-actions" })');

@@ -130,6 +130,7 @@ class UnifiedTaskComposerModal extends Modal {
   private resolved = false;
   private target: ProjectSendChoice | null;
   private targetTextEl: HTMLElement | null = null;
+  private inboxButtonEl: HTMLButtonElement | null = null;
   private composer: UnifiedTaskComposer | null = null;
 
   constructor(
@@ -184,7 +185,12 @@ class UnifiedTaskComposerModal extends Modal {
     }
     const choose = destinationActions.createEl("button", { attr: { type: "button" }, text: t(lang, "unifiedTask.chooseDestination") });
     choose.addEventListener("click", () => void this.chooseTarget(choose));
-    const inbox = destinationActions.createEl("button", { attr: { type: "button" }, text: t(lang, "unifiedTask.useInbox") });
+    const inbox = destinationActions.createEl("button", {
+      attr: { type: "button", "aria-pressed": "false" },
+      text: t(lang, "unifiedTask.useInbox")
+    });
+    this.inboxButtonEl = inbox;
+    this.renderTargetText();
     inbox.addEventListener("click", () => {
       this.target = null;
       this.renderTargetText();
@@ -199,6 +205,7 @@ class UnifiedTaskComposerModal extends Modal {
 
   onClose(): void {
     this.contentEl.empty();
+    this.inboxButtonEl = null;
     if (!this.resolved) {
       this.resolved = true;
       this.onResolve(false);
@@ -237,12 +244,19 @@ class UnifiedTaskComposerModal extends Modal {
   private async create(button: HTMLButtonElement): Promise<void> {
     const value = this.composer?.value();
     if (!value?.content || !value.task) return;
+    const idleText = button.textContent ?? t(this.plugin.settings.language, "unifiedTask.create");
     button.disabled = true;
+    button.setAttr("aria-busy", "true");
+    button.setText(t(this.plugin.settings.language, "unifiedTask.creating"));
     try {
       const created = await this.plugin.createUnifiedTask(value.content, value.task, this.target);
       if (created) this.finish(true);
     } finally {
-      if (button.isConnected) button.disabled = false;
+      if (button.isConnected) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        button.setText(idleText);
+      }
     }
   }
 
@@ -253,6 +267,8 @@ class UnifiedTaskComposerModal extends Modal {
       ? `${target.file.basename}${target.section ? ` · ${target.section}` : ""}`
       : `${t(this.plugin.settings.language, "unifiedTask.taskInbox")} · ${this.plugin.settings.taskCalendar.inboxPath}`);
     this.targetTextEl.setAttr("title", target?.file.path ?? this.plugin.settings.taskCalendar.inboxPath);
+    this.inboxButtonEl?.toggleClass("is-selected", !target);
+    this.inboxButtonEl?.setAttr("aria-pressed", String(!target));
   }
 
   private finish(created: boolean): void {
