@@ -5,6 +5,10 @@ import { t, type Language } from "./i18n";
 import { taskAtMarkdownLine } from "./currentTaskEditor";
 import type { TaskIndexItem } from "./taskIndex";
 import { taskMetadataRangesForLine } from "./taskMetadataRanges";
+import {
+  normalizeTaskCheckboxCompletion,
+  taskCheckboxCompletionTransition
+} from "./taskCheckboxCompletion";
 
 export interface TaskMetadataEditorHost {
   settings: { language: Language };
@@ -40,6 +44,8 @@ class TaskMetadataEditHint extends WidgetType {
 class TaskMetadataEditorValue {
   decorations: DecorationSet;
   private mouseDown: { target: HTMLElement; x: number; y: number; hadSelection: boolean } | null = null;
+  private readonly pendingCheckboxTransitions = new Map<number, PendingCheckboxTransition>();
+  private completionNormalizationTimer: number | null = null;
 
   constructor(private readonly view: EditorView, private readonly host: TaskMetadataEditorHost) {
     this.decorations = buildTaskMetadataDecorations(view, host.settings.language);
@@ -49,6 +55,13 @@ class TaskMetadataEditorValue {
     if (update.docChanged || update.viewportChanged) {
       this.decorations = buildTaskMetadataDecorations(update.view, this.host.settings.language);
     }
+    if (update.docChanged) this.captureCheckboxTransitions(update);
+  }
+
+  destroy(): void {
+    if (this.completionNormalizationTimer !== null) window.clearTimeout(this.completionNormalizationTimer);
+    this.completionNormalizationTimer = null;
+    this.pendingCheckboxTransitions.clear();
   }
 
   onMouseDown(event: MouseEvent): boolean {
@@ -99,6 +112,43 @@ class TaskMetadataEditorValue {
       return null;
     }
   }
+
+  private captureCheckboxTransitions(update: ViewUpdate): void {
+    update.changes.iterChangedRanges((fromA, _toA, fromB) => {
+      const before = update.startState.doc.lineAt(fromA);
+      const after = update.state.doc.lineAt(fromB);
+      const transition = taskCheckboxCompletionTransition(before.text, after.text);
+      if (!transition) return;
+      this.pendingCheckboxTransitions.set(after.number, { beforeLine: before.text, expectedLine: after.text });
+    });
+    if (this.pendingCheckboxTransitions.size === 0 || this.completionNormalizationTimer !== null) return;
+    // Native checkbox handling owns the initial editor transaction. Scheduling
+    // the metadata follow-up avoids dispatching from a ViewPlugin update while
+    // still making the date/time visible on the next frame.
+    this.completionNormalizationTimer = window.setTimeout(() => {
+      this.completionNormalizationTimer = null;
+      this.normalizeCheckboxCompletions();
+    }, 0);
+  }
+
+  private normalizeCheckboxCompletions(): void {
+    const pending = [...this.pendingCheckboxTransitions.entries()];
+    this.pendingCheckboxTransitions.clear();
+    const changes: Array<{ from: number; to: number; insert: string }> = [];
+    for (const [lineNumber, entry] of pending) {
+      if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) continue;
+      const line = this.view.state.doc.line(lineNumber);
+      if (line.text !== entry.expectedLine) continue;
+      const replacement = normalizeTaskCheckboxCompletion(entry.beforeLine, line.text);
+      if (replacement !== line.text) changes.push({ from: line.from, to: line.to, insert: replacement });
+    }
+    if (changes.length > 0) this.view.dispatch({ changes });
+  }
+}
+
+interface PendingCheckboxTransition {
+  beforeLine: string;
+  expectedLine: string;
 }
 
 const TaskMetadataEditorPlugin = ViewPlugin.fromClass(TaskMetadataEditorValue, {

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { taskAtMarkdownLine } from "../src/currentTaskEditor";
 import { taskMetadataRangesForLine } from "../src/taskMetadataRanges";
+import { normalizeTaskCheckboxCompletion, taskCheckboxCompletionTransition } from "../src/taskCheckboxCompletion";
 
 const mainSource = readFileSync("main.ts", "utf8");
 const modalSource = readFileSync("src/taskCalendarTaskEditorModal.ts", "utf8");
@@ -40,6 +41,26 @@ describe("current Markdown task editor", () => {
     expect(taskMetadataRangesForLine("普通正文 #标签")).toEqual([]);
   });
 
+  it("recognizes native Markdown checkbox completion and reopening without guessing timestamps", () => {
+    expect(taskCheckboxCompletionTransition("- [ ] 复诊 📅 2026-08-21", "- [x] 复诊 📅 2026-08-21")).toBe("completed");
+    expect(taskCheckboxCompletionTransition("- [x] 复诊 ✅ 2026-08-21", "- [ ] 复诊 ✅ 2026-08-21")).toBe("reopened");
+    expect(taskCheckboxCompletionTransition("- [x] 已完成", "- [x] 已完成")).toBeNull();
+    expect(taskCheckboxCompletionTransition("普通正文", "普通正文")).toBeNull();
+  });
+
+  it("writes an exact local completion timestamp after a native checkbox click and clears it on reopen", () => {
+    const completed = normalizeTaskCheckboxCompletion(
+      "- [ ] 复诊 📅 2026-08-21",
+      "- [x] 复诊 📅 2026-08-21",
+      new Date(2026, 7, 20, 21, 28, 45)
+    );
+    expect(completed).toContain("✅ 2026-08-20");
+    expect(completed).toContain("completedAt%22%3A%222026-08-20T21%3A28%3A45");
+    const reopened = normalizeTaskCheckboxCompletion(completed, completed.replace("[x]", "[ ]"));
+    expect(reopened).not.toContain("✅ 2026-08-20");
+    expect(reopened).not.toContain("completedAt");
+  });
+
   it("registers a shortcut-configurable command and task-only editor context menu", () => {
     expect(mainSource).toContain('id: "edit-current-task"');
     expect(mainSource).toContain('name: t(this.settings.language, "command.editCurrentTask")');
@@ -52,6 +73,8 @@ describe("current Markdown task editor", () => {
     expect(metadataEditorSource).toContain("nativeLinkOrTagTarget");
     expect(metadataEditorSource).toContain("hadSelection");
     expect(metadataEditorSource).toContain("openTaskCalendarTaskEditor(task)");
+    expect(metadataEditorSource).toContain("captureCheckboxTransitions(update)");
+    expect(metadataEditorSource).toContain("normalizeTaskCheckboxCompletion(entry.beforeLine, line.text)");
     expect(stylesSource).toContain(".memos-plus-task-editor-metadata:hover");
     expect(stylesSource).toContain(".memos-plus-task-editor-inline-hint");
   });
