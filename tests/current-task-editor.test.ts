@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { taskAtMarkdownLine } from "../src/currentTaskEditor";
+import { taskMetadataRangesForLine } from "../src/taskMetadataRanges";
 
 const mainSource = readFileSync("main.ts", "utf8");
 const modalSource = readFileSync("src/taskCalendarTaskEditorModal.ts", "utf8");
 const editorUiSource = readFileSync("src/taskCalendarTaskEditorUi.ts", "utf8");
 const calendarViewSource = readFileSync("src/taskCalendarView.ts", "utf8");
+const metadataEditorSource = readFileSync("src/taskMetadataEditor.ts", "utf8");
+const stylesSource = readFileSync("styles.css", "utf8");
 
 const file = {
   path: "我的资源/任务.md",
@@ -30,6 +33,13 @@ describe("current Markdown task editor", () => {
     expect(taskAtMarkdownLine("普通正文", 3, file as never)).toBeNull();
   });
 
+  it("recognizes visible task detail tokens while leaving ordinary body text alone", () => {
+    const line = "- [ ] 复诊内容 📅 2026-08-21 ⏰ 17:00 🔔 30分钟 🔼 #项目/门诊";
+    const ranges = taskMetadataRangesForLine(line).map((range) => line.slice(range.from, range.to));
+    expect(ranges).toEqual(expect.arrayContaining(["📅 2026-08-21", "⏰ 17:00", "🔔 30分钟", "🔼", "#项目/门诊"]));
+    expect(taskMetadataRangesForLine("普通正文 #标签")).toEqual([]);
+  });
+
   it("registers a shortcut-configurable command and task-only editor context menu", () => {
     expect(mainSource).toContain('id: "edit-current-task"');
     expect(mainSource).toContain('name: t(this.settings.language, "command.editCurrentTask")');
@@ -38,6 +48,12 @@ describe("current Markdown task editor", () => {
     expect(mainSource).toContain('this.app.workspace.on("editor-menu"');
     expect(mainSource).toContain('setTitle(t(this.settings.language, "taskCalendar.editTask"))');
     expect(mainSource).toContain('new Notice(t(this.settings.language, "notice.currentLineNotTask"))');
+    expect(mainSource).toContain("this.registerEditorExtension(createTaskMetadataEditorExtension(this))");
+    expect(metadataEditorSource).toContain("nativeLinkOrTagTarget");
+    expect(metadataEditorSource).toContain("hadSelection");
+    expect(metadataEditorSource).toContain("openTaskCalendarTaskEditor(task)");
+    expect(stylesSource).toContain(".memos-plus-task-editor-metadata:hover");
+    expect(stylesSource).toContain(".memos-plus-task-editor-inline-hint");
   });
 
   it("uses one shared task editor UI in both the workspace and modal", () => {
@@ -47,5 +63,7 @@ describe("current Markdown task editor", () => {
     expect(editorUiSource).toContain('taskCalendar.detail.syncTarget');
     expect(editorUiSource).toContain('taskCalendar.detail.reminderTime');
     expect(editorUiSource).toContain('taskCalendar.detail.relatedNote');
+    expect(stylesSource).toContain(".modal-container:has(.memos-plus-task-editor-modal) .modal");
+    expect(stylesSource).toContain(".memos-plus-task-editor-modal .memos-plus-task-calendar-task-detail-grid");
   });
 });

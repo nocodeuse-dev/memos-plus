@@ -4277,8 +4277,27 @@ button.memos-plus-unified-task-preview:focus-visible {
 .memos-plus-task-calendar-postpone button,
 .memos-plus-task-calendar-task-detail-actions button { min-height: 28px; border: 1px solid var(--background-modifier-border); border-radius: 5px; padding: 4px 8px; background: var(--background-secondary); color: var(--text-normal); cursor: pointer; }
 .memos-plus-task-calendar-task-detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding-top: 4px; }
-.memos-plus-task-editor-modal { width: min(720px, calc(100vw - 32px)); max-height: min(82vh, 780px); overflow: auto; }
-.memos-plus-task-editor-modal .memos-plus-task-calendar-task-details { overflow: visible; }
+/* Markdown task detail hot zones keep normal text editing intact: only the
+   recognized task tokens receive the subtle affordance. */
+.memos-plus-task-editor-metadata { border-radius: 3px; color: var(--text-muted); cursor: pointer; text-decoration: underline dotted color-mix(in srgb, var(--interactive-accent) 45%, transparent); text-underline-offset: 2px; transition: background-color 80ms ease, color 80ms ease; }
+.memos-plus-task-editor-metadata:hover { background: color-mix(in srgb, var(--interactive-accent) 14%, transparent); color: var(--text-accent); }
+.memos-plus-task-editor-metadata:active { background: color-mix(in srgb, var(--interactive-accent) 22%, transparent); }
+.memos-plus-task-editor-inline-hint { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 5px; border-radius: 3px; color: var(--text-faint); cursor: pointer; font-size: 11px; line-height: 1; vertical-align: text-bottom; }
+.memos-plus-task-editor-inline-hint:hover { background: var(--background-modifier-hover); color: var(--text-accent); }
+.memos-plus-task-editor-inline-hint:active { background: var(--background-modifier-active-hover); }
+
+/* The same task editor is used from the workbench and Markdown. Constrain the
+   modal shell, not individual form fields, so every field stays reachable on
+   small desktop windows and mobile screens. */
+.modal-container:has(.memos-plus-task-editor-modal) .modal { display: flex; flex-direction: column; width: min(760px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); }
+.memos-plus-task-editor-modal { width: 100%; max-width: none; max-height: none; overflow-x: hidden; overflow-y: auto; padding-right: 2px; }
+.memos-plus-task-editor-modal .memos-plus-task-calendar-task-details { min-width: 0; overflow: visible; }
+
+@media (max-width: 560px) {
+  .modal-container:has(.memos-plus-task-editor-modal) .modal { width: calc(100vw - 14px); max-width: calc(100vw - 14px); max-height: calc(100vh - 14px); }
+  .memos-plus-task-editor-modal .memos-plus-task-calendar-task-detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .memos-plus-task-editor-modal .memos-plus-task-calendar-task-detail-actions { position: sticky; bottom: 0; padding: 8px 0 calc(env(safe-area-inset-bottom, 0px) + 4px); background: var(--background-primary); }
+}
 
 /* Learning cards intentionally reuse the task calendar surface without adding a
    second dense dashboard.  These rules use Obsidian theme variables so the

@@ -50,6 +50,7 @@ import { deliverContentToProjectChoice } from "./src/projectDelivery";
 import { openUnifiedTaskComposer, type OpenUnifiedTaskComposerOptions } from "./src/unifiedTaskComposer";
 import { LearningCardService } from "./src/learning/learningCardService";
 import { LearningReviewModal } from "./src/learning/learningReviewModal";
+import { createTaskMetadataEditorExtension } from "./src/taskMetadataEditor";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -148,6 +149,7 @@ export default class MemosPlusPlugin extends Plugin {
     this.registerView(MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE, (leaf: WorkspaceLeaf) => new TaskCalendarView(leaf, this));
     this.registerEditorSuggest(new MemosPlusTagSuggest(this.app));
     this.registerEditorSuggest(new MemosPlusLinkSuggest(this.app));
+    this.registerEditorExtension(createTaskMetadataEditorExtension(this));
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
       const task = taskAtEditorCursor(editor, info.file);
       if (!task) return;
