@@ -45,6 +45,12 @@ import { getTaskIndexOrganizerCounts, type TaskIndexStatus } from "./taskIndex";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
 import { taskCalendarTasks, todayTaskCalendarDate } from "./taskCalendar";
 import { TaskCalendarView } from "./taskCalendarView";
+import {
+  renderWorkbenchNavigation as renderSharedWorkbenchNavigation,
+  workbenchNavigationCounts,
+  workbenchTaskRouteOptions,
+  type WorkbenchDirectoryOptions
+} from "./workbenchNavigation";
 import { VaultSavedSearchIndex, type VaultSearchResult } from "./vaultSearch";
 import {
   hasSidebarDirectoryModules,
@@ -188,6 +194,19 @@ export class MemosPlusView extends ItemView {
     this.restoreMainScrollPosition(scrollPosition);
   }
 
+  /** Applies a directory route after the shared workbench switches back here. */
+  async applyWorkbenchDirectoryOptions(options: WorkbenchDirectoryOptions = {}): Promise<void> {
+    const organizer = options.organizer ?? "";
+    this.mode = "all";
+    this.year = "";
+    this.tag = "";
+    this.activeSavedSearchId = "";
+    this.activeOrganizerSectionId = organizer;
+    this.query = options.query?.trim() ?? "";
+    this.visibleCount = this.pageSize();
+    await this.reload();
+  }
+
   async render(): Promise<void> {
     logMemosPlusDiagnostic("view:render", { type: MEMOS_PLUS_VIEW_TYPE });
     logMemosPlusDiagnostic("view:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
@@ -243,6 +262,7 @@ export class MemosPlusView extends ItemView {
     const lang = this.plugin.settings.language;
     const today = todayString();
     const sidebar = shell.createDiv({ cls: "memos-plus-sidebar" });
+    this.renderWorkbenchNavigation(sidebar);
     const moduleOrder =
       options.moduleOrder && options.moduleOrder.length > 0 ? orderedModulesInGroup(options.moduleOrder, DEFAULT_SIDEBAR_MODULE_ORDER) : [...DEFAULT_SIDEBAR_MODULE_ORDER];
     const rendered = new Set<string>();
@@ -293,11 +313,10 @@ export class MemosPlusView extends ItemView {
         this.renderOrganizerDirectory(sidebar, { showSections: true, showTasks: false });
         continue;
       }
-      if (moduleId === "taskDirectory" && renderOptions.showTasks && !rendered.has("taskDirectory")) {
-        rendered.add("taskDirectory");
-        this.renderOrganizerDirectory(sidebar, { showSections: false, showTasks: true });
-        continue;
-      }
+      // Task routes now live in the shared workbench navigation above.  The
+      // old organizer task directory would otherwise create a second task
+      // sidebar with different routes and counts.
+      if (moduleId === "taskDirectory") continue;
       if (
         (moduleId === "projectDirectory" || moduleId === "projectFilters" || moduleId === "tagFilters") &&
         renderOptions.showCustomDirectory &&
@@ -325,8 +344,9 @@ export class MemosPlusView extends ItemView {
       const titleWrap = header.createDiv();
       titleWrap.createDiv({ cls: "memos-plus-title", text: t(lang, "app.name") });
       titleWrap.createDiv({ cls: "memos-plus-subtitle", text: this.plugin.settings.memoFolderPath });
+      // Existing users can keep this compact summary shortcut; it switches the
+      // same workbench leaf instead of opening a parallel task surface.
       this.renderTaskCalendarHomeEntry(main);
-
       let toolbar: HTMLElement | null = null;
       await renderLayoutSurface({
         surface: activeSurface,
@@ -407,7 +427,6 @@ export class MemosPlusView extends ItemView {
     });
     full.addEventListener("click", () => this.showFullWorkbench());
     this.renderTaskCalendarHomeEntry(home, "memos-plus-task-calendar-home-entry-mobile");
-
     await renderLayoutSurface({
       surface: "mobile",
       layout: mobileLayout,
@@ -543,7 +562,30 @@ export class MemosPlusView extends ItemView {
     });
     entry.createSpan({ cls: "memos-plus-task-calendar-home-entry-arrow", text: "→", attr: { "aria-hidden": "true" } });
     entry.addEventListener("click", () => {
-      void this.plugin.openTaskCalendar({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" });
+      void this.plugin.openTaskCalendar({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" }, this.leaf);
+    });
+  }
+
+  private renderWorkbenchNavigation(container: HTMLElement): void {
+    const today = todayTaskCalendarDate();
+    renderSharedWorkbenchNavigation(container, {
+      language: this.plugin.settings.language,
+      activeSection: "directory",
+      counts: workbenchNavigationCounts(this.plugin.taskIndex.getItems(), this.plugin.learningCards.cards(), today),
+      onDirectory: () => void this.applyWorkbenchDirectoryOptions(),
+      onTask: (route) => void this.plugin.openTaskCalendar(workbenchTaskRouteOptions(route, today), this.leaf),
+      onLearning: (filter) => void this.plugin.openTaskCalendar({
+        navigation: "today",
+        selectedDate: today,
+        viewMode: "day",
+        learningFilter: filter
+      }, this.leaf),
+      onProjects: () => void this.plugin.openTaskCalendar({
+        navigation: "all",
+        selectedDate: today,
+        viewMode: "day",
+        showProjects: true
+      }, this.leaf)
     });
   }
 
@@ -1033,7 +1075,7 @@ export class MemosPlusView extends ItemView {
 
   private selectOrganizerSection(id: OrganizerFilterId): void {
     if (id === "tasks" || isOrganizerTaskBranchId(id)) {
-      void this.plugin.openTaskCalendarFromOrganizer(id);
+      void this.plugin.openTaskCalendarFromOrganizer(id, this.leaf);
       return;
     }
     this.mode = "all";
@@ -1891,10 +1933,10 @@ export class MemosPlusView extends ItemView {
       });
     };
     addAction("check-square", t(lang, "taskCalendar.quickAction.task"), () => {
-      void this.plugin.openTaskCalendar({ focusQuickTask: true });
+      void this.plugin.openTaskCalendar({ focusQuickTask: true }, this.leaf);
     });
     addAction("calendar-plus", t(lang, "taskCalendar.quickAction.event"), () => {
-      void this.plugin.activateTaskCalendarView().then((leaf) => {
+      void this.plugin.activateTaskCalendarView(this.leaf).then((leaf) => {
         const view = leaf?.view;
         if (view instanceof TaskCalendarView) view.openEventComposer();
       });

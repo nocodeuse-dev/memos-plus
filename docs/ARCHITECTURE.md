@@ -23,7 +23,8 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - 项目分类兼容：旧 `projectSections` 字段仍用于创建项目文件的默认标题骨架和旧配置迁移；投递弹窗不再显示固定分类按钮。
 - Tasks 格式兼容：可生成 Obsidian Tasks 风格任务行。
 - Apple 任务同步：macOS 桌面端将带指定标签的普通 Markdown 任务与 Apple Reminders 双向同步；只有统一任务表单明确选择 Calendar 的时间段任务才写入 Apple Calendar，移动端不直接访问系统 API。
-- 日程与任务工作台：独立工作区按当前日/周只读显示默认常用或用户指定的 Apple 日历日程，并复用全库 Markdown `TaskIndex` 管理今天、收件箱、即将到来、逾期、全部和已完成任务；项目只作为任务列表与时间轴共用的筛选条件。右侧任务可拖到时间轴排期，点击后在同一右栏编辑既有 Markdown 任务；快速输入调用共享 `UnifiedTaskComposer` 解析日期、时间、提醒、标签和优先级，并可复用现有文件/标题目标选择。共享任务弹窗由外层 shell 统一限制宽度，发送路径和目标操作分层自适应布局，内容区仅纵向滚动；不建立第二套任务数据库，也不改写 Apple 同步桥接层。
+- 统一工作台导航：`src/workbenchNavigation.ts` 是目录、任务、学习和项目的唯一导航声明。主页和日程 ItemView 复用它，并在当前 `WorkspaceLeaf` 内替换内容视图，避免并行维护两套功能侧栏。目录继续复用主页的 memo/目录/检索式/自定义筛选；任务、学习、项目只转发到既有 TaskIndex、学习卡和时间轴组件，不创建第二套数据源。
+- 日程与任务工作台：按当前日/周只读显示默认常用或用户指定的 Apple 日历日程，并复用全库 Markdown `TaskIndex` 管理待处理、今日新增、逾期和已完成任务；项目只作为任务列表与时间轴共用的筛选条件。右侧任务可拖到时间轴排期，点击后在同一右栏编辑既有 Markdown 任务；快速输入调用共享 `UnifiedTaskComposer` 解析日期、时间、提醒、标签和优先级，并可复用现有文件/标题目标选择。共享任务弹窗由外层 shell 统一限制宽度，发送路径和目标操作分层自适应布局，内容区仅纵向滚动；不建立第二套任务数据库，也不改写 Apple 同步桥接层。
 - 学习复习卡：`src/learning/fsrs.ts` 只负责轻量 FSRS 状态迁移与下次复习时间；`src/learning/learningCards.ts` 保存来源文件/标题/内容锚点、最小快照和调度状态并在打开卡片时优先读取当前 Markdown；`LearningCardService` 只协调持久化，`LearningReviewModal` 只渲染回忆、答案和四档评分。收录回调在既有 Markdown 写入成功后检测 `#学习` 并去重创建卡片，绝不扫描 Vault、构建全文索引或介入 Apple 同步。工作台左栏的学习分类由 FSRS 状态动态计算，移动端复用单栏“学习”标签。
 - 快速任务面板：右下角状态栏入口由 `src/quickTaskPanel.ts` 提供短生命周期浮层/移动端底部抽屉，直接读取现有 `TaskIndex`；新增任务调用共享 `UnifiedTaskComposer`，完成、来源定位和编辑继续调用插件既有方法。`src/quickTaskPanelModel.ts` 只负责今天、近 7 天、重要、逾期的纯筛选，不建立缓存、索引或同步状态。
 - Callout 相关功能：输入框工具栏可切换 Callout 模式，长内容/链接内容可自动包装为 Obsidian Callout。
@@ -64,7 +65,8 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/learning/learningReviewModal.ts`：专注学习模式；仅调用学习卡服务读取当前来源、保存评分并进入下一张。
 - `src/taskCalendarTaskEditor.ts`：工作台任务详情与拖放排期使用的纯 Markdown 行适配器；保留 Apple 唯一标识和既有同步元数据。
 - `src/taskCalendarEditSession.ts`：右侧任务编辑的短生命周期本地状态与串行保存队列。字段先更新乐观任务快照，再合并写入 Markdown；Apple 同步只更新独立状态，不参与表单反馈或重绘。
-- `src/taskCalendarView.ts`：独立“日程与任务”ItemView，负责桌面三栏与移动端标签切换、任务搜索、优先级/项目筛选、分批加载、自然语言快速新增预览、完成、编辑、跳转和当前日/周的日程渲染。
+- `src/workbenchNavigation.ts`：统一工作台左侧路由、数量和视图适配器；仅读取 TaskIndex 与学习卡服务，不建立索引或保存另一份状态。
+- `src/taskCalendarView.ts`：日程内容 ItemView，负责桌面三栏与移动端标签切换、任务搜索、优先级/项目筛选、分批加载、自然语言快速新增预览、完成、编辑、跳转和当前日/周的日程渲染。
 - `src/quickTaskPanel.ts` / `src/quickTaskPanelModel.ts`：右下角快速任务入口与纯筛选模型。面板只在打开期间订阅 `TaskIndex`，关闭后移除 DOM 和监听；最后标签保存到 `taskCalendar.quickPanelTab`。
 - `src/taskDateRecurrenceParser.ts` / `src/taskNaturalLanguage.ts`：无 AI、无索引的共享中文时间解析器与任务语义层；统一处理绝对/相对日期、时间与时间范围、提前提醒、重复规则、标签和优先级。年/月/下周这类未给出具体日期的表达不会虚构某一天，而是保留原文并标记为待确认。
 - `src/unifiedTaskComposerModel.ts` / `src/unifiedTaskComposer.ts`：首页“作为任务”、快速任务面板和日程工作台共用的任务草稿映射与 UI；统一组合自然语言结果、任务字段、默认/当前/智能发送目标，并把最终写入交还现有 Store、TaskIndex 和 Apple 同步服务。

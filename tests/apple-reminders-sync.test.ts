@@ -169,6 +169,16 @@ async function finishMissingGrace(test: ReturnType<typeof harness>): Promise<voi
 }
 
 describe("Apple Reminders bidirectional synchronization", () => {
+  it("builds the task index once and reuses it across repeated syncs", async () => {
+    const test = harness("- [ ] 复用索引 #Apple同步\n");
+    const rebuild = vi.spyOn(test.taskIndex, "rebuild");
+
+    await test.service.syncNow();
+    await test.service.syncNow();
+
+    expect(rebuild).toHaveBeenCalledTimes(1);
+  });
+
   it("self-heals duplicated legacy metadata before the first Apple write", async () => {
     const encoded = encodeURIComponent(JSON.stringify({ target: "reminders", dueTime: "17:30", reminderMinutesBefore: 30 }));
     const legacy = `<!-- memos-plus-task- meta:${encoded} -->`;

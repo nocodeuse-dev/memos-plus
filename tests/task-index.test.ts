@@ -251,6 +251,52 @@ describe("TaskIndex helpers", () => {
     );
   });
 
+  it("reuses a complete index and applies file changes incrementally", async () => {
+    vi.stubGlobal("window", { setTimeout, clearTimeout });
+    const first = {
+      path: "任务/一.md",
+      name: "一.md",
+      basename: "一",
+      extension: "md",
+      stat: { mtime: 1 }
+    };
+    const second = {
+      path: "任务/二.md",
+      name: "二.md",
+      basename: "二",
+      extension: "md",
+      stat: { mtime: 1 }
+    };
+    const sources = new Map([
+      [first.path, "- [ ] 第一项"],
+      [second.path, "- [ ] 第二项"]
+    ]);
+    const reads: string[] = [];
+    const index = new TaskIndex({
+      vault: {
+        getMarkdownFiles: () => [first, second],
+        cachedRead: async (file: typeof first) => {
+          reads.push(file.path);
+          return sources.get(file.path) ?? "";
+        }
+      }
+    } as never);
+
+    await index.ensureBuilt({ batchSize: 1 });
+    reads.length = 0;
+    sources.set(first.path, "- [ ] 第一项已修改");
+    first.stat.mtime = 2;
+    await index.refreshChangedFiles(1);
+
+    expect(reads).toEqual([first.path]);
+    expect(index.getStatus().cacheState).toBe("normal");
+    expect(index.getItems().map((item) => item.title).sort()).toEqual(["第一项已修改", "第二项"]);
+
+    index.removeFile(second.path);
+    expect(index.getItems().map((item) => item.title)).toEqual(["第一项已修改"]);
+    expect(index.getStatus().cacheState).toBe("normal");
+  });
+
   it("rebuilds again when a file changes during an active rebuild", async () => {
     vi.stubGlobal("window", { setTimeout, clearTimeout });
     const file = {

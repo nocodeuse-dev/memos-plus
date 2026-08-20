@@ -6,6 +6,7 @@ const viewSource = readFileSync("src/view.ts", "utf8");
 const taskCalendarViewSource = readFileSync("src/taskCalendarView.ts", "utf8");
 const taskNavigationSource = readFileSync("src/taskNavigation.ts", "utf8");
 const settingsSource = readFileSync("src/settings.ts", "utf8");
+const appleSyncServiceSource = readFileSync("src/appleSyncService.ts", "utf8");
 const stylesSource = readFileSync("styles.css", "utf8");
 
 describe("TaskIndex source integration", () => {
@@ -23,14 +24,21 @@ describe("TaskIndex source integration", () => {
     expect(autoBuildBlock).toContain("this.shouldBuildTaskIndexForLayouts()");
     const invalidationBlock = mainSource.slice(mainSource.indexOf("private registerTaskIndexInvalidation"), mainSource.indexOf("private maybeBuildTaskIndexAfterLoad"));
     expect(invalidationBlock).toContain("this.shouldBuildTaskIndexForLayouts()");
+    expect(invalidationBlock).toContain("this.taskIndex.updateFile(file)");
+    expect(invalidationBlock).toContain("this.taskIndex.removeFile(file.path)");
     expect(invalidationBlock).toContain("this.taskIndex.invalidate");
-    expect(invalidationBlock.indexOf("this.taskIndex.invalidate")).toBeLessThan(invalidationBlock.indexOf("this.taskIndex.scheduleBuild"));
+    expect(invalidationBlock).toContain("scheduleInitialBuild()");
+  });
+
+  it("reuses the ready task index during Apple sync instead of rebuilding the whole vault", () => {
+    expect(appleSyncServiceSource).toContain("this.options.taskIndex.refreshChangedFiles()");
+    expect(appleSyncServiceSource).not.toContain("this.options.taskIndex.rebuild()");
   });
 
   it("uses the task index for organizer counts and routes task results into the unified workspace", () => {
     const organizerBlock = viewSource.slice(viewSource.indexOf("private renderOrganizerDirectory"), viewSource.indexOf("private renderOrganizerTaskToggle"));
     expect(viewSource).toContain("getTaskIndexOrganizerCounts");
-    expect(viewSource).toContain("this.plugin.openTaskCalendarFromOrganizer(id)");
+    expect(viewSource).toContain("this.plugin.openTaskCalendarFromOrganizer(id, this.leaf)");
     expect(viewSource).not.toContain("renderTaskIndexResults");
     expect(viewSource).toContain("this.plugin.taskIndex.getStatus()");
     expect(taskCalendarViewSource).toContain("this.plugin.taskIndex.getItems()");

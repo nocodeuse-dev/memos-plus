@@ -690,6 +690,21 @@
   background: var(--memos-plus-sidebar);
 }
 
+/* One lightweight navigation component is shared by the memo directory and
+   the schedule/tasks surface.  It deliberately relies on theme variables and
+   spacing rather than a second card-heavy sidebar. */
+.memos-plus-workbench-navigation { display: flex; flex: 0 1 auto; flex-direction: column; gap: 3px; margin: 0 0 10px; padding: 0 0 9px; border-bottom: 1px solid var(--background-modifier-border); }
+.memos-plus-workbench-nav-section { display: flex; flex-direction: column; gap: 2px; padding-top: 7px; }
+.memos-plus-workbench-nav-heading { padding: 0 8px 3px; color: var(--text-muted); font-size: var(--font-ui-smaller); font-weight: var(--font-semibold); }
+.memos-plus-workbench-nav-item { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; min-height: 29px; border: 0; border-radius: 5px; padding: 5px 8px; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; font-size: var(--font-ui-small); text-align: left; }
+.memos-plus-workbench-nav-item:hover,
+.memos-plus-workbench-nav-item:focus-visible { background: var(--background-modifier-hover); color: var(--text-normal); outline: 0; }
+.memos-plus-workbench-nav-item.is-active { border-left: 2px solid var(--interactive-accent); padding-left: 6px; background: color-mix(in srgb, var(--interactive-accent) 9%, transparent); color: var(--text-accent); }
+.memos-plus-workbench-nav-item > svg { width: 16px; height: 16px; }
+.memos-plus-workbench-nav-count { min-width: 18px; color: var(--text-faint); font-size: var(--font-ui-smaller); font-variant-numeric: tabular-nums; text-align: right; }
+.memos-plus-workbench-nav-item.is-active .memos-plus-workbench-nav-count { color: var(--text-accent); }
+.memos-plus-workbench-nav-chevron { display: inline-flex; width: 15px; height: 15px; margin-left: auto; }
+
 .memos-plus-main {
   min-width: 0;
   min-height: 0;
@@ -3943,6 +3958,7 @@ button.memos-plus-unified-task-preview:focus-visible {
   border-right: 1px solid var(--background-modifier-border);
   background: color-mix(in srgb, var(--background-secondary) 45%, var(--background-primary));
 }
+.memos-plus-task-calendar-navigation .memos-plus-workbench-navigation { max-height: min(56%, 440px); overflow: auto; margin: 0; padding-bottom: 7px; }
 
 .memos-plus-task-calendar-resizer {
   position: relative;
@@ -4306,11 +4322,6 @@ button.memos-plus-unified-task-preview:focus-visible {
 .memos-plus-learning-start { flex: 0 0 auto; min-height: 30px; margin-left: auto; border: 1px solid var(--interactive-accent); border-radius: 5px; padding: 4px 10px; background: var(--interactive-accent); color: var(--text-on-accent); font-size: var(--font-ui-small); font-weight: var(--font-semibold); cursor: pointer; }
 .memos-plus-learning-start:hover,
 .memos-plus-learning-start:focus-visible { background: var(--interactive-accent-hover); outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
-.memos-plus-task-calendar-learning-section { display: flex; flex-direction: column; gap: 3px; margin: 12px 0 8px; padding: 9px 0; border-top: 1px solid var(--background-modifier-border); border-bottom: 1px solid var(--background-modifier-border); }
-.memos-plus-task-calendar-learning-heading { padding: 0 10px 4px; color: var(--text-muted); font-size: var(--font-ui-smaller); font-weight: var(--font-semibold); }
-.memos-plus-task-calendar-learning-section .memos-plus-task-calendar-nav { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; }
-.memos-plus-task-calendar-learning-count { min-width: 18px; padding: 0 4px; border-radius: 10px; color: var(--text-muted); font-size: var(--font-ui-smaller); text-align: center; }
-.memos-plus-task-calendar-learning-section .memos-plus-task-calendar-nav.is-active .memos-plus-task-calendar-learning-count { color: var(--text-accent); background: color-mix(in srgb, var(--interactive-accent) 15%, transparent); }
 .memos-plus-learning-card-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 1px; min-height: 0; overflow: auto; padding-top: 5px; }
 .memos-plus-learning-card { min-width: 0; padding: 9px 10px; border-bottom: 1px solid var(--background-modifier-border); }
 .memos-plus-learning-card:hover { background: var(--background-modifier-hover); }
@@ -4347,8 +4358,8 @@ button.memos-plus-unified-task-preview:focus-visible {
   .memos-plus-task-calendar-header { padding: 9px 10px; }
   .memos-plus-task-calendar-title h2 { font-size: 1em; }
   .memos-plus-task-calendar-mode-switch { display: none; }
-  .memos-plus-task-calendar-mobile-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 7px 10px; border-bottom: 1px solid var(--background-modifier-border); }
-  .memos-plus-task-calendar-mobile-tabs button { border: 0; border-radius: 4px; padding: 6px; background: transparent; color: var(--text-muted); }
+  .memos-plus-task-calendar-mobile-tabs { display: flex; gap: 4px; overflow-x: auto; padding: 7px 10px; border-bottom: 1px solid var(--background-modifier-border); }
+  .memos-plus-task-calendar-mobile-tabs button { flex: 0 0 auto; border: 0; border-radius: 4px; padding: 6px 8px; background: transparent; color: var(--text-muted); }
   .memos-plus-task-calendar-mobile-tabs button.is-active { background: var(--background-modifier-hover); color: var(--text-normal); }
   .memos-plus-task-calendar-layout { display: block; overflow: auto; }
   .memos-plus-task-calendar-resizer { display: none; }

@@ -51,6 +51,7 @@ import { openUnifiedTaskComposer, type OpenUnifiedTaskComposerOptions } from "./
 import { LearningCardService } from "./src/learning/learningCardService";
 import { LearningReviewModal } from "./src/learning/learningReviewModal";
 import { createTaskMetadataEditorExtension } from "./src/taskMetadataEditor";
+import type { WorkbenchDirectoryOptions } from "./src/workbenchNavigation";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -324,41 +325,60 @@ export default class MemosPlusPlugin extends Plugin {
     });
   }
 
-  async activateView(): Promise<WorkspaceLeaf | null> {
-    const existing = this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE)[0];
+  async activateView(preferredLeaf?: WorkspaceLeaf): Promise<WorkspaceLeaf | null> {
+    const existing = preferredLeaf?.view.getViewType() === MEMOS_PLUS_VIEW_TYPE
+      ? preferredLeaf
+      // A workbench navigation click must keep the current tab even if the
+      // user also has another Memos Plus tab open elsewhere in the workspace.
+      : preferredLeaf ? null : this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE)[0];
     if (existing) {
       await this.app.workspace.revealLeaf(existing);
       return existing;
     }
 
-    const leaf = this.app.workspace.getLeaf(false);
+    const leaf = preferredLeaf ?? this.app.workspace.getLeaf(false);
     await leaf.setViewState({ type: MEMOS_PLUS_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
     return leaf;
   }
 
-  async activateTaskCalendarView(): Promise<WorkspaceLeaf | null> {
-    const existing = this.app.workspace.getLeavesOfType(MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE)[0];
+  async activateTaskCalendarView(preferredLeaf?: WorkspaceLeaf): Promise<WorkspaceLeaf | null> {
+    const existing = preferredLeaf?.view.getViewType() === MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE
+      ? preferredLeaf
+      // See activateView: explicit in-workbench navigation owns its leaf.
+      : preferredLeaf ? null : this.app.workspace.getLeavesOfType(MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE)[0];
     if (existing) {
       await this.app.workspace.revealLeaf(existing);
       return existing;
     }
-    const leaf = this.app.workspace.getLeaf(false);
+    const leaf = preferredLeaf ?? this.app.workspace.getLeaf(false);
     await leaf.setViewState({ type: MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
     return leaf;
   }
 
-  async openTaskCalendar(options?: TaskCalendarOpenOptions): Promise<void> {
-    const leaf = await this.activateTaskCalendarView();
+  async openTaskCalendar(options?: TaskCalendarOpenOptions, preferredLeaf?: WorkspaceLeaf): Promise<void> {
+    const leaf = await this.activateTaskCalendarView(preferredLeaf);
     if (!(leaf?.view instanceof TaskCalendarView)) return;
     if (options) leaf.view.applyOpenOptions(options);
     else leaf.view.openDefault();
   }
 
-  async openTaskCalendarFromOrganizer(filterId: OrganizerFilterId): Promise<void> {
+  async openTaskCalendarFromOrganizer(filterId: OrganizerFilterId, preferredLeaf?: WorkspaceLeaf): Promise<void> {
     const options = taskCalendarOpenOptionsForOrganizer(filterId);
-    if (options) await this.openTaskCalendar(options);
+    if (options) await this.openTaskCalendar(options, preferredLeaf);
+  }
+
+  /**
+   * Directory, task planning and learning intentionally share one workspace
+   * leaf.  Switching back to memos therefore replaces the current workbench
+   * surface instead of opening another sidebar or tab.
+   */
+  async openWorkbenchDirectory(options: WorkbenchDirectoryOptions = {}, preferredLeaf?: WorkspaceLeaf): Promise<void> {
+    const leaf = await this.activateView(preferredLeaf);
+    if (leaf?.view instanceof MemosPlusView) {
+      await leaf.view.applyWorkbenchDirectoryOptions(options);
+    }
   }
 
   async activateQuickInputView(options: { focusComposer?: boolean; useModalFallback?: boolean } = {}): Promise<WorkspaceLeaf | null> {
@@ -1027,15 +1047,8 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   private registerTaskIndexInvalidation(): void {
-    const scheduleForFile = (file: unknown) => {
-      if (!this.settings.taskVaultFilterEnabled || !this.settings.taskIndexEnabled) {
-        return;
-      }
-      if (file instanceof TFile) {
-        this.taskIndex.invalidate(file.path);
-      } else {
-        this.taskIndex.invalidate();
-      }
+    const shouldTrackTasks = (): boolean => this.settings.taskVaultFilterEnabled && this.settings.taskIndexEnabled;
+    const scheduleInitialBuild = (): void => {
       if (Platform.isMobile && this.settings.taskIndexDelayOnMobile) {
         return;
       }
@@ -1043,13 +1056,52 @@ export default class MemosPlusPlugin extends Plugin {
         this.taskIndex.scheduleBuild();
       }
     };
-    this.registerEvent(this.app.vault.on("create", scheduleForFile));
-    this.registerEvent(this.app.vault.on("modify", scheduleForFile));
-    this.registerEvent(this.app.vault.on("delete", scheduleForFile));
+    const updateFile = (file: unknown) => {
+      if (!shouldTrackTasks()) {
+        return;
+      }
+      if (!(file instanceof TFile) || file.extension !== "md") {
+        return;
+      }
+      if (this.taskIndex.getStatus().cacheState === "normal") {
+        this.runAsyncOperation("incremental task index update", () => this.taskIndex.updateFile(file));
+        return;
+      }
+      this.taskIndex.invalidate(file.path);
+      scheduleInitialBuild();
+    };
+    const deleteFile = (file: unknown) => {
+      if (!shouldTrackTasks()) {
+        return;
+      }
+      if (file instanceof TFile && file.extension === "md" && this.taskIndex.getStatus().cacheState === "normal") {
+        this.taskIndex.removeFile(file.path);
+        return;
+      }
+      if (!(file instanceof TFile) || file.extension !== "md") {
+        return;
+      }
+      this.taskIndex.invalidate(file.path);
+      scheduleInitialBuild();
+    };
+    this.registerEvent(this.app.vault.on("create", updateFile));
+    this.registerEvent(this.app.vault.on("modify", updateFile));
+    this.registerEvent(this.app.vault.on("delete", deleteFile));
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
+        if (!shouldTrackTasks()) {
+          return;
+        }
+        if (!(file instanceof TFile) || file.extension !== "md") {
+          return;
+        }
+        if (this.taskIndex.getStatus().cacheState === "normal") {
+          this.taskIndex.removeFile(oldPath);
+          this.runAsyncOperation("incremental task index rename", () => this.taskIndex.updateFile(file));
+          return;
+        }
         this.taskIndex.invalidate(oldPath);
-        scheduleForFile(file);
+        updateFile(file);
       })
     );
   }
@@ -1062,7 +1114,15 @@ export default class MemosPlusPlugin extends Plugin {
       return;
     }
     this.app.workspace.onLayoutReady(() => {
-      this.taskIndex.scheduleBuild(1200);
+      const timer = window.setTimeout(() => {
+        this.runAsyncOperation("build startup task index", async () => {
+          if (viewLayoutsNeedData(this.currentViewLayouts(), "vaultIndex")) {
+            await this.vaultIndex.warm();
+          }
+          await this.taskIndex.ensureBuilt();
+        });
+      }, 1_200);
+      this.register(() => window.clearTimeout(timer));
     });
   }
 

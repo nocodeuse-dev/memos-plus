@@ -31,7 +31,7 @@ describe("unified task management source integration", () => {
     expect(mainSource).not.toContain("TaskManagementModal");
     expect(mainSource).toContain('openTaskCalendar({ navigation: "all" })');
     expect(mainSource).toContain("openTaskCalendarFromOrganizer");
-    expect(viewSource).toContain("this.plugin.openTaskCalendarFromOrganizer(id)");
+    expect(viewSource).toContain("this.plugin.openTaskCalendarFromOrganizer(id, this.leaf)");
     expect(viewSource).not.toContain("renderTaskIndexResults");
     expect(stylesSource).not.toContain(".memos-plus-task-manager-modal");
   });

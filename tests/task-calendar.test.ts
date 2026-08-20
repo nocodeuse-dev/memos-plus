@@ -275,6 +275,8 @@ describe("Schedule and tasks integration boundaries", () => {
   const eventModalSource = readFileSync("src/taskCalendarEventModal.ts", "utf8");
   const eventDetailModalSource = readFileSync("src/taskCalendarEventDetailModal.ts", "utf8");
   const viewSource = readFileSync("src/taskCalendarView.ts", "utf8");
+  const homeViewSource = readFileSync("src/view.ts", "utf8");
+  const workbenchNavigationSource = readFileSync("src/workbenchNavigation.ts", "utf8");
   const editorUiSource = readFileSync("src/taskCalendarTaskEditorUi.ts", "utf8");
   const stylesSource = readFileSync("styles.css", "utf8");
   const mainSource = readFileSync("main.ts", "utf8");
@@ -336,6 +338,20 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).not.toMatch(/\n\s*open\(options:\s*TaskCalendarOpenOptions/);
     expect(viewSource).toContain("applyOpenOptions(options: TaskCalendarOpenOptions = {})");
     expect(mainSource).toContain("leaf.view.applyOpenOptions(options)");
+  });
+
+  it("uses one shared navigation and swaps the current workspace leaf between directory, tasks and learning", () => {
+    expect(workbenchNavigationSource).toContain("renderWorkbenchNavigation");
+    expect(workbenchNavigationSource).toContain("workbenchTaskRouteOptions");
+    expect(homeViewSource).toContain("renderSharedWorkbenchNavigation");
+    expect(viewSource).toContain("renderWorkbenchNavigation(navigation");
+    expect(homeViewSource).toContain("this.plugin.openTaskCalendar(workbenchTaskRouteOptions(route, today), this.leaf)");
+    expect(viewSource).toContain("this.plugin.openWorkbenchDirectory({}, this.leaf)");
+    expect(mainSource).toContain("async openWorkbenchDirectory(options: WorkbenchDirectoryOptions = {}, preferredLeaf?: WorkspaceLeaf)");
+    expect(mainSource).toContain("preferredLeaf ?? this.app.workspace.getLeaf(false)");
+    expect(mainSource).toContain("preferredLeaf ? null : this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE)[0]");
+    expect(mainSource).toContain("preferredLeaf ? null : this.app.workspace.getLeavesOfType(MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE)[0]");
+    expect(viewSource).not.toContain("renderLearningNavigation(");
   });
 
   it("renders parsed task time and Apple sync status and listens for task-index changes", () => {
@@ -456,7 +472,7 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("showHomeEntry");
     expect(viewSource).toContain("showMobileQuickActions");
     expect(viewSource).toContain("memos-plus-mobile-quick-actions");
-    expect(viewSource).toContain("this.plugin.openTaskCalendar({ focusQuickTask: true })");
+    expect(viewSource).toContain("this.plugin.openTaskCalendar({ focusQuickTask: true }, this.leaf)");
     expect(viewSource).toContain("view.openEventComposer()");
     expect(viewSource).toContain("openQuickCaptureFromMobileFab");
   });

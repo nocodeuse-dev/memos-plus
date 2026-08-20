@@ -114,7 +114,7 @@ export class AppleSyncService {
         claimedRemoteIds.add(item.id);
       };
 
-      await this.options.taskIndex.rebuild();
+      await this.options.taskIndex.refreshChangedFiles();
       let localTasks = this.options.taskIndex.getItems().filter((task) => shouldSyncTask(task, settings.appleSyncTag));
       const existingLocalIds = new Set(localTasks.map((task) => extractAppleSyncId(task.line)).filter(Boolean));
       localTasks = await this.ensureLocalIds(localTasks, (task) => shouldSyncTask(task, settings.appleSyncTag));
@@ -181,7 +181,6 @@ export class AppleSyncService {
         // dormant so neither side is destroyed or re-imported.
       }
 
-      if (result.deletedLocal > 0) await this.options.taskIndex.rebuild();
       localTasks = this.options.taskIndex.getItems().filter((task) => shouldSyncTask(task, settings.appleSyncTag));
       allLocalById = localTasksById(this.options.taskIndex.getItems());
 
@@ -315,11 +314,10 @@ export class AppleSyncService {
       state.lastError = "";
       settings.appleSyncState = state;
       await this.options.persistSettings();
-      await this.options.taskIndex.rebuild();
       return result;
     } catch (error) {
       if (isAppleSyncWaitingError(error)) {
-        await this.options.taskIndex.rebuild().catch(() => undefined);
+        await this.options.taskIndex.ensureBuilt().catch(() => undefined);
         const localIds = new Set(
           this.options.taskIndex.getItems()
             .filter((task) => shouldSyncTask(task, settings.appleSyncTag))

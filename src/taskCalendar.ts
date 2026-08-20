@@ -19,6 +19,12 @@ export interface TaskCalendarTaskFilters {
   priority?: TaskPriorityFilterValue | "all";
   project?: TaskCalendarProjectFilter | null;
   completedOnDate?: string;
+  /**
+   * The workbench's “created today” view is intentionally independent from a
+   * task's due date.  Keep it as a lightweight list filter instead of adding
+   * another TaskIndex or a second task data source.
+   */
+  createdOnDate?: string;
 }
 
 export interface TaskCalendarOpenOptions extends TaskCalendarTaskFilters {
@@ -26,6 +32,8 @@ export interface TaskCalendarOpenOptions extends TaskCalendarTaskFilters {
   selectedDate?: string;
   viewMode?: TaskCalendarViewMode;
   focusQuickTask?: boolean;
+  learningFilter?: LearningCardFilter;
+  showProjects?: boolean;
 }
 
 export interface TaskCalendarSettings {
@@ -218,7 +226,12 @@ export function taskCalendarTasks(
   const matchesDate = (item: TaskIndexItem) => taskDate(item) === date;
   let filtered: TaskIndexItem[];
   const completedOnDate = normalizeDate(filters.completedOnDate ?? "");
-  if (completedOnDate) {
+  const createdOnDate = normalizeDate(filters.createdOnDate ?? "");
+  if (createdOnDate) {
+    // Created date is available for Tasks-compatible rows.  Older Markdown
+    // tasks do not get guessed into this view merely from a file mtime.
+    filtered = items.filter((item) => item.createdDate === createdOnDate);
+  } else if (completedOnDate) {
     filtered = items.filter((item) => taskCalendarCompletedOnDate(item, completedOnDate));
   } else switch (navigation) {
     case "completed":

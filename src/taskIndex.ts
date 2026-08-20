@@ -151,6 +151,44 @@ export class TaskIndex {
     }, delayMs);
   }
 
+  async ensureBuilt(options: { force?: boolean; batchSize?: number } = {}): Promise<void> {
+    while (true) {
+      if (this.updating) {
+        await this.waitForBuildCompletion();
+        continue;
+      }
+      if (!this.needsUpdate) {
+        this.cancelScheduledBuild();
+        return;
+      }
+      this.cancelScheduledBuild();
+      await this.rebuild(options);
+    }
+  }
+
+  async refreshChangedFiles(batchSize = 200): Promise<void> {
+    await this.ensureBuilt();
+    const files = this.app.vault.getMarkdownFiles();
+    const currentPaths = new Set<string>();
+    const normalizedBatchSize = Math.max(1, Math.floor(batchSize));
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const path = normalizeVaultPath(file.path);
+      currentPaths.add(path);
+      if (this.fileCache.get(path)?.mtime !== (file.stat?.mtime ?? 0)) {
+        await this.updateFile(file);
+      }
+      if ((index + 1) % normalizedBatchSize === 0 && index + 1 < files.length) {
+        await yieldToUi();
+      }
+    }
+    for (const path of Array.from(this.fileCache.keys())) {
+      if (!currentPaths.has(path)) {
+        this.removeFile(path);
+      }
+    }
+  }
+
   async rebuild(options: { force?: boolean; batchSize?: number } = {}): Promise<void> {
     if (this.updating) {
       this.rebuildRequested = true;
@@ -241,9 +279,8 @@ export class TaskIndex {
           mtime
         })
       });
-      this.items = Array.from(this.fileCache.values()).flatMap((entry) => entry.tasks);
+      this.items = [...this.items.filter((item) => item.filePath !== path), ...this.fileCache.get(path)!.tasks];
       this.updatedAt = new Date().toISOString();
-      this.needsUpdate = false;
       this.failedFiles = this.failedFiles.filter((failedPath) => failedPath !== path);
       this.emitChange();
     } catch {
@@ -251,6 +288,41 @@ export class TaskIndex {
       this.needsUpdate = true;
       this.emitChange();
     }
+  }
+
+  removeFile(path: string): void {
+    const normalized = normalizeVaultPath(path);
+    this.fileCache.delete(normalized);
+    this.items = this.items.filter((item) => item.filePath !== normalized);
+    this.failedFiles = this.failedFiles.filter((failedPath) => failedPath !== normalized);
+    this.updatedAt = new Date().toISOString();
+    this.emitChange();
+  }
+
+  private cancelScheduledBuild(): void {
+    if (this.buildTimer === null) {
+      return;
+    }
+    window.clearTimeout(this.buildTimer);
+    this.buildTimer = null;
+  }
+
+  private async waitForBuildCompletion(): Promise<void> {
+    if (!this.updating) {
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      const unsubscribe = this.onChange(() => {
+        if (!this.updating) {
+          unsubscribe();
+          resolve();
+        }
+      });
+      if (!this.updating) {
+        unsubscribe();
+        resolve();
+      }
+    });
   }
 
   private emitChange(): void {
