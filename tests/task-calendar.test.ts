@@ -359,6 +359,15 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(stylesSource).toContain("text-decoration: line-through");
   });
 
+  it("keeps completed date labels visible when a compact timeline task title is long", () => {
+    const completedTaskSource = viewSource.slice(viewSource.indexOf("private renderCompletedTask"), viewSource.indexOf("private renderEvent"));
+    expect(completedTaskSource).toContain("memos-plus-task-calendar-completed-task-title");
+    expect(completedTaskSource).toContain("memos-plus-task-calendar-completed-at");
+    expect(completedTaskSource).toContain("taskCompletionTooltip(task");
+    expect(stylesSource).toContain(".memos-plus-task-calendar-completed-task-title { min-width: 0; overflow: hidden;");
+    expect(stylesSource).toContain(".memos-plus-task-calendar-completed-task-body .memos-plus-task-calendar-completed-at { flex: 0 0 auto;");
+  });
+
   it("opens today's completed tasks from the summary without duplicating task-row actions", () => {
     expect(viewSource).toContain("summaryActionCard(");
     expect(viewSource).toContain("this.openCompletedToday(selectedDate)");

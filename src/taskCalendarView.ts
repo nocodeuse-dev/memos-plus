@@ -819,9 +819,13 @@ export class TaskCalendarView extends ItemView {
     checkbox.checked = true;
     checkbox.addEventListener("change", () => this.toggleTaskCompletionOptimistically(task, checkbox, taskEl));
     const body = taskEl.createEl("button", { cls: "memos-plus-task-calendar-completed-task-body", attr: { type: "button", title } });
-    body.createSpan({ text: title });
+    body.createSpan({ cls: "memos-plus-task-calendar-completed-task-title", text: title });
     const completedAt = taskCompletedLabel(task, this.plugin.settings.language);
-    if (completedAt) body.createSpan({ cls: "memos-plus-task-calendar-completed-at", text: completedAt });
+    if (completedAt) body.createSpan({
+      cls: "memos-plus-task-calendar-completed-at",
+      text: completedAt,
+      attr: { title: taskCompletionTooltip(task, this.plugin.settings.language) }
+    });
     body.addEventListener("click", () => this.selectTask(task));
   }
 
@@ -1393,6 +1397,20 @@ function taskCompletedLabel(task: Pick<TaskIndexItem, "completedAt" | "doneDate"
   }
   if (task.doneDate) return lang === "zh" ? `已完成 · ${task.doneDate}` : `Completed · ${task.doneDate}`;
   return "";
+}
+
+/**
+ * Keep an absolute date available even when the compact today row uses a
+ * relative label such as "今天 17:31 完成". This is particularly useful for
+ * long task titles, where the title itself may be abbreviated.
+ */
+function taskCompletionTooltip(task: Pick<TaskIndexItem, "completedAt" | "doneDate">, lang: "zh" | "en"): string {
+  const date = taskCompletionDate(task.completedAt) || task.doneDate;
+  const time = taskCompletionTime(task.completedAt);
+  if (!date) return "";
+  return lang === "zh"
+    ? `${date}${time ? ` ${time}` : ""} 完成`
+    : `Completed ${date}${time ? ` ${time}` : ""}`;
 }
 
 function summaryCard(container: HTMLElement, label: string, value: string, extraClass = ""): void {

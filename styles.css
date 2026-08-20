@@ -4178,9 +4178,9 @@ button.memos-plus-unified-task-preview:focus-visible {
 .memos-plus-task-calendar-completed-cell { display: flex; min-width: 0; flex-wrap: wrap; gap: 3px; padding: 3px; border-left: 1px solid var(--background-modifier-border); }
 .memos-plus-task-calendar-completed-task { display: flex; align-items: center; gap: 4px; overflow: hidden; max-width: 100%; border-radius: 4px; padding: 2px 5px; background: color-mix(in srgb, var(--text-success) 8%, transparent); color: var(--text-muted); font-size: var(--font-ui-smaller); opacity: .72; }
 .memos-plus-task-calendar-completed-task input { flex: 0 0 auto; margin: 0; }
-.memos-plus-task-calendar-completed-task-body { overflow: hidden; min-width: 0; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.memos-plus-task-calendar-completed-task-body span { text-decoration: line-through; }
-.memos-plus-task-calendar-completed-task-body .memos-plus-task-calendar-completed-at { margin-left: 5px; color: var(--text-faint); font-variant-numeric: tabular-nums; text-decoration: none; }
+.memos-plus-task-calendar-completed-task-body { display: flex; align-items: baseline; gap: 5px; overflow: hidden; min-width: 0; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.memos-plus-task-calendar-completed-task-title { min-width: 0; overflow: hidden; text-decoration: line-through; text-overflow: ellipsis; white-space: nowrap; }
+.memos-plus-task-calendar-completed-task-body .memos-plus-task-calendar-completed-at { flex: 0 0 auto; color: var(--text-faint); font-variant-numeric: tabular-nums; text-decoration: none; white-space: nowrap; }
 .memos-plus-task-calendar-time-grid { position: relative; min-width: calc(52px + var(--memos-plus-calendar-days) * 150px); padding-left: 52px; }
 .memos-plus-task-calendar-time-labels { position: absolute; top: 0; left: 0; width: 52px; height: calc(var(--memos-plus-calendar-grid-height) + 1px); }
 .memos-plus-task-calendar-hour-label { position: relative; top: -8px; height: var(--memos-plus-calendar-hour-height); padding-right: 7px; color: var(--text-faint); font-size: var(--font-ui-smaller); text-align: right; }
