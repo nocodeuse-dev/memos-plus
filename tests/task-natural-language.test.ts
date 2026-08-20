@@ -5,12 +5,15 @@ describe("natural language quick task parser", () => {
   const now = new Date(2026, 7, 11, 9, 0);
 
   it("parses the documented Chinese quick-task example without losing the title", () => {
-    expect(parseNaturalLanguageTask("明天下午3点复诊张先生，提前30分钟提醒 #门诊 !高", now)).toEqual({
-      original: "明天下午3点复诊张先生，提前30分钟提醒 #门诊 !高",
+    expect(parseNaturalLanguageTask("明天下午3点复诊张先生，提前30分钟提醒 #门诊 !高", now)).toMatchObject({
       title: "复诊张先生",
       date: "2026-08-12",
       time: "15:00",
+      dueTime: "15:00",
+      startTime: "15:00",
       reminderMinutesBefore: 30,
+      reminderDate: "2026-08-12",
+      reminderTime: "14:30",
       tags: ["#门诊"],
       priority: "high",
       matched: true
@@ -32,8 +35,7 @@ describe("natural language quick task parser", () => {
   });
 
   it("keeps the original text intact when no rule can be recognized", () => {
-    expect(parseNaturalLanguageTask("整理没有日期的普通任务", now)).toEqual({
-      original: "整理没有日期的普通任务",
+    expect(parseNaturalLanguageTask("整理没有日期的普通任务", now)).toMatchObject({
       title: "整理没有日期的普通任务",
       date: "",
       time: "",

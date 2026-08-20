@@ -40,6 +40,7 @@ interface TaskOptionsFormOptions {
 export interface TaskOptionsForm {
   element: HTMLElement;
   value: () => ProjectTaskOptions | undefined;
+  applyTask: (task: ProjectTaskOptions) => void;
 }
 
 export function createTaskOptionsForm(container: HTMLElement, options: TaskOptionsFormOptions): TaskOptionsForm {
@@ -60,6 +61,7 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
   const initialTask = options.initialTask;
 
   let metadataValue = (): Omit<ProjectTaskOptions, "isTask" | "contentMode"> => ({});
+  let applyTask: (task: ProjectTaskOptions) => void = () => undefined;
   if (shouldRenderMetadataOptions) {
     const defaultTarget = normalizeTaskSyncTarget(
       options.taskSettings.defaultSyncTarget ?? (options.taskSettings.appleSyncEnabled ? "reminders" : "tasks")
@@ -136,6 +138,11 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
     const addCreatedDate = createCheckboxField(form, t(lang, "projectSend.addCreatedDate"), initialTask?.addCreatedDate ?? options.taskSettings.addCreatedDate);
 
     const controls = Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select"));
+    let fieldsEditedByUser = false;
+    for (const control of controls) {
+      control.addEventListener("input", () => { fieldsEditedByUser = true; });
+      control.addEventListener("change", () => { fieldsEditedByUser = true; });
+    }
     const updateState = (): void => {
       const disabled = asTask ? !asTask.checked : false;
       const target = normalizeTaskSyncTarget(syncTarget.value);
@@ -164,6 +171,33 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
     reminderAllDay.addEventListener("change", updateState);
     calendarAllDay.addEventListener("change", updateState);
     updateState();
+
+    applyTask = (task: ProjectTaskOptions): void => {
+      if (fieldsEditedByUser) return;
+      syncTarget.value = normalizeTaskSyncTarget(task.syncTarget ?? defaultTarget);
+      project.value = task.projectTag ?? "";
+      priority.value = normalizeTaskPriority(task.priority ?? options.taskSettings.defaultPriority);
+      startDate.value = task.startDate ?? "";
+      scheduledDate.value = task.scheduledDate ?? "";
+      taskDueDate.value = task.dueDate ?? "";
+      doneDate.value = task.doneDate ?? "";
+      reminderDueDate.value = task.dueDate ?? "";
+      dueTime.value = task.dueTime ?? "";
+      reminderDate.value = task.reminderDate ?? "";
+      reminderTime.value = task.reminderTime ?? "";
+      reminderLead.value = task.reminderMinutesBefore === undefined ? "" : String(task.reminderMinutesBefore);
+      reminderAllDay.checked = task.allDay === true;
+      calendarDate.value = task.startDate ?? task.dueDate ?? "";
+      startTime.value = task.startTime ?? task.dueTime ?? "";
+      endDate.value = task.endDate ?? "";
+      endTime.value = task.endTime ?? "";
+      calendarLead.value = task.reminderMinutesBefore === undefined ? "" : String(task.reminderMinutesBefore);
+      calendarAllDay.checked = task.allDay === true;
+      recurrence.value = normalizeTaskRecurrence(task.recurrence ?? options.taskSettings.defaultRecurrence);
+      customRecurrence.value = task.customRecurrence ?? "";
+      addCreatedDate.checked = task.addCreatedDate ?? options.taskSettings.addCreatedDate;
+      updateState();
+    };
 
     metadataValue = () => {
       const target = normalizeTaskSyncTarget(syncTarget.value);
@@ -210,6 +244,7 @@ export function createTaskOptionsForm(container: HTMLElement, options: TaskOptio
 
   return {
     element: form,
+    applyTask,
     value: () =>
       asTask && !asTask.checked
         ? undefined

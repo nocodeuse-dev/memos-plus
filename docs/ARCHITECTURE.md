@@ -62,7 +62,7 @@ Memos Plus 是一个 Obsidian 社区插件，插件 ID 为 `memos-plus`，`manif
 - `src/taskCalendarEditSession.ts`：右侧任务编辑的短生命周期本地状态与串行保存队列。字段先更新乐观任务快照，再合并写入 Markdown；Apple 同步只更新独立状态，不参与表单反馈或重绘。
 - `src/taskCalendarView.ts`：独立“日程与任务”ItemView，负责桌面三栏与移动端标签切换、任务搜索、优先级/项目筛选、分批加载、自然语言快速新增预览、完成、编辑、跳转和当前日/周的日程渲染。
 - `src/quickTaskPanel.ts` / `src/quickTaskPanelModel.ts`：右下角快速任务入口与纯筛选模型。面板只在打开期间订阅 `TaskIndex`，关闭后移除 DOM 和监听；最后标签保存到 `taskCalendar.quickPanelTab`。
-- `src/taskNaturalLanguage.ts`：无 AI、无索引的中文快速任务规则解析器；只处理明确日期词、星期、时段、提前提醒、标签和优先级，解析失败时返回完整原文。
+- `src/taskDateRecurrenceParser.ts` / `src/taskNaturalLanguage.ts`：无 AI、无索引的共享中文时间解析器与任务语义层；统一处理绝对/相对日期、时间与时间范围、提前提醒、重复规则、标签和优先级。年/月/下周这类未给出具体日期的表达不会虚构某一天，而是保留原文并标记为待确认。
 - `src/unifiedTaskComposerModel.ts` / `src/unifiedTaskComposer.ts`：首页“作为任务”、快速任务面板和日程工作台共用的任务草稿映射与 UI；统一组合自然语言结果、任务字段、默认/当前/智能发送目标，并把最终写入交还现有 Store、TaskIndex 和 Apple 同步服务。
 - `src/appleCalendarAgenda.ts`：仅 macOS 桌面端使用的 Apple Calendar 日程服务；读取前先检查运行时并使用短期内存缓存。仅在创建表单明确提交时创建所选可写日历事件，不保存日程事件到 `data.json`。
 - `src/taskCalendarEventModal.ts`：明确用户操作后才打开的日程创建表单。先读取可写 Apple 日历，用户填写并点击“创建日程”后才调用日历写入；取消/关闭不会写入。

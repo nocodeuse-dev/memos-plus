@@ -77,6 +77,12 @@ function nextRecurrenceDate(date: string, rule: string): string {
   }
   const weekday = normalized.match(/^every\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/u)?.[1];
   if (weekday) return nextNamedWeekday(date, ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].indexOf(weekday));
+  const weeklyWeekday = normalized.match(/^every\s+week\s+on\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/u)?.[1];
+  if (weeklyWeekday) return nextNamedWeekday(date, ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].indexOf(weeklyWeekday));
+  const monthlyDay = normalized.match(/^every\s+month\s+on\s+the\s+(\d{1,2})(?:st|nd|rd|th)$/u)?.[1];
+  if (monthlyDay) return nextMonthDay(date, Number(monthlyDay));
+  const yearlyDate = normalized.match(/^every\s+year\s+on\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})$/u);
+  if (yearlyDate) return nextYearMonthDay(date, monthNumber(yearlyDate[1]), Number(yearlyDate[2]));
   return "";
 }
 
@@ -90,6 +96,30 @@ function nextNamedWeekday(date: string, weekday: number): string {
   const current = parseLocalDate(date);
   const offset = (weekday - current.getDay() + 7) % 7 || 7;
   return addDays(date, offset);
+}
+
+function nextMonthDay(date: string, day: number): string {
+  const current = parseLocalDate(date);
+  let candidate = dateWithDay(current.getFullYear(), current.getMonth(), day);
+  if (!candidate || candidate.getTime() <= current.getTime()) candidate = dateWithDay(current.getFullYear(), current.getMonth() + 1, day);
+  return candidate ? formatLocalDate(candidate) : "";
+}
+
+function nextYearMonthDay(date: string, month: number, day: number): string {
+  const current = parseLocalDate(date);
+  let candidate = dateWithDay(current.getFullYear(), month - 1, day);
+  if (!candidate || candidate.getTime() <= current.getTime()) candidate = dateWithDay(current.getFullYear() + 1, month - 1, day);
+  return candidate ? formatLocalDate(candidate) : "";
+}
+
+function dateWithDay(year: number, monthIndex: number, day: number): Date | null {
+  const base = new Date(year, monthIndex, 1, 12, 0, 0, 0);
+  const candidate = new Date(base.getFullYear(), base.getMonth(), day, 12, 0, 0, 0);
+  return candidate.getMonth() === base.getMonth() ? candidate : null;
+}
+
+function monthNumber(value: string): number {
+  return ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"].indexOf(value) + 1;
 }
 
 function addDays(date: string, amount: number): string {

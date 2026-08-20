@@ -30,4 +30,10 @@ describe("recurring task completion fallback", () => {
   it("extracts custom recurrence without consuming following task metadata", () => {
     expect(taskRecurrenceRule("- [ ] 检查 🔁 every 3 months 📅 2026-08-11 #门诊")).toBe("every 3 months");
   });
+
+  it("advances Chinese-parser custom weekday, month-day, and year-day rules", () => {
+    expect(toggleTaskCheckboxWithRecurrence("- [ ] 周会 🔁 every week on Monday 📅 2026-08-10", now)).toContain("📅 2026-08-17");
+    expect(toggleTaskCheckboxWithRecurrence("- [ ] 月报 🔁 every month on the 15th 📅 2026-08-15", now)).toContain("📅 2026-09-15");
+    expect(toggleTaskCheckboxWithRecurrence("- [ ] 年检 🔁 every year on May 20 📅 2026-05-20", now)).toContain("📅 2027-05-20");
+  });
 });

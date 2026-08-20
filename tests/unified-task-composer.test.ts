@@ -57,6 +57,23 @@ describe("unified task composer draft", () => {
     expect(draft.content).toBe("复诊 #门诊");
     expect(draft.task).toMatchObject({ dueDate: "2026-09-01", dueTime: "17:30", priority: "low" });
   });
+
+  it("passes parsed ranges, reminder timestamps, and repeat rules to the existing task form", () => {
+    const draft = createUnifiedTaskDraft("每周一上午9点到10点开会，提前30分钟提醒", taskSettings, {
+      task: { isTask: true, syncTarget: "calendar" }
+    });
+
+    expect(draft.task).toMatchObject({
+      syncTarget: "calendar",
+      startDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      startTime: "09:00",
+      endTime: "10:00",
+      dueTime: "09:00",
+      reminderMinutesBefore: 30,
+      recurrence: "custom",
+      customRecurrence: "every week on Monday"
+    });
+  });
 });
 
 describe("unified task composer integration", () => {
@@ -118,5 +135,12 @@ describe("unified task composer integration", () => {
     expect(stylesSource).toContain(".memos-plus-unified-task-modal-shell .modal-content");
     expect(stylesSource).toContain(".memos-plus-unified-task-destination-actions");
     expect(stylesSource).toContain("overflow-x: hidden;");
+  });
+
+  it("keeps parser values shared and lets the result open the existing field editor", () => {
+    expect(composerSource).toContain("taskOptionsForm.applyTask(createUnifiedTaskDraft(source");
+    expect(composerSource).toContain('preview.addEventListener("click"');
+    expect(composerSource).toContain("details.open = true");
+    expect(stylesSource).toContain("button.memos-plus-unified-task-preview");
   });
 });

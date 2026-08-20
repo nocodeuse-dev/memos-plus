@@ -55,14 +55,13 @@ export function createUnifiedTaskComposer(container: HTMLElement, options: Unifi
       });
   if (contentInput) contentInput.value = source;
 
-  const preview = root.createDiv({ cls: "memos-plus-unified-task-preview" });
+  const preview = root.createEl("button", {
+    cls: "memos-plus-unified-task-preview",
+    attr: { type: "button", "aria-label": t(options.language, "common.edit") }
+  });
   const renderPreview = (): void => {
     renderUnifiedTaskSummary(preview, parseNaturalLanguageTask(source), options.language);
   };
-  contentInput?.addEventListener("input", () => {
-    source = contentInput.value.trim();
-    renderPreview();
-  });
   renderPreview();
 
   const details = root.createEl("details", { cls: "memos-plus-unified-task-details" });
@@ -78,6 +77,18 @@ export function createUnifiedTaskComposer(container: HTMLElement, options: Unifi
     renderMetadataOptions: true,
     hideSyncTarget: options.hideSyncTarget,
     initialTask: draft.task
+  });
+  const syncParsedFields = (): void => {
+    taskOptionsForm.applyTask(createUnifiedTaskDraft(source, options.taskSettings, options.defaults).task);
+  };
+  contentInput?.addEventListener("input", () => {
+    source = contentInput.value.trim();
+    renderPreview();
+    syncParsedFields();
+  });
+  preview.addEventListener("click", () => {
+    details.open = true;
+    taskOptionsForm.element.querySelector<HTMLInputElement | HTMLSelectElement>("input:not([disabled]), select:not([disabled])")?.focus();
   });
 
   return {
@@ -102,13 +113,39 @@ export function renderUnifiedTaskSummary(container: HTMLElement, parsed: ParsedN
   container.createDiv({ cls: "memos-plus-unified-task-preview-title", text: parsed.title });
   const metadata = container.createDiv({ cls: "memos-plus-unified-task-preview-meta" });
   if (!parsed.matched) metadata.createSpan({ text: t(language, "taskCalendar.quickTaskUnparsed") });
-  if (parsed.date) metadata.createSpan({ text: `${t(language, "taskCalendar.quickTaskDate")} ${parsed.date}` });
-  if (parsed.time) metadata.createSpan({ text: `${t(language, "taskCalendar.quickTaskTime")} ${parsed.time}` });
+  if (parsed.requiresDateConfirmation) metadata.createSpan({ text: `📅 ${parsed.dateExpression} · ${t(language, "taskCalendar.quickTaskUnparsed")}` });
+  else if (parsed.date) metadata.createSpan({ text: `📅 ${summaryDate(parsed.date, language)}` });
+  if (parsed.time) metadata.createSpan({ text: `🕒 ${parsed.time}${parsed.endTime ? `–${parsed.endTime}` : ""}` });
   if (parsed.reminderMinutesBefore !== undefined) {
-    metadata.createSpan({ text: t(language, "taskCalendar.quickTaskReminder").replace("{minutes}", String(parsed.reminderMinutesBefore)) });
+    const reminderAt = parsed.reminderDate && parsed.reminderTime ? ` · ${summaryDate(parsed.reminderDate, language)} ${parsed.reminderTime}` : "";
+    metadata.createSpan({ text: `🔔 ${t(language, "taskCalendar.quickTaskReminder").replace("{minutes}", String(parsed.reminderMinutesBefore))}${reminderAt}` });
   }
+  if (parsed.recurrence !== "none") metadata.createSpan({ text: `🔁 ${recurrenceSummary(parsed, language)}` });
   if (parsed.priority !== "none") metadata.createSpan({ text: `${t(language, "taskCalendar.quickTaskPriority")} ${priorityLabel(parsed.priority, language)}` });
   for (const tag of parsed.tags) metadata.createSpan({ text: tag });
+}
+
+function summaryDate(value: string, language: Language): string {
+  if (language !== "zh") return value;
+  const [year, month, day] = value.split("-");
+  return year && month && day ? `${year}年${Number(month)}月${Number(day)}日` : value;
+}
+
+function recurrenceSummary(parsed: ParsedNaturalLanguageTask, language: Language): string {
+  if (parsed.recurrence === "daily") return language === "zh" ? "每天" : "Every day";
+  if (parsed.recurrence === "weekdays") return language === "zh" ? "工作日" : "Weekdays";
+  if (parsed.recurrence === "weekly") return language === "zh" ? "每周" : "Every week";
+  if (parsed.recurrence === "monthly") return language === "zh" ? "每月" : "Every month";
+  if (parsed.recurrence === "yearly") return language === "zh" ? "每年" : "Every year";
+  if (language !== "zh") return parsed.customRecurrence;
+  return parsed.customRecurrence
+    .replace(/^every week on /u, "每周")
+    .replace(/^every month on the /u, "每月")
+    .replace(/^every year on /u, "每年")
+    .replace(/^every (\d+) weeks$/u, "每$1周")
+    .replace(/^every (\d+) months$/u, "每$1个月")
+    .replace(/^every (\d+) years$/u, "每$1年")
+    .replace(/^every (\d+) days$/u, "每$1天");
 }
 
 function priorityLabel(priority: ProjectTaskOptions["priority"], language: Language): string {

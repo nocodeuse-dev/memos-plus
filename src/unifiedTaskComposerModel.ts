@@ -22,15 +22,23 @@ export function createUnifiedTaskDraft(
 ): UnifiedTaskDraft {
   const source = input.trim();
   const parsed = parseNaturalLanguageTask(source);
+  const parsedDate = parsed.date || (parsed.requiresDateConfirmation ? "" : defaults.fallbackDueDate || taskSettings.defaultDueDate);
   const task: ProjectTaskOptions = {
     isTask: true,
     priority: parsed.priority === "none" ? taskSettings.defaultPriority : parsed.priority,
     projectTag: defaults.projectTag ?? taskSettings.defaultProjectTag ?? "",
-    dueDate: parsed.date || defaults.fallbackDueDate || taskSettings.defaultDueDate,
-    dueTime: parsed.time,
+    startDate: parsed.startDate || parsedDate,
+    startTime: parsed.startTime,
+    endDate: parsed.endDate,
+    endTime: parsed.endTime,
+    dueDate: parsedDate,
+    dueTime: parsed.dueTime || parsed.time,
+    reminderDate: parsed.reminderDate,
+    reminderTime: parsed.reminderTime,
     reminderMinutesBefore: parsed.reminderMinutesBefore,
-    scheduledDate: taskSettings.defaultScheduledDate,
-    recurrence: taskSettings.defaultRecurrence,
+    scheduledDate: parsed.requiresDateConfirmation ? "" : parsedDate || taskSettings.defaultScheduledDate,
+    recurrence: parsed.recurrence === "none" ? taskSettings.defaultRecurrence : parsed.recurrence,
+    customRecurrence: parsed.customRecurrence,
     addCreatedDate: taskSettings.addCreatedDate,
     syncTarget: taskSettings.defaultSyncTarget ?? (taskSettings.appleSyncEnabled ? "reminders" : "tasks"),
     syncTag: taskSettings.appleSyncTag,
@@ -45,7 +53,7 @@ export function createUnifiedTaskDraft(
 }
 
 function normalizedTaskContent(parsed: ParsedNaturalLanguageTask): string {
-  if (parsed.original.includes("\n")) return parsed.original;
+  if (parsed.original.includes("\n") || parsed.requiresDateConfirmation) return parsed.original;
   if (!parsed.matched) return parsed.original;
   return [parsed.title, ...parsed.tags].filter(Boolean).join(" ");
 }
