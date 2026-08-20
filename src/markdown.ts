@@ -1,3 +1,5 @@
+import { clearTaskCompletedAt, markTaskCompletedAt } from "./taskCompletion";
+
 export const PIN_TAG = "置顶";
 export const STAR_TAG = "收藏";
 export const ARCHIVE_TAG = "归档";
@@ -200,15 +202,16 @@ export function removeMemo(source: string, memo: MemoItem): string {
   return ensureTrailingNewline(lines.join("\n"));
 }
 
-export function toggleTaskAtLine(source: string, memo: MemoItem, contentLineIndex: number, checked: boolean): string {
+export function toggleTaskAtLine(source: string, memo: MemoItem, contentLineIndex: number, checked: boolean, now = new Date()): string {
   const contentLines = memo.content.split("\n");
   const current = contentLines[contentLineIndex];
   if (current === undefined) {
     return source;
   }
-  contentLines[contentLineIndex] = checked
+  const toggled = checked
     ? current.replace(/^(\s*[-*+]\s+)\[ \]/, "$1[x]")
     : current.replace(/^(\s*[-*+]\s+)\[[xX]\]/, "$1[ ]");
+  contentLines[contentLineIndex] = checked ? markTaskCompletedAt(toggled, now) : clearTaskCompletedAt(toggled);
   return replaceMemoContent(source, memo, contentLines.join("\n"));
 }
 

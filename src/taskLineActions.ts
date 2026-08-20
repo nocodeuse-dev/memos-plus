@@ -1,4 +1,5 @@
 import type { TaskIndexItem } from "./taskIndex";
+import { clearTaskCompletedAt, isTaskCompleted, markTaskCompletedAt } from "./taskCompletion";
 
 export function toggleTaskCheckbox(line: string): string {
   return line.replace(/^(\s*(?:[-*+]|\d+[.)])\s+\[)([^\]])(]\s+)/, (_match, prefix: string, status: string, suffix: string) => {
@@ -7,17 +8,17 @@ export function toggleTaskCheckbox(line: string): string {
 }
 
 export function toggleTaskCheckboxWithRecurrence(line: string, now = new Date()): string {
-  if (taskIsCompleted(line)) {
-    return toggleTaskCheckbox(line).replace(/\s+✅\s*\d{4}-\d{2}-\d{2}/gu, "");
+  if (isTaskCompleted(line)) {
+    return clearTaskCompletedAt(toggleTaskCheckbox(line));
   }
-  const completed = appendDoneDate(toggleTaskCheckbox(line), formatLocalDate(now));
+  const completed = markTaskCompletedAt(toggleTaskCheckbox(line), now);
   const recurrence = taskRecurrenceRule(line);
   if (!recurrence) return completed;
   const anchor = taskRecurrenceAnchor(line);
   const nextAnchor = anchor ? nextRecurrenceDate(anchor, recurrence) : "";
   if (!anchor || !nextAnchor) return completed;
   const dayOffset = daysBetween(anchor, nextAnchor);
-  const next = line
+  const next = clearTaskCompletedAt(line)
     .replace(/<!--\s*memos-plus-apple-id:[^\s>]+\s*-->/gu, "")
     .replace(/\s+✅\s*\d{4}-\d{2}-\d{2}/gu, "")
     .replace(/(🛫|⏳|📅)\s*(\d{4}-\d{2}-\d{2})/gu, (_match, marker: string, date: string) => `${marker} ${addDays(date, dayOffset)}`)
@@ -37,18 +38,6 @@ export function taskRecurrenceRule(line: string): string {
   const tail = line.slice(marker + "🔁".length).trimStart();
   const stop = tail.search(/\s+(?=(?:🔺|⏫|🔼|🔽|⏬|🛫|⏳|📅|⏰|➕|✅|#|<!--))/u);
   return (stop < 0 ? tail : tail.slice(0, stop)).trim();
-}
-
-function taskIsCompleted(line: string): boolean {
-  const status = line.match(/^\s*(?:[-*+]|\d+[.)])\s+\[(.)\]/u)?.[1] ?? "";
-  return Boolean(status.trim());
-}
-
-function appendDoneDate(line: string, date: string): string {
-  const clean = line.replace(/\s+✅\s*\d{4}-\d{2}-\d{2}/gu, "");
-  const commentIndex = clean.indexOf("<!--");
-  if (commentIndex < 0) return `${clean.trimEnd()} ✅ ${date}`;
-  return `${clean.slice(0, commentIndex).trimEnd()} ✅ ${date} ${clean.slice(commentIndex).trimStart()}`;
 }
 
 function taskRecurrenceAnchor(line: string): string {

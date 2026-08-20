@@ -80,6 +80,17 @@ describe("TaskIndex helpers", () => {
     expect(taskDisplayTitle(item.text)).toBe("8月10日测试任务");
   });
 
+  it("reads an exact completion time from Memos Plus metadata without changing the Tasks done date", () => {
+    const encoded = encodeURIComponent(JSON.stringify({ target: "tasks", completedAt: "2026-08-20T17:31:42" }));
+    const [item] = parseTaskIndexItemsFromMarkdown(`- [x] 已完成任务 ✅ 2026-08-20 <!-- memos-plus-task-meta:${encoded} -->`, {
+      filePath: "任务.md",
+      fileName: "任务",
+      mtime: 1
+    });
+
+    expect(item).toMatchObject({ completed: true, doneDate: "2026-08-20", completedAt: "2026-08-20T17:31:42", syncTarget: "" });
+  });
+
   it("keeps malformed duplicate task metadata out of the indexed title", () => {
     const encoded = encodeURIComponent(JSON.stringify({ target: "reminders", dueTime: "17:31" }));
     const legacy = `<!-- memos-plus-task- meta:${encoded} -->`;

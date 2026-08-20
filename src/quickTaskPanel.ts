@@ -9,6 +9,7 @@ import {
 import type { TaskIndexItem } from "./taskIndex";
 import type { TaskPriorityFilterValue } from "./taskSearch";
 import { quickTaskPanelItems, quickTaskTime } from "./quickTaskPanelModel";
+import { taskCompletionDate, taskCompletionTime } from "./taskCompletion";
 
 const INITIAL_VISIBLE_TASKS = 40;
 
@@ -226,10 +227,21 @@ export class QuickTaskPanel {
     });
     body.createDiv({ cls: "memos-plus-quick-task-panel-task-title", text: title });
     const meta = body.createDiv({ cls: "memos-plus-quick-task-panel-task-meta" });
-    const date = taskDate(task);
-    const time = quickTaskTime(task);
-    if (date) meta.createSpan({ text: date === todayTaskCalendarDate() ? t(lang, "quickTaskPanel.today") : date });
-    if (time) meta.createSpan({ text: time });
+    if (task.completed) {
+      const completedDate = taskCompletionDate(task.completedAt);
+      const completedTime = taskCompletionTime(task.completedAt);
+      if (completedDate && completedTime) {
+        const day = completedDate === todayTaskCalendarDate() ? t(lang, "quickTaskPanel.today") : completedDate;
+        meta.createSpan({ text: lang === "zh" ? `${day} ${completedTime} 完成` : `Completed ${day} ${completedTime}` });
+      } else if (task.doneDate) {
+        meta.createSpan({ text: task.doneDate });
+      }
+    } else {
+      const date = taskDate(task);
+      const time = quickTaskTime(task);
+      if (date) meta.createSpan({ text: date === todayTaskCalendarDate() ? t(lang, "quickTaskPanel.today") : date });
+      if (time) meta.createSpan({ text: time });
+    }
     if (task.priority !== "none") meta.createSpan({ cls: task.priority === "highest" || task.priority === "high" ? "is-priority" : "", text: priorityText(task.priority, lang) });
     const apple = this.plugin.taskCalendarAppleStatus(task);
     if (apple) meta.createSpan({

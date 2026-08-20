@@ -18,6 +18,7 @@ import { AppleSyncService } from "../src/appleSyncService";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/settings";
 import { normalizeAppleBridgeError, type AppleSyncBridge } from "../src/appleSyncBridge";
 import type { TaskIndex } from "../src/taskIndex";
+import { parseMemosPlusTaskMetadata } from "../src/tasksFormat";
 
 vi.mock("obsidian", () => ({
   App: class {},
@@ -38,6 +39,7 @@ const remoteReminder: AppleSyncRemoteItem = {
   title: "Apple 修改后的任务",
   completed: true,
   completionDate: "2026-08-11",
+  completionAt: "2026-08-11T14:36:42",
   dueDate: "2026-08-08",
   dueTime: "14:30",
   priority: 1,
@@ -94,6 +96,7 @@ describe("Apple sync safety and merge helpers", () => {
     expect(updated).toContain("⏳ 2026-08-02");
     expect(updated).toContain("#项目/测试");
     expect(updated.match(/memos-plus-apple-id/g)).toHaveLength(1);
+    expect(parseMemosPlusTaskMetadata(updated)).toMatchObject({ completedAt: "2026-08-11T14:36:42" });
   });
 
   it("keeps recurring history and creates one unlinked next occurrence after Apple completion", () => {
@@ -113,6 +116,7 @@ describe("Apple sync safety and merge helpers", () => {
     expect(line).toContain("#Apple同步 <!-- memos-plus-apple-id:new-local -->");
     expect(line).toContain("✅ 2026-08-11");
     expect(line).toContain("memos-plus-task-meta:");
+    expect(parseMemosPlusTaskMetadata(line)).toMatchObject({ completedAt: "2026-08-11T14:36:42" });
   });
 
   it("keeps workspace-only task details out of the Apple Reminder title", () => {
@@ -192,6 +196,7 @@ describe("Apple sync source integration", () => {
     expect(bridgeSource).toContain("const ids = safeArray(function () { return reminders.id(); });");
     expect(bridgeSource).toContain("const bodies = safeArray(function () { return reminders.body(); });");
     expect(bridgeSource).toContain("const completionDates = safeArray(function () { return reminders.completionDate(); });");
+    expect(bridgeSource).toContain("completionAt: completion ? localDateTimeString(completion) : \"\"");
     expect(bridgeSource).toContain("reminderRecordFromValues");
     expect(bridgeSource).toContain("listReminderItemsMany");
     expect(bridgeSource).toContain("containers: unique");

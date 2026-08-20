@@ -266,6 +266,10 @@ export function taskCalendarTasks(
     );
   }
   return [...filtered].sort((left, right) => {
+    if ((navigation === "completed" || completedOnDate) && left.completed && right.completed) {
+      const completionOrder = taskCompletionSortValue(right) - taskCompletionSortValue(left);
+      if (completionOrder) return completionOrder;
+    }
     if (navigation === "upcoming") return taskDate(left).localeCompare(taskDate(right)) || left.text.localeCompare(right.text);
     return taskSortKey(left, date) - taskSortKey(right, date) || left.text.localeCompare(right.text);
   });
@@ -308,12 +312,20 @@ export function taskDate(item: Pick<TaskIndexItem, "dueDate" | "scheduledDate" |
  * conservative fallback when their only dated placement is the selected day.
  */
 export function taskCalendarCompletedOnDate(
-  item: Pick<TaskIndexItem, "completed" | "doneDate" | "dueDate" | "scheduledDate" | "startDate">,
+  item: Pick<TaskIndexItem, "completed" | "completedAt" | "doneDate" | "dueDate" | "scheduledDate" | "startDate">,
   date: string
 ): boolean {
   if (!item.completed) return false;
+  if (item.completedAt) return item.completedAt.slice(0, 10) === date;
   if (item.doneDate) return item.doneDate === date;
   return taskDate(item) === date;
+}
+
+function taskCompletionSortValue(item: Pick<TaskIndexItem, "completedAt" | "doneDate">): number {
+  const explicit = Date.parse(item.completedAt);
+  if (Number.isFinite(explicit)) return explicit;
+  const legacyDate = item.doneDate ? Date.parse(`${item.doneDate}T00:00:00`) : NaN;
+  return Number.isFinite(legacyDate) ? legacyDate : 0;
 }
 
 export function formatTaskCalendarDate(date: string, locale = "zh-CN"): string {

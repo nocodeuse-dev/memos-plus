@@ -24,6 +24,8 @@ export function quickTaskPanelItems(
   return [...filtered].sort((left, right) => {
     if (tab === "today" && left.completed !== right.completed) return left.completed ? 1 : -1;
     if (tab === "today" && left.completed && right.completed) {
+      const completionOrder = completionSortValue(right) - completionSortValue(left);
+      if (completionOrder) return completionOrder;
       const placementOrder = Number(taskDate(left) !== today) - Number(taskDate(right) !== today);
       if (placementOrder) return placementOrder;
     }
@@ -32,6 +34,13 @@ export function quickTaskPanelItems(
       || priorityRank(left.priority) - priorityRank(right.priority)
       || left.title.localeCompare(right.title);
   });
+}
+
+function completionSortValue(task: Pick<TaskIndexItem, "completedAt" | "doneDate">): number {
+  const precise = Date.parse(task.completedAt);
+  if (Number.isFinite(precise)) return precise;
+  const legacy = task.doneDate ? Date.parse(`${task.doneDate}T00:00:00`) : NaN;
+  return Number.isFinite(legacy) ? legacy : 0;
 }
 
 export function quickTaskTime(task: Pick<TaskIndexItem, "dueTime" | "startTime">): string {

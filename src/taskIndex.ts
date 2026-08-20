@@ -21,6 +21,8 @@ export interface TaskIndexItem {
   startDate: string;
   createdDate: string;
   doneDate: string;
+  /** Exact local completion time kept by Memos Plus; empty for legacy tasks. */
+  completedAt: string;
   startTime: string;
   endDate: string;
   endTime: string;
@@ -323,7 +325,8 @@ function taskIndexItemFromParsedTask(task: ParsedTaskLine, line: string, lineNum
     reminderTime: metadata?.reminderTime ?? "",
     reminderMinutesBefore: metadata?.reminderMinutesBefore,
     allDay: metadata?.allDay === true,
-    syncTarget: metadata?.target ?? "",
+    completedAt: metadata?.completedAt ?? "",
+    syncTarget: metadata?.target === "reminders" || metadata?.target === "calendar" ? metadata.target : "",
     appleSyncId: line.match(/<!--\s*memos-plus-apple-id:([a-zA-Z0-9_-]+)\s*-->/u)?.[1] ?? "",
     appleSyncTagged: /(^|\s)#Apple同步(?=\s|$)/u.test(line),
     recurring: task.recurring,
@@ -400,10 +403,23 @@ function taskIndexItemMatchesBranch(item: TaskIndexItem, branchId: OrganizerTask
 }
 
 export function sortTaskIndexItems(items: TaskIndexItem[]): TaskIndexItem[] {
-  return [...items].sort(
-    (left, right) =>
-      right.capturedAtTime - left.capturedAtTime || right.mtime - left.mtime || left.filePath.localeCompare(right.filePath) || left.lineNumber - right.lineNumber
-  );
+  return [...items].sort((left, right) => {
+    if (left.completed && right.completed) {
+      const completionOrder = completedSortTime(right) - completedSortTime(left);
+      if (completionOrder) return completionOrder;
+    }
+    return right.capturedAtTime - left.capturedAtTime || right.mtime - left.mtime || left.filePath.localeCompare(right.filePath) || left.lineNumber - right.lineNumber;
+  });
+}
+
+function completedSortTime(item: Pick<TaskIndexItem, "completedAt" | "doneDate" | "capturedAtTime">): number {
+  const explicit = Date.parse(item.completedAt);
+  if (Number.isFinite(explicit)) return explicit;
+  // Legacy Tasks rows never had an exact completion time. Their visible done
+  // date is only a stable day-level fallback for ordering, not a fabricated
+  // completion moment displayed to the user.
+  const legacyDate = item.doneDate ? Date.parse(`${item.doneDate}T00:00:00`) : NaN;
+  return Number.isFinite(legacyDate) ? legacyDate : item.capturedAtTime;
 }
 
 function startOfWeek(dateString: string): string {

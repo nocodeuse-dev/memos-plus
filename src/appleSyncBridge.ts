@@ -288,6 +288,7 @@ function reminderRecord(item, containerName) {
     title: safeGet(function () { return item.name(); }),
     completed: Boolean(item.completed()),
     completionDate: completion ? localDateString(completion) : "",
+    completionAt: completion ? localDateTimeString(completion) : "",
     dueDate: allDayDue ? localDateString(allDayDue) : (due ? localDateString(due) : ""),
     dueTime: due ? localTimeString(due) : "",
     reminderDate: remind ? localDateString(remind) : "",
@@ -315,6 +316,7 @@ function reminderRecordFromValues(values, containerName) {
     title: values.name == null ? "" : String(values.name),
     completed: Boolean(values.completed),
     completionDate: completion ? localDateString(completion) : "",
+    completionAt: completion ? localDateTimeString(completion) : "",
     dueDate: allDayDue ? localDateString(allDayDue) : (due ? localDateString(due) : ""),
     dueTime: due ? localTimeString(due) : "",
     reminderDate: remind ? localDateString(remind) : "",
@@ -446,6 +448,10 @@ function localDateString(value) {
 
 function localTimeString(value) {
   return [pad(value.getHours()), pad(value.getMinutes())].join(":");
+}
+
+function localDateTimeString(value) {
+  return localDateString(value) + "T" + localTimeString(value) + ":" + pad(value.getSeconds());
 }
 
 function pad(value) { return String(value).padStart(2, "0"); }

@@ -232,9 +232,12 @@ export class AppleSyncService {
           remote.modifiedAt
         );
         // Older plugin versions synchronized the completed checkbox but did
-        // not read Reminders.completionDate. Backfill that missing Tasks
-        // marker even when the normal content signatures are otherwise equal.
-        if (direction === "none" && remote.completed && remote.completionDate && task.doneDate !== remote.completionDate) {
+        // not read Reminders.completionDate. Backfill the visible Tasks date
+        // and, for current versions, the exact Apple completion timestamp even
+        // when all other content signatures are otherwise equal.
+        if (direction === "none" && remote.completed && remote.completionDate && (
+          task.doneDate !== remote.completionDate || (remote.completionAt && task.completedAt !== remote.completionAt)
+        )) {
           direction = "pull";
         }
         // A legacy malformed task-meta marker could previously leak into the

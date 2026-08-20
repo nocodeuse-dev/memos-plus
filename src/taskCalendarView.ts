@@ -40,6 +40,7 @@ import {
 } from "./taskCalendarTaskEditor";
 import { TaskCalendarEditSession } from "./taskCalendarEditSession";
 import { renderTaskCalendarTaskEditor } from "./taskCalendarTaskEditorUi";
+import { taskCompletionDate, taskCompletionTime } from "./taskCompletion";
 import {
   isMastered,
   learningCardsForFilter,
@@ -819,6 +820,8 @@ export class TaskCalendarView extends ItemView {
     checkbox.addEventListener("change", () => this.toggleTaskCompletionOptimistically(task, checkbox, taskEl));
     const body = taskEl.createEl("button", { cls: "memos-plus-task-calendar-completed-task-body", attr: { type: "button", title } });
     body.createSpan({ text: title });
+    const completedAt = taskCompletedLabel(task, this.plugin.settings.language);
+    if (completedAt) body.createSpan({ cls: "memos-plus-task-calendar-completed-at", text: completedAt });
     body.addEventListener("click", () => this.selectTask(task));
   }
 
@@ -962,8 +965,13 @@ export class TaskCalendarView extends ItemView {
     const time = task.dueTime || task.startTime;
     const dateAndTime = [taskListDateLabel(date, this.plugin.settings.language), time].filter(Boolean).join(" ");
     const facts = body.createDiv({ cls: "memos-plus-task-calendar-task-meta memos-plus-task-calendar-task-facts" });
-    if (date && date < selectedDate) facts.createSpan({ cls: "is-overdue", text: t(this.plugin.settings.language, "taskCalendar.overdue") });
-    if (dateAndTime) facts.createSpan({ text: dateAndTime });
+    if (task.completed) {
+      const completedAt = taskCompletedLabel(task, this.plugin.settings.language);
+      if (completedAt) facts.createSpan({ cls: "is-completed-at", text: completedAt });
+    } else {
+      if (date && date < selectedDate) facts.createSpan({ cls: "is-overdue", text: t(this.plugin.settings.language, "taskCalendar.overdue") });
+      if (dateAndTime) facts.createSpan({ text: dateAndTime });
+    }
     const priority = priorityDetails(task.priority, this.plugin.settings.language);
     if (priority) facts.createSpan({ cls: task.priority === "highest" || task.priority === "high" ? "is-priority" : "", text: priority });
     const project = this.taskProjectLabel(task);
@@ -1374,6 +1382,17 @@ function taskListDateLabel(date: string, lang: "zh" | "en"): string {
   if (date === today) return lang === "zh" ? "今天" : "Today";
   if (date === shiftDate(today, "day", 1)) return lang === "zh" ? "明天" : "Tomorrow";
   return date;
+}
+
+function taskCompletedLabel(task: Pick<TaskIndexItem, "completedAt" | "doneDate">, lang: "zh" | "en"): string {
+  const date = taskCompletionDate(task.completedAt);
+  const time = taskCompletionTime(task.completedAt);
+  if (date && time) {
+    const day = taskListDateLabel(date, lang);
+    return lang === "zh" ? `${day} ${time} 完成` : `Completed ${day} ${time}`;
+  }
+  if (task.doneDate) return lang === "zh" ? `已完成 · ${task.doneDate}` : `Completed · ${task.doneDate}`;
+  return "";
 }
 
 function summaryCard(container: HTMLElement, label: string, value: string, extraClass = ""): void {

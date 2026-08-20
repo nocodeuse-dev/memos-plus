@@ -12,6 +12,7 @@ import type { TaskIndexItem } from "./taskIndex";
 import type { TaskPriorityFilterValue } from "./taskSearch";
 import { t, type Language } from "./i18n";
 import type { TaskRecurrence, TaskSyncTarget } from "./tasksFormat";
+import { taskCompletionDate, taskCompletionTime } from "./taskCompletion";
 
 export interface TaskCalendarAppleStatus {
   label: string;
@@ -50,6 +51,8 @@ export function renderTaskCalendarTaskEditor(container: HTMLElement, options: Ta
   session.setListener((snapshot) => updateTaskEditStatus(status, retry, snapshot, lang, options.appleStatus));
 
   const completed = taskDetailCheckbox(form, t(lang, "taskCalendar.detail.completed"), task.completed);
+  const completedAt = taskDetailReadonlyField(form, t(lang, "taskCalendar.detail.completedAt"), completionTimeLabel(task, lang));
+  completedAt.field.toggleClass("is-hidden", !completionTimeLabel(task, lang));
   const title = taskDetailTextField(form, t(lang, "taskCalendar.detail.title"), task.title);
   const row = form.createDiv({ cls: "memos-plus-task-calendar-task-detail-grid" });
   const date = taskDetailInput(row, t(lang, "taskCalendar.detail.date"), "date", taskDate(task));
@@ -107,6 +110,9 @@ export function renderTaskCalendarTaskEditor(container: HTMLElement, options: Ta
         task = updated;
         session.reconcile(updated);
         completed.checked = updated.completed;
+        const label = completionTimeLabel(updated, lang);
+        completedAt.value.setText(label);
+        completedAt.field.toggleClass("is-hidden", !label);
       } else {
         completed.checked = !requested;
       }
@@ -242,6 +248,12 @@ function taskDetailCheckbox(container: HTMLElement, label: string, checked: bool
   return input;
 }
 
+function taskDetailReadonlyField(container: HTMLElement, label: string, value: string): { field: HTMLElement; value: HTMLElement } {
+  const field = taskDetailField(container, label);
+  field.addClass("is-readonly");
+  return { field, value: field.createSpan({ text: value }) };
+}
+
 function taskDetailSelect(container: HTMLElement, label: string, options: Array<[string, string]>, value: string): HTMLSelectElement {
   const select = taskDetailField(container, label).createEl("select");
   for (const [optionValue, optionLabel] of options) {
@@ -254,4 +266,12 @@ function taskDetailSelect(container: HTMLElement, label: string, options: Array<
 function normalizeVisibleProjectTag(value: string): string {
   const normalized = value.trim().replace(/^#+/u, "");
   return normalized ? `#${normalized}` : "";
+}
+
+function completionTimeLabel(task: Pick<TaskIndexItem, "completedAt" | "doneDate">, lang: Language): string {
+  const date = taskCompletionDate(task.completedAt);
+  const time = taskCompletionTime(task.completedAt);
+  if (date && time) return lang === "zh" ? `${date} ${time}` : `${date} ${time}`;
+  if (task.doneDate) return task.doneDate;
+  return "";
 }

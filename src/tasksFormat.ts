@@ -26,10 +26,16 @@ export interface TasksMarkdownOptions {
   reminderTime?: string;
   reminderMinutesBefore?: number;
   allDay?: boolean;
+  /** Precise local completion timestamp kept in Memos Plus metadata. */
+  completedAt?: string;
 }
 
 export interface MemosPlusTaskMetadata {
-  target: Exclude<TaskSyncTarget, "tasks">;
+  /**
+   * Keep "tasks" as an explicit value when metadata is needed for a normal
+   * Markdown / Obsidian Tasks task (for example its completion timestamp).
+   */
+  target?: TaskSyncTarget;
   startTime?: string;
   endDate?: string;
   endTime?: string;
@@ -39,6 +45,8 @@ export interface MemosPlusTaskMetadata {
   reminderMinutesBefore?: number;
   allDay?: boolean;
   recurrence?: string;
+  /** Local wall-clock timestamp in YYYY-MM-DDTHH:mm:ss form. */
+  completedAt?: string;
 }
 
 // Older damaged sync rounds may contain `memos-plus-task- meta` (with
@@ -167,6 +175,29 @@ export function normalizeTaskTime(value: unknown): string {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+/**
+ * Completion times are deliberately stored separately from Tasks' visible
+ * `✅ YYYY-MM-DD` token. The visible token stays compatible with Obsidian
+ * Tasks, while this field retains the actual local time the task was closed.
+ */
+export function normalizeTaskCompletionAt(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?$/u);
+  if (!match) return "";
+  const date = normalizeTaskDate(match[1]);
+  const time = normalizeTaskTime(`${match[2]}:${match[3]}`);
+  const seconds = Number(match[4] ?? "0");
+  if (!date || !time || seconds < 0 || seconds > 59) return "";
+  const [year, month, day] = date.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+  const parsed = new Date(year, month - 1, day, hours, minutes, seconds, 0);
+  if (
+    parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day ||
+    parsed.getHours() !== hours || parsed.getMinutes() !== minutes || parsed.getSeconds() !== seconds
+  ) return "";
+  return `${date}T${time}:${String(seconds).padStart(2, "0")}`;
+}
+
 export function normalizeTaskSyncTarget(value: unknown): TaskSyncTarget {
   return value === "calendar" || value === "reminders" ? value : "tasks";
 }
@@ -177,7 +208,6 @@ export function parseMemosPlusTaskMetadata(line: string): MemosPlusTaskMetadata 
     try {
       const parsed = JSON.parse(decodeURIComponent(encoded)) as Record<string, unknown>;
       const target = normalizeTaskSyncTarget(parsed.target);
-      if (target === "tasks") continue;
       return compactMetadata({
         target,
         startTime: normalizeTaskTime(parsed.startTime),
@@ -188,7 +218,8 @@ export function parseMemosPlusTaskMetadata(line: string): MemosPlusTaskMetadata 
         reminderTime: normalizeTaskTime(parsed.reminderTime),
         reminderMinutesBefore: normalizeReminderMinutes(parsed.reminderMinutesBefore),
         allDay: parsed.allDay === true,
-        recurrence: typeof parsed.recurrence === "string" ? parsed.recurrence.trim() : ""
+        recurrence: typeof parsed.recurrence === "string" ? parsed.recurrence.trim() : "",
+        completedAt: normalizeTaskCompletionAt(parsed.completedAt)
       });
     } catch {
       // Keep looking from newest to oldest so one damaged duplicate cannot hide
@@ -241,7 +272,8 @@ function normalizeTaskSyncTag(options: TasksMarkdownOptions): string {
 
 function taskMetadataToken(options: TasksMarkdownOptions): string {
   const target = normalizeTaskSyncTarget(options.syncTarget);
-  if (target === "tasks") return "";
+  const completedAt = normalizeTaskCompletionAt(options.completedAt);
+  if (target === "tasks" && !completedAt) return "";
   const metadata = compactMetadata({
     target,
     startTime: normalizeTaskTime(options.startTime),
@@ -252,7 +284,8 @@ function taskMetadataToken(options: TasksMarkdownOptions): string {
     reminderTime: normalizeTaskTime(options.reminderTime),
     reminderMinutesBefore: normalizeReminderMinutes(options.reminderMinutesBefore),
     allDay: options.allDay === true,
-    recurrence: metadataRecurrence(options)
+    recurrence: metadataRecurrence(options),
+    completedAt
   });
   return `<!-- memos-plus-task-meta:${encodeURIComponent(JSON.stringify(metadata))} -->`;
 }

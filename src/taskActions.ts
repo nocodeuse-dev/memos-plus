@@ -6,6 +6,7 @@ import {
   type TaskCalendarTaskPatch
 } from "./taskCalendarTaskEditor";
 import { replaceIndexedTaskLine, toggleTaskCheckboxWithRecurrence } from "./taskLineActions";
+import { synchronizeTaskCompletionAt } from "./taskCompletion";
 
 export { replaceIndexedTaskLine, toggleTaskCheckbox, toggleTaskCheckboxWithRecurrence } from "./taskLineActions";
 
@@ -35,7 +36,7 @@ export function getTasksApi(app: App): Partial<TasksApiV1> | null {
 export async function toggleIndexedTask(app: App, task: TaskIndexItem): Promise<TaskMutationResult> {
   const tasksApi = getTasksApi(app);
   const replacement = tasksApi?.executeToggleTaskDoneCommand
-    ? tasksApi.executeToggleTaskDoneCommand(task.line, task.filePath)
+    ? synchronizeTaskCompletionAt(tasksApi.executeToggleTaskDoneCommand(task.line, task.filePath))
     : toggleTaskCheckboxWithRecurrence(task.line);
   return mutateIndexedTaskLine(app, task, replacement);
 }

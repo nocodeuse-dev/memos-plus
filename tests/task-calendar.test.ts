@@ -47,7 +47,8 @@ function task(overrides: Partial<TaskIndexItem> = {}): TaskIndexItem {
     appleSyncTagged: false,
     recurring: false,
     mtime: 0,
-    ...overrides
+    ...overrides,
+    completedAt: overrides.completedAt ?? ""
   };
 }
 
@@ -111,6 +112,16 @@ describe("Schedule and tasks state", () => {
       navigationWidth: 232,
       taskPaneWidth: 420
     });
+  });
+
+  it("keeps today-completed tasks on their actual completion day and orders completed views by precise time", () => {
+    const completed = [
+      task({ title: "较早完成", completed: true, doneDate: "2026-08-11", completedAt: "2026-08-11T09:10:00" }),
+      task({ title: "较晚完成", completed: true, doneDate: "2026-08-11", completedAt: "2026-08-11T17:30:00" })
+    ];
+
+    expect(taskCalendarCompletedOnDate(completed[0]!, "2026-08-11")).toBe(true);
+    expect(taskCalendarTasks(completed, "completed", "2026-08-11").map((item) => item.title)).toEqual(["较晚完成", "较早完成"]);
   });
 
   it("migrates the previous task pane default while preserving custom widths", () => {

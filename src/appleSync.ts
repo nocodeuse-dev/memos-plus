@@ -1,6 +1,7 @@
 import type { TaskIndexItem } from "./taskIndex";
 import { attachMemosPlusTaskMetadata, parseMemosPlusTaskMetadata, stripMemosPlusTaskMetadata } from "./tasksFormat";
 import { completeTaskWithRecurrence } from "./taskLineActions";
+import { clearTaskCompletionTimestampMetadata, taskCompletionDateTime } from "./taskCompletion";
 
 export type AppleSyncTarget = "reminders" | "calendar";
 export type AppleSyncConflictPolicy = "remote-wins" | "local-wins" | "newest";
@@ -14,6 +15,8 @@ export interface AppleSyncRemoteItem {
   title: string;
   completed: boolean;
   completionDate?: string;
+  /** Exact local completion instant returned by Apple Reminders when available. */
+  completionAt?: string;
   dueDate: string;
   dueTime: string;
   reminderDate?: string;
@@ -241,6 +244,7 @@ export function remoteAppleSyncSignature(item: AppleSyncRemoteItem): string {
   return JSON.stringify({
     title: normalizeRemoteTitle(item.title, item.kind),
     completed: item.completed,
+    completionAt: item.kind === "reminders" && item.completed ? item.completionAt ?? "" : "",
     dueDate: item.dueDate,
     dueTime: item.dueTime,
     reminderDate: item.kind === "reminders" ? item.reminderDate ?? "" : "",
@@ -333,12 +337,16 @@ export function updateTaskLineFromApple(line: string, item: AppleSyncRemoteItem,
     reminderTime: item.reminderTime,
     reminderMinutesBefore: originalMetadata?.reminderMinutesBefore,
     allDay: item.allDay,
-    recurrence: originalMetadata?.recurrence
+    recurrence: originalMetadata?.recurrence,
+    completedAt: item.completed ? item.completionAt || originalMetadata?.completedAt || "" : ""
   });
   const wasIncomplete = /^\s*(?:[-*+]|\d+[.)])\s+\[\s\]/u.test(line);
-  return item.completed && wasIncomplete && withMetadata.includes("🔁")
-    ? completeTaskWithRecurrence(withMetadata)
-    : withMetadata;
+  if (!item.completed || !wasIncomplete || !withMetadata.includes("🔁")) return withMetadata;
+  const completed = completeTaskWithRecurrence(
+    withMetadata,
+    taskCompletionDateTime(item.completionAt) ?? taskCompletionDateTime(item.completionDate ? `${item.completionDate}T12:00:00` : "") ?? new Date()
+  );
+  return item.completionAt ? completed : clearTaskCompletionTimestampMetadata(completed);
 }
 
 export function formatImportedAppleTask(item: AppleSyncRemoteItem, tag: string, localId: string): string {
@@ -363,7 +371,8 @@ export function formatImportedAppleTask(item: AppleSyncRemoteItem, tag: string, 
     dueTime: item.dueTime,
     reminderDate: item.reminderDate,
     reminderTime: item.reminderTime,
-    allDay: item.allDay
+    allDay: item.allDay,
+    completedAt: item.completed ? item.completionAt ?? "" : ""
   });
 }
 

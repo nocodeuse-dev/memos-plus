@@ -32,7 +32,8 @@ function task(title: string, overrides: Partial<TaskIndexItem> = {}): TaskIndexI
     appleSyncTagged: false,
     recurring: false,
     mtime: 0,
-    ...overrides
+    ...overrides,
+    completedAt: overrides.completedAt ?? ""
   };
 }
 

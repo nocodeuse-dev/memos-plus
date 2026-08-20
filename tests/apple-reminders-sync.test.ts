@@ -102,6 +102,7 @@ class MemoryRemindersBridge implements AppleSyncBridge {
       title: input.title,
       completed: input.completed,
       completionDate: input.completed ? "2026-08-11" : "",
+      completionAt: input.completed ? "2026-08-11T09:30:15" : "",
       dueDate: input.dueDate,
       dueTime: input.dueTime,
       reminderDate: input.reminderDate,
@@ -528,6 +529,7 @@ describe("Apple Reminders bidirectional synchronization", () => {
       title: "Apple 修改",
       completed: true,
       completionDate: "2026-08-11",
+      completionAt: "2026-08-11T18:22:33",
       dueDate: "2026-08-12",
       dueTime: "18:20",
       priority: 9,
@@ -539,6 +541,7 @@ describe("Apple Reminders bidirectional synchronization", () => {
     expect(test.vault.source("Tasks.md")).toContain("- [x] Apple 修改 🔽 📅 2026-08-12 ⏰ 18:20");
     expect(test.vault.source("Tasks.md")).toContain("#Apple同步");
     expect(test.vault.source("Tasks.md")).toContain("✅ 2026-08-11");
+    expect(test.vault.source("Tasks.md")).toContain("2026-08-11T18%3A22%3A33");
     expect(test.vault.source("Tasks.md")).toContain("- [ ] 历史本地任务");
 
     test.bridge.items = [];

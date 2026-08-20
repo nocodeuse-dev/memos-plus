@@ -157,7 +157,8 @@ export function updateTaskCalendarTaskLine(
       reminderTime: patch.reminderTime ?? existingMetadata?.reminderTime,
       reminderMinutesBefore,
       allDay: patch.time === "" ? existingMetadata?.allDay : false,
-      recurrence: recurrenceMetadata
+      recurrence: recurrenceMetadata,
+      completedAt: existingMetadata?.completedAt
     });
   } else if (target === "calendar") {
     line = attachMemosPlusTaskMetadata(line, {
@@ -167,7 +168,15 @@ export function updateTaskCalendarTaskLine(
       endTime: existingMetadata?.endTime,
       reminderMinutesBefore,
       allDay: patch.time === "" ? existingMetadata?.allDay : false,
-      recurrence: recurrenceMetadata
+      recurrence: recurrenceMetadata,
+      completedAt: existingMetadata?.completedAt
+    });
+  } else if (existingMetadata?.completedAt) {
+    // Switching a completed task back to plain Tasks must not erase its real
+    // completion timestamp along with the previous Apple timing metadata.
+    line = attachMemosPlusTaskMetadata(line, {
+      target: "tasks",
+      completedAt: existingMetadata.completedAt
     });
   }
 

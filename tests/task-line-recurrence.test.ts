@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { taskRecurrenceRule, toggleTaskCheckboxWithRecurrence } from "../src/taskLineActions";
+import { parseMemosPlusTaskMetadata } from "../src/tasksFormat";
 
 describe("recurring task completion fallback", () => {
   const now = new Date(2026, 7, 11, 12, 0);
 
   it("preserves the completed history and generates the next daily task", () => {
     const result = toggleTaskCheckboxWithRecurrence("- [ ] 服药 🔁 every day 📅 2026-08-11", now);
-    expect(result).toBe("- [x] 服药 🔁 every day 📅 2026-08-11 ✅ 2026-08-11\n- [ ] 服药 🔁 every day 📅 2026-08-12");
+    expect(result).toContain("- [x] 服药 🔁 every day 📅 2026-08-11 ✅ 2026-08-11");
+    expect(result).toContain("- [ ] 服药 🔁 every day 📅 2026-08-12");
+    expect(parseMemosPlusTaskMetadata(result.split("\n")[0]!)).toMatchObject({ completedAt: "2026-08-11T12:00:00" });
   });
 
   it("skips weekends for weekday recurrence and shifts related dates together", () => {
