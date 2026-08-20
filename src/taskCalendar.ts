@@ -1,10 +1,11 @@
 import type { TaskIndexItem } from "./taskIndex";
 import type { OrganizerFilterId } from "./organizerPanel";
 import type { TaskPriorityFilterValue } from "./taskSearch";
+import type { LearningCardFilter } from "./learning/learningCards";
 
 export type TaskCalendarViewMode = "day" | "week";
 export type TaskCalendarNavigation = "today" | "upcoming" | "tomorrow" | "week" | "inbox" | "overdue" | "all" | "completed";
-export type TaskCalendarMobileTab = "today" | "tasks" | "calendar";
+export type TaskCalendarMobileTab = "today" | "tasks" | "calendar" | "learning";
 export type TaskCalendarQuickPanelTab = "today" | "next-seven" | "important" | "overdue";
 
 export interface TaskCalendarProjectFilter {
@@ -46,6 +47,7 @@ export interface TaskCalendarSettings {
   showHomeEntry: boolean;
   showMobileQuickActions: boolean;
   quickPanelTab: TaskCalendarQuickPanelTab;
+  learningFilter: LearningCardFilter | "";
 }
 
 export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
@@ -66,7 +68,8 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   showAllDayEvents: true,
   showHomeEntry: true,
   showMobileQuickActions: true,
-  quickPanelTab: "today"
+  quickPanelTab: "today",
+  learningFilter: ""
 };
 
 export interface TaskCalendarDateRange {
@@ -95,7 +98,7 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     selectedDate: normalizeDate(raw.selectedDate),
     viewMode: raw.viewMode === "week" ? "week" : "day",
     navigation: normalizeNavigation(raw.navigation, DEFAULT_TASK_CALENDAR_SETTINGS.navigation),
-    mobileTab: raw.mobileTab === "tasks" || raw.mobileTab === "calendar" ? raw.mobileTab : "today",
+    mobileTab: raw.mobileTab === "tasks" || raw.mobileTab === "calendar" || raw.mobileTab === "learning" ? raw.mobileTab : "today",
     sidebarCollapsed: typeof raw.sidebarCollapsed === "boolean" ? raw.sidebarCollapsed : false,
     sidebarExpandedManually: typeof raw.sidebarExpandedManually === "boolean" ? raw.sidebarExpandedManually : false,
     tasksPaneHidden: typeof raw.tasksPaneHidden === "boolean" ? raw.tasksPaneHidden : false,
@@ -106,8 +109,13 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     showAllDayEvents: typeof raw.showAllDayEvents === "boolean" ? raw.showAllDayEvents : DEFAULT_TASK_CALENDAR_SETTINGS.showAllDayEvents,
     showHomeEntry: typeof raw.showHomeEntry === "boolean" ? raw.showHomeEntry : DEFAULT_TASK_CALENDAR_SETTINGS.showHomeEntry,
     showMobileQuickActions: typeof raw.showMobileQuickActions === "boolean" ? raw.showMobileQuickActions : DEFAULT_TASK_CALENDAR_SETTINGS.showMobileQuickActions,
-    quickPanelTab: normalizeQuickPanelTab(raw.quickPanelTab)
+    quickPanelTab: normalizeQuickPanelTab(raw.quickPanelTab),
+    learningFilter: normalizeLearningFilter(raw.learningFilter)
   };
+}
+
+function normalizeLearningFilter(value: unknown): LearningCardFilter | "" {
+  return value === "today" || value === "due" || value === "learning" || value === "strengthen" || value === "mastered" || value === "all" ? value : "";
 }
 
 function normalizeQuickPanelTab(value: unknown): TaskCalendarQuickPanelTab {

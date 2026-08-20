@@ -48,6 +48,8 @@ import { openTaskCalendarTaskEditorModal } from "./src/taskCalendarTaskEditorMod
 import { QuickTaskPanel } from "./src/quickTaskPanel";
 import { deliverContentToProjectChoice } from "./src/projectDelivery";
 import { openUnifiedTaskComposer, type OpenUnifiedTaskComposerOptions } from "./src/unifiedTaskComposer";
+import { LearningCardService } from "./src/learning/learningCardService";
+import { LearningReviewModal } from "./src/learning/learningReviewModal";
 
 const LINK_ANALYSIS_TITLE_CACHE_LIMIT = 100;
 
@@ -57,6 +59,7 @@ export default class MemosPlusPlugin extends Plugin {
   vaultIndex!: VaultMetadataIndex;
   taskIndex!: TaskIndex;
   appleSync!: AppleSyncService;
+  learningCards!: LearningCardService;
   private taskCalendarRibbonEl: HTMLElement | null = null;
   private quickTaskPanel: QuickTaskPanel | null = null;
   private diagnosticSessionId = "";
@@ -106,6 +109,15 @@ export default class MemosPlusPlugin extends Plugin {
     this.vaultIndex = new VaultMetadataIndex(this.app);
     this.taskIndex = new TaskIndex(this.app, { isMobile: () => Platform.isMobile });
     this.store = new MemosPlusStore(this.app, () => this.settings, this.vaultIndex);
+    this.learningCards = new LearningCardService(
+      this.app,
+      () => this.settings.learningCards,
+      async (cards) => {
+        this.settings.learningCards = cards;
+        await this.persistSettings();
+        this.scheduleRefreshViews("learning-card-change", Platform.isMobile ? 250 : 80);
+      }
+    );
     this.appleSync = new AppleSyncService({
       app: this.app,
       taskIndex: this.taskIndex,
@@ -362,7 +374,8 @@ export default class MemosPlusPlugin extends Plugin {
         refreshViews: () => this.refreshViews(),
         resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
         selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options),
-        onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task)
+        onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task),
+        onContentWritten: (file, content, heading) => this.onContentWritten(file, content, heading)
       }).open();
       return null;
     }
@@ -407,7 +420,8 @@ export default class MemosPlusPlugin extends Plugin {
       showClipboardEmptyNotice,
       resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
       selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options),
-      onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task)
+      onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task),
+      onContentWritten: (file, content, heading) => this.onContentWritten(file, content, heading)
     }).open();
   }
 
@@ -421,7 +435,8 @@ export default class MemosPlusPlugin extends Plugin {
       initialContentMode: "none",
       resolveMarkdownLink: (text) => this.resolveMarkdownLink(text),
       selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options),
-      onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task)
+      onTaskWritten: (file, task) => this.onUnifiedTaskWritten(file, task),
+      onContentWritten: (file, content, heading) => this.onContentWritten(file, content, heading)
     }).open();
   }
 
@@ -599,7 +614,10 @@ export default class MemosPlusPlugin extends Plugin {
       } else {
         throw new Error("Task inbox path is occupied by a folder");
       }
-      if (file instanceof TFile) await this.onUnifiedTaskWritten(file, task ?? { isTask: true });
+      if (file instanceof TFile) {
+        await this.onUnifiedTaskWritten(file, task ?? { isTask: true });
+        await this.onContentWritten(file, text, "任务收件箱");
+      }
       new Notice(t(this.settings.language, "notice.taskCalendarTaskCreated"));
       return true;
     } catch (error) {
@@ -625,7 +643,8 @@ export default class MemosPlusPlugin extends Plugin {
           settings: this.settings,
           persistSettings: () => this.persistSettings(),
           selectProjectTargetOnMobile: (options) => this.selectProjectTargetOnMobile(options),
-          onTaskWritten: (file, writtenTask) => this.onUnifiedTaskWritten(file, writtenTask)
+          onTaskWritten: (file, writtenTask) => this.onUnifiedTaskWritten(file, writtenTask),
+          onContentWritten: (file, writtenContent, heading) => this.onContentWritten(file, writtenContent, heading)
         },
         text,
         target,
@@ -647,6 +666,30 @@ export default class MemosPlusPlugin extends Plugin {
     if (this.settings.appleSyncEnabled && task.syncTarget !== "tasks") {
       this.runAsyncOperation("sync Apple after unified task write", () => this.syncAppleNow(false));
     }
+  }
+
+  async onContentWritten(file: TFile, content: string, sourceHeading = ""): Promise<void> {
+    try {
+      const card = await this.learningCards.createFromCollectedContent({
+        filePath: file.path,
+        heading: sourceHeading,
+        content
+      });
+      if (card) new Notice(this.settings.language === "zh" ? "已创建复习卡" : "Learning card created");
+    } catch (error) {
+      // Collection has already reached Markdown at this point.  A local card
+      // persistence problem must never make a successful capture look failed.
+      console.error("Memos Plus: failed to create learning card", error);
+      new Notice(this.settings.language === "zh" ? "内容已收录，但复习卡创建失败" : "Content saved, but the learning card could not be created");
+    }
+  }
+
+  openTodayLearningReview(): void {
+    new LearningReviewModal(this.app, {
+      service: this.learningCards,
+      language: this.settings.language,
+      onFinished: () => this.scheduleRefreshViews("learning-review-finished", Platform.isMobile ? 250 : 80)
+    }).open();
   }
 
   async toggleTaskCalendarTask(item: TaskIndexItem): Promise<boolean> {

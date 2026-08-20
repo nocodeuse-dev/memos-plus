@@ -44,6 +44,7 @@ export interface ComposerSessionHost {
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
   selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
   onTaskWritten?: (file: TFile, task: ProjectTaskOptions) => Promise<void>;
+  onContentWritten?: (file: TFile, content: string, sourceHeading?: string) => Promise<void>;
 }
 
 export interface ComposerSessionOptions extends ComposerActionsOptions {
@@ -118,7 +119,8 @@ export function createComposerSession(host: ComposerSessionHost, options: Compos
       persistSettings: host.persistSettings,
       refreshViews: host.refreshViews,
       selectProjectTargetOnMobile: host.selectProjectTargetOnMobile,
-      onTaskWritten: host.onTaskWritten
+      onTaskWritten: host.onTaskWritten,
+      onContentWritten: host.onContentWritten
     },
     () => widget,
     {

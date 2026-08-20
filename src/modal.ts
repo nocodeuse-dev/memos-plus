@@ -21,6 +21,7 @@ export interface QuickCaptureModalOptions {
   resolveMarkdownLink?: (text: string) => Promise<string | null>;
   selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
   onTaskWritten?: (file: TFile, task: ProjectTaskOptions) => Promise<void>;
+  onContentWritten?: (file: TFile, content: string, sourceHeading?: string) => Promise<void>;
 }
 
 export class QuickCaptureModal extends Modal {
@@ -50,6 +51,7 @@ export class QuickCaptureModal extends Modal {
       registerCleanup: (cleanup) => this.cleanups.push(cleanup),
       resolveMarkdownLink: this.options.resolveMarkdownLink,
       onTaskWritten: this.options.onTaskWritten,
+      onContentWritten: this.options.onContentWritten,
       selectProjectTargetOnMobile: async (options) => {
         const selectProjectTargetOnMobile = this.options.selectProjectTargetOnMobile;
         if (!selectProjectTargetOnMobile) {

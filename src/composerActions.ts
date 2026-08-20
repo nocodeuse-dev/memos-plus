@@ -19,6 +19,7 @@ export interface ComposerActionsHost {
   refreshViews: () => Promise<void>;
   selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
   onTaskWritten?: (file: TFile, task: ProjectTaskOptions) => Promise<void>;
+  onContentWritten?: (file: TFile, content: string, sourceHeading?: string) => Promise<void>;
 }
 
 export interface ComposerActionsOptions {
@@ -62,6 +63,8 @@ export function createComposerActions(
         const file = host.app.vault.getAbstractFileByPath(host.store.memoFilePathForYear(String(now.getFullYear())));
         if (file instanceof TFile) await host.onTaskWritten?.(file, task);
       }
+      const memoFile = host.app.vault.getAbstractFileByPath(host.store.memoFilePathForYear(String(now.getFullYear())));
+      if (memoFile instanceof TFile) await host.onContentWritten?.(memoFile, rawContent, formatMemoHeading(now));
       if (host.settings.clearAfterSave) {
         composer.clear();
       }
@@ -95,7 +98,8 @@ export function createComposerActions(
           settings: host.settings,
           persistSettings: host.persistSettings,
           selectProjectTargetOnMobile: host.selectProjectTargetOnMobile,
-          onTaskWritten: host.onTaskWritten
+          onTaskWritten: host.onTaskWritten,
+          onContentWritten: host.onContentWritten
         },
         content,
         {
@@ -176,6 +180,10 @@ export function createComposerActions(
     saveDefault: () => saveDefault(),
     sendToProject
   };
+}
+
+function formatMemoHeading(now: Date): string {
+  return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
 }
 
 async function saveFailureDraft(host: ComposerActionsHost, composer: ComposerWidget): Promise<void> {

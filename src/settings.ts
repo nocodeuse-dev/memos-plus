@@ -143,6 +143,7 @@ import { normalizeSidebarItems, type SidebarItem } from "./sidebar";
 import { DEFAULT_SMART_SEND_PRIORITY_TAGS, normalizeSmartSendPriorityTags } from "./smartSend";
 import { normalizeTaskDate, normalizeTaskPriority, normalizeTaskRecurrence, type TaskPriority, type TaskRecurrence } from "./tasksFormat";
 import { DEFAULT_TASK_CALENDAR_SETTINGS, normalizeTaskCalendarSettings, type TaskCalendarSettings } from "./taskCalendar";
+import { normalizeLearningCards, type LearningCard } from "./learning/learningCards";
 import type { TaskIndexStatus } from "./taskIndex";
 import {
   cloneManagedTemplate,
@@ -281,6 +282,7 @@ export interface MemosPlusSettings {
   taskDefaultRecurrence: TaskRecurrence;
   taskPromptOnCreate: boolean;
   taskCalendar: TaskCalendarSettings;
+  learningCards: LearningCard[];
 }
 
 export const DEFAULT_MEMO_FOLDER = "我的资源/Memos";
@@ -419,7 +421,8 @@ export const DEFAULT_SETTINGS: MemosPlusSettings = {
   taskDefaultScheduledDate: "",
   taskDefaultRecurrence: "none",
   taskPromptOnCreate: true,
-  taskCalendar: { ...DEFAULT_TASK_CALENDAR_SETTINGS }
+  taskCalendar: { ...DEFAULT_TASK_CALENDAR_SETTINGS },
+  learningCards: []
 };
 
 type SettingsTabId =
@@ -710,7 +713,8 @@ export function normalizeSettings(data: unknown): MemosPlusSettings {
     taskDefaultScheduledDate: normalizeTaskDate(raw.taskDefaultScheduledDate),
     taskDefaultRecurrence: normalizeTaskRecurrence(raw.taskDefaultRecurrence),
     taskPromptOnCreate: typeof raw.taskPromptOnCreate === "boolean" ? raw.taskPromptOnCreate : DEFAULT_SETTINGS.taskPromptOnCreate,
-    taskCalendar: normalizeTaskCalendarSettings(raw.taskCalendar)
+    taskCalendar: normalizeTaskCalendarSettings(raw.taskCalendar),
+    learningCards: normalizeLearningCards(raw.learningCards)
   };
 }
 

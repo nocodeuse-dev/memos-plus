@@ -665,7 +665,8 @@ export class MemosPlusView extends ItemView {
       registerCleanup: (cleanup) => this.register(cleanup),
       resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text),
       selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options),
-      onTaskWritten: (file, task) => this.plugin.onUnifiedTaskWritten(file, task)
+      onTaskWritten: (file, task) => this.plugin.onUnifiedTaskWritten(file, task),
+      onContentWritten: (file, content, heading) => this.plugin.onContentWritten(file, content, heading)
     }, {
       surface,
       initialContent,
@@ -1922,7 +1923,8 @@ export class MemosPlusView extends ItemView {
       refreshViews: () => this.plugin.refreshViews(),
       resolveMarkdownLink: (text) => this.plugin.resolveMarkdownLink(text),
       selectProjectTargetOnMobile: (options) => this.plugin.selectProjectTargetOnMobile(options),
-      onTaskWritten: (file, task) => this.plugin.onUnifiedTaskWritten(file, task)
+      onTaskWritten: (file, task) => this.plugin.onUnifiedTaskWritten(file, task),
+      onContentWritten: (file, content, heading) => this.plugin.onContentWritten(file, content, heading)
     }).open();
   }
 

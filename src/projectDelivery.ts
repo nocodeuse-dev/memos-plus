@@ -21,6 +21,7 @@ export interface ProjectDeliveryHost {
   persistSettings: () => Promise<void>;
   selectProjectTargetOnMobile?: (options: ProjectSendModalOptions) => Promise<ProjectSendChoice | null>;
   onTaskWritten?: (file: TFile, task: ProjectTaskOptions) => Promise<void>;
+  onContentWritten?: (file: TFile, content: string, sourceHeading?: string) => Promise<void>;
 }
 
 export interface ProjectDeliveryResult {
@@ -88,6 +89,7 @@ export async function deliverContentToProjectChoice(
     host.settings.recentFileTargetPaths = updateRecentFileTargetPaths(host.settings.recentFileTargetPaths, choice.file.path);
     await host.persistSettings();
     if (task?.isTask) await host.onTaskWritten?.(choice.file, task);
+    await host.onContentWritten?.(choice.file, content, choice.fileTarget.heading);
     return {
       mode: "file",
       file: choice.file,

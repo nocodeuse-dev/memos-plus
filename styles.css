@@ -4277,6 +4277,50 @@ button.memos-plus-unified-task-preview:focus-visible {
 .memos-plus-task-editor-modal { width: min(720px, calc(100vw - 32px)); max-height: min(82vh, 780px); overflow: auto; }
 .memos-plus-task-editor-modal .memos-plus-task-calendar-task-details { overflow: visible; }
 
+/* Learning cards intentionally reuse the task calendar surface without adding a
+   second dense dashboard.  These rules use Obsidian theme variables so the
+   cards stay legible in both built-in themes and community themes. */
+.memos-plus-learning-summary { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--background-modifier-border); }
+.memos-plus-learning-start { flex: 0 0 auto; min-height: 30px; margin-left: auto; border: 1px solid var(--interactive-accent); border-radius: 5px; padding: 4px 10px; background: var(--interactive-accent); color: var(--text-on-accent); font-size: var(--font-ui-small); font-weight: var(--font-semibold); cursor: pointer; }
+.memos-plus-learning-start:hover,
+.memos-plus-learning-start:focus-visible { background: var(--interactive-accent-hover); outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+.memos-plus-task-calendar-learning-section { display: flex; flex-direction: column; gap: 3px; margin: 12px 0 8px; padding: 9px 0; border-top: 1px solid var(--background-modifier-border); border-bottom: 1px solid var(--background-modifier-border); }
+.memos-plus-task-calendar-learning-heading { padding: 0 10px 4px; color: var(--text-muted); font-size: var(--font-ui-smaller); font-weight: var(--font-semibold); }
+.memos-plus-task-calendar-learning-section .memos-plus-task-calendar-nav { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; }
+.memos-plus-task-calendar-learning-count { min-width: 18px; padding: 0 4px; border-radius: 10px; color: var(--text-muted); font-size: var(--font-ui-smaller); text-align: center; }
+.memos-plus-task-calendar-learning-section .memos-plus-task-calendar-nav.is-active .memos-plus-task-calendar-learning-count { color: var(--text-accent); background: color-mix(in srgb, var(--interactive-accent) 15%, transparent); }
+.memos-plus-learning-card-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 1px; min-height: 0; overflow: auto; padding-top: 5px; }
+.memos-plus-learning-card { min-width: 0; padding: 9px 10px; border-bottom: 1px solid var(--background-modifier-border); }
+.memos-plus-learning-card:hover { background: var(--background-modifier-hover); }
+.memos-plus-learning-card.is-mastered { opacity: .72; }
+.memos-plus-learning-card.is-strengthen { border-left: 2px solid var(--text-warning); padding-left: 8px; }
+.memos-plus-learning-card-body { display: block; width: 100%; border: 0; padding: 0; background: transparent; color: var(--text-normal); text-align: left; cursor: pointer; }
+.memos-plus-learning-card-body:hover .memos-plus-learning-card-title,
+.memos-plus-learning-card-body:focus-visible .memos-plus-learning-card-title { color: var(--text-accent); text-decoration: underline; }
+.memos-plus-learning-card-body:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.memos-plus-learning-card-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: var(--font-ui-medium); font-weight: var(--font-semibold); line-height: 1.35; }
+.memos-plus-learning-card-meta { display: flex; flex-wrap: wrap; gap: 3px 7px; margin-top: 4px; color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.memos-plus-learning-card-meta .is-warning { color: var(--text-warning); }
+.memos-plus-learning-card-source { overflow: hidden; margin-top: 5px; color: var(--text-faint); font-size: var(--font-ui-smaller); text-overflow: ellipsis; white-space: nowrap; }
+.memos-plus-learning-review-shell .modal { max-width: min(640px, calc(100vw - 28px)); }
+.memos-plus-learning-review { display: flex; flex-direction: column; gap: 16px; min-height: min(500px, 72vh); }
+.memos-plus-learning-review-header { display: flex; align-items: center; justify-content: space-between; color: var(--text-muted); font-size: var(--font-ui-small); }
+.memos-plus-learning-review-header button { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); cursor: pointer; }
+.memos-plus-learning-review-header button:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.memos-plus-learning-review-card { display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; min-height: 0; border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 20px; background: var(--background-secondary); }
+.memos-plus-learning-review-question { color: var(--text-normal); font-size: 1.2em; font-weight: var(--font-semibold); line-height: 1.5; }
+.memos-plus-learning-review-source { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.memos-plus-learning-review-answer { overflow: auto; flex: 1 1 auto; min-height: 0; border-top: 1px solid var(--background-modifier-border); padding-top: 14px; color: var(--text-normal); line-height: 1.6; white-space: pre-wrap; }
+.memos-plus-learning-review-answer.is-hidden { display: none; }
+.memos-plus-learning-reveal { align-self: center; min-width: 150px; }
+.memos-plus-learning-ratings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.memos-plus-learning-rating { min-height: 38px; border: 1px solid var(--background-modifier-border); border-radius: 5px; background: var(--background-primary); color: var(--text-normal); cursor: pointer; }
+.memos-plus-learning-rating:hover,
+.memos-plus-learning-rating:focus-visible { border-color: var(--interactive-accent); color: var(--text-accent); outline: 0; }
+.memos-plus-learning-rating.is-again { color: var(--text-error); }
+.memos-plus-learning-rating.is-hard { color: var(--text-warning); }
+.memos-plus-learning-rating.is-easy { color: var(--text-success); }
+
 @media (max-width: 640px) {
   .memos-plus-task-calendar-header { padding: 9px 10px; }
   .memos-plus-task-calendar-title h2 { font-size: 1em; }
@@ -4299,6 +4343,7 @@ button.memos-plus-unified-task-preview:focus-visible {
   .memos-plus-task-calendar.is-mobile .memos-plus-task-calendar-agenda,
   .memos-plus-task-calendar.is-mobile .memos-plus-task-calendar-tasks { display: block; }
   .memos-plus-task-calendar.is-mobile[data-mobile-tab="tasks"] .memos-plus-task-calendar-agenda,
+  .memos-plus-task-calendar.is-mobile[data-mobile-tab="learning"] .memos-plus-task-calendar-agenda,
   .memos-plus-task-calendar.is-mobile[data-mobile-tab="calendar"] .memos-plus-task-calendar-tasks { display: none; }
   .memos-plus-task-calendar-task-controls { grid-template-columns: minmax(0, 1fr) 104px; }
   .memos-plus-task-calendar-task-search,
@@ -4311,4 +4356,9 @@ button.memos-plus-unified-task-preview:focus-visible {
   .memos-plus-task-calendar-task-settings { width: 40px; height: 40px; margin-top: -6px; }
   .memos-plus-task-calendar-postpone button,
   .memos-plus-task-calendar-task-detail-actions button { min-height: 40px; }
+  .memos-plus-learning-summary { flex-wrap: wrap; padding: 7px 10px; }
+  .memos-plus-learning-summary .memos-plus-task-calendar-summary-card { min-width: 0; }
+  .memos-plus-learning-start { width: 100%; margin-left: 0; }
+  .memos-plus-learning-review { min-height: min(440px, 76vh); }
+  .memos-plus-learning-ratings { grid-template-columns: 1fr 1fr; }
 }
