@@ -1321,6 +1321,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private renderLayoutSettings(container: HTMLElement): void {
     this.renderSectionHeader(container, "settings.layoutSettings", "settings.layoutSettingsDesc");
+    this.renderDesktopHomeCalendarModuleSetting(container);
     const switcher = container.createDiv({ cls: "memos-plus-layout-surface-switcher" });
     const workspace = container.createDiv();
     this.renderLayoutSurfaceSwitcher(switcher, workspace);
@@ -1329,6 +1330,20 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.renderSectionHeader(container, "settings.displayContentSync", "settings.displayContentSyncDesc");
     this.renderDisplayContentSyncSettings(container);
     this.renderDisplaySettings(container);
+  }
+
+  /** Keeps the shared-sidebar calendar discoverable with the desktop home layout controls. */
+  private renderDesktopHomeCalendarModuleSetting(container: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    new Setting(container)
+      .setName(t(lang, "settings.homeCalendarModule"))
+      .setDesc(t(lang, "settings.homeCalendarModuleDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.taskCalendar.showSidebarCalendar).onChange(async (value) => {
+          this.plugin.settings.taskCalendar.showSidebarCalendar = value;
+          await this.persistLayoutAffectingSetting();
+        });
+      });
   }
 
   private renderLayoutSurfaceSwitcher(container: HTMLElement, workspace: HTMLElement): void {
@@ -4241,16 +4256,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           const agendaCalendarNames = value.split(",").map((name) => name.trim());
           this.plugin.settings.taskCalendar = normalizeTaskCalendarSettings({ ...state, agendaCalendarNames });
           await this.plugin.persistSettings();
-        });
-      });
-    new Setting(container)
-      .setName(t(lang, "settings.taskCalendarSidebarCalendar"))
-      .setDesc(t(lang, "settings.taskCalendarSidebarCalendarDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(state.showSidebarCalendar).onChange(async (value) => {
-          this.plugin.settings.taskCalendar.showSidebarCalendar = value;
-          await this.plugin.persistSettings();
-          await this.plugin.refreshViews("task-calendar-sidebar-calendar");
         });
       });
     new Setting(container)

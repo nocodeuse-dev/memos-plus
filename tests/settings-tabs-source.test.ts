@@ -134,6 +134,8 @@ describe("settings top tabs source", () => {
     expect(displaySource).toContain("this.renderComposerAppearanceSettings(container)");
     expect(displaySource).toContain("this.renderMobileDisplaySettings(container)");
     expect(layoutSource).toContain("this.renderDisplaySettings(container)");
+    expect(layoutSource).toContain("this.renderDesktopHomeCalendarModuleSetting(container)");
+    expect(layoutSource.indexOf("this.renderDesktopHomeCalendarModuleSetting(container)")).toBeLessThan(layoutSource.indexOf("this.renderLayoutSurfaceSwitcher"));
     expect(fileTemplateSource).toContain("this.renderFileTemplateTabInteractionSettings(container)");
     expect(tasksSource).toContain("this.renderTaskIndexSummary(container)");
     expect(tasksSource).toContain("this.renderTaskIndexSettings(container)");

@@ -137,6 +137,7 @@ export class TaskCalendarSurface {
    */
   renderSidebarExtras(container: HTMLElement): void {
     if (!this.viewActive) return;
+    if (!this.plugin.settings.taskCalendar.showSidebarCalendar && !this.projectNavExpanded) return;
     const selectedDate = this.plugin.settings.taskCalendar.selectedDate || todayTaskCalendarDate();
     const tree = container.createDiv({ cls: "memos-plus-workbench-context-tree", attr: { role: "tree" } });
     if (this.plugin.settings.taskCalendar.showSidebarCalendar) {

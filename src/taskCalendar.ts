@@ -78,7 +78,7 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   taskPaneWidth: 420,
   agendaCacheMinutes: 5,
   agendaCalendarNames: [],
-  showSidebarCalendar: true,
+  showSidebarCalendar: false,
   showAllDayEvents: true,
   showHomeEntry: true,
   showMobileQuickActions: true,
