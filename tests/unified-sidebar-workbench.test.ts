@@ -36,4 +36,13 @@ describe("unified workbench sidebar", () => {
     expect(styles).toContain(".memos-plus-unified-sidebar-resizer");
     expect(styles).toContain(".memos-plus-unified-shell.is-unified-sidebar-collapsed");
   });
+
+  it("places the sidebar resize handle between the sidebar and content grid cells", () => {
+    const resizeBlock = homeView.slice(
+      homeView.indexOf("private installUnifiedSidebarState"),
+      homeView.indexOf("private refreshUnifiedSidebar")
+    );
+
+    expect(resizeBlock).toContain("shell.insertBefore(resize, sidebar.nextSibling)");
+  });
 });

@@ -348,6 +348,10 @@ export class MemosPlusView extends ItemView {
         "aria-label": t(this.plugin.settings.language, "taskCalendar.resizeNavigation")
       }
     });
+    // The shell uses three grid columns: sidebar, resize handle and content.
+    // `createDiv` appends the handle after content, so move it into the middle
+    // before the browser assigns the children to their grid columns.
+    shell.insertBefore(resize, sidebar.nextSibling);
     const apply = (value: number): number => {
       const width = Math.max(200, Math.min(320, Math.round(value)));
       shell.style.setProperty("--memos-plus-unified-sidebar-width", `${width}px`);
