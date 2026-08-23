@@ -2,6 +2,7 @@ export const DISPLAY_SURFACES = ["home", "sidebar", "mobile"] as const;
 export type DisplaySurface = (typeof DISPLAY_SURFACES)[number];
 
 export type DisplayModuleId =
+  | "sidebarCalendar"
   | "quickInput"
   | "inputToolbar"
   | "sendButton"
@@ -50,6 +51,7 @@ export interface ViewLayoutSettings {
 export type ViewLayoutsSettings = Record<DisplaySurface, ViewLayoutSettings>;
 
 export const DISPLAY_MODULE_REGISTRY: DisplayModuleDefinition[] = [
+  module("sidebarCalendar", "日历", "显示统一侧栏顶部的迷你日历；日历来源勾选列表可单独控制。", ["home"], true, [], "low"),
   module("quickInput", "快速输入框", "用于快速记录内容的输入区域。", ["home", "sidebar", "mobile"], true, [], "low"),
   module("inputToolbar", "输入工具栏", "标签、图片、列表、任务、折叠块等输入工具。", ["home", "sidebar", "mobile"], true, [], "low"),
   module("sendButton", "发送按钮", "执行默认发送或打开投递流程。", ["home", "sidebar", "mobile"], true, [], "low"),

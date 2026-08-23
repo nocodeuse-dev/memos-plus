@@ -17,6 +17,7 @@ describe("display module registry", () => {
   it("registers the shared modules for home, sidebar, and mobile surfaces", () => {
     expect(DISPLAY_SURFACES).toEqual(["home", "sidebar", "mobile"]);
     expect(DISPLAY_MODULE_IDS).toEqual([
+      "sidebarCalendar",
       "quickInput",
       "inputToolbar",
       "sendButton",
@@ -40,6 +41,8 @@ describe("display module registry", () => {
     expect(quickInput?.name).toBe("快速输入框");
     expect(quickInput?.supportedSurfaces).toEqual(["home", "sidebar", "mobile"]);
     expect(quickInput?.performanceCost).toBe("low");
+
+    expect(getDisplayModule("sidebarCalendar")?.supportedSurfaces).toEqual(["home"]);
 
     expect(modulesForSurface("sidebar").map((module) => module.id)).toContain("projectDirectory");
     expect(modulesForSurface("sidebar").map((module) => module.id)).not.toContain("heatmap");

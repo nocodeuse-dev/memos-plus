@@ -449,6 +449,7 @@ const SETTINGS_TABS: Array<{ id: SettingsTabId; labelKey: string }> = [
 ];
 
 const HOME_SIDEBAR_PREVIEW_LAYOUT_GROUP: readonly DisplayModuleId[] = [
+  "sidebarCalendar",
   ...SIDEBAR_NAVIGATION_LAYOUT_GROUP,
   "statsCards",
   "heatmap"
@@ -820,7 +821,7 @@ function replaceLegacyFileTemplateFavoriteTab(value: unknown, favoriteGroupId?: 
 export class MemosPlusSettingTab extends PluginSettingTab {
   private currentSettingTab: SettingsTabId = "layout";
   private selectedLayoutSurface: DisplaySurface = "home";
-  private selectedLayoutModuleId: DisplayModuleId = "quickInput";
+  private selectedLayoutModuleId: DisplayModuleId = "sidebarCalendar";
   private draggedLayoutSurface: DisplaySurface | "" = "";
   private draggedLayoutModuleId: DisplayModuleId | "" = "";
   private settingsTabsEl: HTMLElement | null = null;
@@ -1321,7 +1322,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private renderLayoutSettings(container: HTMLElement): void {
     this.renderSectionHeader(container, "settings.layoutSettings", "settings.layoutSettingsDesc");
-    this.renderDesktopHomeCalendarModuleSetting(container);
     const switcher = container.createDiv({ cls: "memos-plus-layout-surface-switcher" });
     const workspace = container.createDiv();
     this.renderLayoutSurfaceSwitcher(switcher, workspace);
@@ -1330,20 +1330,6 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     this.renderSectionHeader(container, "settings.displayContentSync", "settings.displayContentSyncDesc");
     this.renderDisplayContentSyncSettings(container);
     this.renderDisplaySettings(container);
-  }
-
-  /** Keeps the shared-sidebar calendar discoverable with the desktop home layout controls. */
-  private renderDesktopHomeCalendarModuleSetting(container: HTMLElement): void {
-    const lang = this.plugin.settings.language;
-    new Setting(container)
-      .setName(t(lang, "settings.homeCalendarModule"))
-      .setDesc(t(lang, "settings.homeCalendarModuleDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.taskCalendar.showSidebarCalendar).onChange(async (value) => {
-          this.plugin.settings.taskCalendar.showSidebarCalendar = value;
-          await this.persistLayoutAffectingSetting();
-        });
-      });
   }
 
   private renderLayoutSurfaceSwitcher(container: HTMLElement, workspace: HTMLElement): void {
@@ -1538,6 +1524,7 @@ export class MemosPlusSettingTab extends PluginSettingTab {
           "home",
           moduleIds,
           {
+            sidebarCalendar: { label: "日历", variant: "calendar" },
             allNotes: { label: "全部笔记", variant: "nav" },
             projectDirectory: { label: "项目", variant: "nav" },
             projectFilters: { label: "所有项目 / 软件项目", variant: "nav" },
@@ -1901,6 +1888,9 @@ export class MemosPlusSettingTab extends PluginSettingTab {
     container.createEl("p", { cls: "setting-item-description memos-plus-layout-inspector-desc", text: module.description });
 
     switch (module.id) {
+      case "sidebarCalendar":
+        this.renderLayoutSidebarCalendarInspector(container, surface, module, preview);
+        break;
       case "taskDirectory":
         this.renderLayoutTaskDirectoryInspector(container, surface, module, preview);
         break;
@@ -1923,6 +1913,22 @@ export class MemosPlusSettingTab extends PluginSettingTab {
 
   private renderLayoutGenericInspector(container: HTMLElement, surface: DisplaySurface, module: DisplayModuleDefinition, preview: HTMLElement): void {
     this.renderModuleVisibilitySetting(container, surface, module, preview);
+    this.renderLayoutInspectorActions(container, surface, module, preview);
+  }
+
+  /** Calendar is a real desktop-home module, but its source list has an independent display preference. */
+  private renderLayoutSidebarCalendarInspector(container: HTMLElement, surface: DisplaySurface, module: DisplayModuleDefinition, preview: HTMLElement): void {
+    const lang = this.plugin.settings.language;
+    this.renderModuleVisibilitySetting(container, surface, module, preview);
+    new Setting(container)
+      .setName(t(lang, "settings.homeCalendarList"))
+      .setDesc(t(lang, "settings.homeCalendarListDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.taskCalendar.showSidebarCalendarList).onChange(async (value) => {
+          this.plugin.settings.taskCalendar.showSidebarCalendarList = value;
+          await this.persistLayoutAffectingSetting();
+        });
+      });
     this.renderLayoutInspectorActions(container, surface, module, preview);
   }
 
@@ -2235,10 +2241,18 @@ export class MemosPlusSettingTab extends PluginSettingTab {
   }
 
   private isDisplayModuleVisible(surface: DisplaySurface, moduleId: DisplayModuleId): boolean {
+    if (moduleId === "sidebarCalendar") {
+      return this.plugin.settings.taskCalendar.showSidebarCalendar;
+    }
     return resolveLayoutSurfaceModules(this.getViewLayout(surface), surface).modules.has(moduleId);
   }
 
   private async setDisplayModuleVisible(surface: DisplaySurface, moduleId: DisplayModuleId, visible: boolean): Promise<void> {
+    if (moduleId === "sidebarCalendar") {
+      this.plugin.settings.taskCalendar.showSidebarCalendar = visible;
+      await this.persistLayoutAffectingSetting();
+      return;
+    }
     const layout = this.getViewLayout(surface);
     const current = new Set(resolveLayoutSurfaceModules(layout, surface).orderedModules);
     if (visible) {

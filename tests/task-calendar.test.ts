@@ -65,7 +65,8 @@ describe("Schedule and tasks state", () => {
       sidebarExpandedManually: false,
       navigationWidth: 232,
       taskPaneWidth: 420,
-      showSidebarCalendar: false,
+      showSidebarCalendar: true,
+      showSidebarCalendarList: false,
       showAllDayEvents: true,
       showHomeEntry: true,
       showMobileQuickActions: true,
@@ -94,17 +95,23 @@ describe("Schedule and tasks state", () => {
     expect(normalizeTaskCalendarSettings({ quickPanelTab: "unknown" }).quickPanelTab).toBe("today");
   });
 
-  it("keeps the shared sidebar calendar hidden by default while honoring an explicit preference", () => {
-    expect(normalizeTaskCalendarSettings({}).showSidebarCalendar).toBe(false);
-    expect(normalizeTaskCalendarSettings({ showSidebarCalendar: true }).showSidebarCalendar).toBe(true);
+  it("shows the shared sidebar calendar by default while keeping its source list hidden", () => {
+    expect(normalizeTaskCalendarSettings({})).toMatchObject({
+      showSidebarCalendar: true,
+      showSidebarCalendarList: false
+    });
+    expect(normalizeTaskCalendarSettings({ showSidebarCalendar: false, showSidebarCalendarList: true })).toMatchObject({
+      showSidebarCalendar: false,
+      showSidebarCalendarList: true
+    });
   });
 
-  it("exposes the shared sidebar calendar at the top of desktop home appearance settings", () => {
+  it("exposes the sidebar calendar module and its separate source-list setting in desktop home appearance settings", () => {
     const settingsSource = readFileSync("src/settings.ts", "utf8");
     const i18nSource = readFileSync("src/i18n.ts", "utf8");
-    expect(settingsSource).toContain("private renderDesktopHomeCalendarModuleSetting");
-    expect(settingsSource).toContain("settings.homeCalendarModule");
-    expect(i18nSource).toContain('"settings.homeCalendarModule": "桌面主页 · 日历模块"');
+    expect(settingsSource).toContain("private renderLayoutSidebarCalendarInspector");
+    expect(settingsSource).toContain("settings.homeCalendarList");
+    expect(i18nSource).toContain('"settings.homeCalendarList": "显示日历来源列表"');
   });
 
   it("migrates legacy date shortcuts and bounds remembered desktop pane widths", () => {

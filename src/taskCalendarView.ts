@@ -150,7 +150,9 @@ export class TaskCalendarSurface {
       calendarLabel.createSpan({ text: t(this.plugin.settings.language, "taskCalendar.calendars") });
       const calendarContent = calendarNode.createDiv({ cls: "memos-plus-workbench-tree-children memos-plus-workbench-calendar-content", attr: { role: "group" } });
       this.renderMiniCalendar(calendarContent, selectedDate);
-      this.renderCalendarFilters(calendarContent);
+      if (this.plugin.settings.taskCalendar.showSidebarCalendarList) {
+        this.renderCalendarFilters(calendarContent);
+      }
     }
     if (this.projectNavExpanded) {
       const projectNode = tree.createDiv({ cls: "memos-plus-workbench-tree-node" });
