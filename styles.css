@@ -682,6 +682,24 @@
   min-height: 0;
 }
 
+/* The workbench has exactly one persistent navigation column.  Calendar,
+   learning and project controls are rendered into this same column; the
+   corresponding surface only replaces the right-side content area. */
+.memos-plus-unified-shell {
+  grid-template-columns: var(--memos-plus-unified-sidebar-width, 232px) 5px minmax(0, 1fr);
+}
+.memos-plus-unified-sidebar { min-width: 0; }
+.memos-plus-unified-sidebar-control { display: flex; justify-content: flex-end; min-height: 28px; margin: -3px -2px 4px; }
+.memos-plus-unified-sidebar-resizer { position: relative; z-index: 5; min-width: 5px; cursor: col-resize; touch-action: none; }
+.memos-plus-unified-sidebar-resizer::after { position: absolute; top: 0; bottom: 0; left: 2px; width: 1px; background: var(--background-modifier-border); content: ""; }
+.memos-plus-unified-sidebar-resizer:hover::after,
+.memos-plus-unified-sidebar-resizer:focus-visible::after,
+.memos-plus-unified-sidebar-resizer.is-active::after { width: 2px; background: var(--interactive-accent); }
+.memos-plus-unified-shell.is-unified-sidebar-collapsed { grid-template-columns: 44px 0 minmax(0, 1fr); }
+.memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar { overflow: hidden; padding-right: 5px; padding-left: 5px; }
+.memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar > :not(.memos-plus-unified-sidebar-control) { display: none; }
+.memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar-resizer { visibility: hidden; pointer-events: none; }
+
 .memos-plus-sidebar {
   min-height: 0;
   overflow: auto;
@@ -711,6 +729,8 @@
   overflow: auto;
   padding: 18px;
 }
+
+.memos-plus-unified-content.memos-plus-task-calendar-view { overflow: hidden; padding: 0; }
 
 .memos-plus-mobile-light-shell {
   height: 100%;
@@ -3938,6 +3958,23 @@ button.memos-plus-unified-task-preview:focus-visible {
   overflow: hidden;
 }
 
+/* In the unified workbench the navigation column lives outside this surface.
+   Keep only agenda and task panes here, so a second sidebar cannot appear. */
+.memos-plus-task-calendar.is-unified-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+  container-name: memos-plus-task-calendar;
+}
+.memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout {
+  grid-template-columns: minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 420px));
+}
+.memos-plus-task-calendar.is-unified-content.is-tasks-hidden .memos-plus-task-calendar-layout {
+  grid-template-columns: minmax(0, 1fr) 0 44px;
+}
+
 .memos-plus-task-calendar-navigation,
 .memos-plus-task-calendar-agenda,
 .memos-plus-task-calendar-tasks {
@@ -4256,15 +4293,21 @@ button.memos-plus-unified-task-preview:focus-visible {
 
 @container memos-plus-task-calendar (max-width: 1080px) {
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout { grid-template-columns: 44px 0 minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 420px)); }
+  .memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout { grid-template-columns: minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 420px)); }
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-resizer.is-left { visibility: hidden; pointer-events: none; }
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse) { display: none; }
 }
 
 @container memos-plus-task-calendar (max-width: 760px) {
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout { grid-template-columns: 40px 0 minmax(220px, 1fr) 5px minmax(320px, var(--memos-plus-task-calendar-task-width, 360px)); }
+  .memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout { grid-template-columns: minmax(220px, 1fr) 5px minmax(320px, var(--memos-plus-task-calendar-task-width, 360px)); }
   .memos-plus-task-calendar-today-summary { padding-right: 10px; padding-left: 10px; }
   .memos-plus-task-calendar-summary-card { padding-right: 7px; padding-left: 7px; }
 }
+
+/* Override the legacy three-pane rules above when this is hosted by the one
+   shared workbench sidebar. */
+.memos-plus-task-calendar.is-unified-content.is-tasks-hidden .memos-plus-task-calendar-layout { grid-template-columns: minmax(0, 1fr) 0 44px; }
 
 .memos-plus-task-calendar-task-details { display: flex; flex-direction: column; gap: 9px; min-height: 0; overflow: auto; padding-bottom: 8px; }
 .memos-plus-task-calendar-task-detail-toolbar { display: flex; align-items: center; gap: 6px; }

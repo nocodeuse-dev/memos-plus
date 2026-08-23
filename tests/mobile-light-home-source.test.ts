@@ -27,7 +27,8 @@ describe("mobile light home source integration", () => {
     expect(renderBlock).toContain("const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, activeSurface)");
     expect(renderBlock).toContain("const surfaceModules = surfaceLayoutModules.modules");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
-    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft)");
+    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft, main)");
+    expect(renderBlock).toContain("this.workbenchSection === \"directory\"");
     expect(dataNeedsBlock).toContain("Platform.isMobile");
     expect(dataNeedsBlock).toContain("this.layoutForSurface(surface)");
   });

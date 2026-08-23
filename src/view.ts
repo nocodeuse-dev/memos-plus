@@ -43,14 +43,17 @@ import { computeMemoStats, type MemoStats } from "./stats";
 import { tagColorSlot } from "./tagColor";
 import { getTaskIndexOrganizerCounts, type TaskIndexStatus } from "./taskIndex";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
-import { taskCalendarTasks, todayTaskCalendarDate } from "./taskCalendar";
-import { TaskCalendarView } from "./taskCalendarView";
+import { taskCalendarTasks, todayTaskCalendarDate, type TaskCalendarOpenOptions } from "./taskCalendar";
+import { TaskCalendarSurface } from "./taskCalendarView";
 import {
   renderWorkbenchNavigation as renderSharedWorkbenchNavigation,
   workbenchNavigationCounts,
   workbenchTaskRouteOptions,
-  type WorkbenchDirectoryOptions
+  type WorkbenchDirectoryOptions,
+  type WorkbenchSection,
+  type WorkbenchTaskRoute
 } from "./workbenchNavigation";
+import type { LearningCardFilter } from "./learning/learningCards";
 import { VaultSavedSearchIndex, type VaultSearchResult } from "./vaultSearch";
 import {
   hasSidebarDirectoryModules,
@@ -133,6 +136,14 @@ export class MemosPlusView extends ItemView {
   private readonly organizerSectionsCache = new Map<string, OrganizerPanelSectionData[]>();
   private readonly organizerTaskBranchesCache = new Map<string, OrganizerPanelSectionData[]>();
   private taskIndexOrganizerCountsCache: { key: string; value: ReturnType<typeof getTaskIndexOrganizerCounts> } | null = null;
+  /** One persistent shell owns the only workbench sidebar and content area. */
+  private workbenchSection: WorkbenchSection = "directory";
+  private workbenchTaskRoute: WorkbenchTaskRoute | "" = "";
+  private workbenchLearningFilter: LearningCardFilter | "" = "";
+  private taskCalendarSurface: TaskCalendarSurface | null = null;
+  private unifiedSidebar: HTMLElement | null = null;
+  private unifiedMain: HTMLElement | null = null;
+  private sidebarScrollSaveTimer: number | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -170,6 +181,12 @@ export class MemosPlusView extends ItemView {
     this.vaultSearchIndex.clearContentCache();
     this.composerSession?.destroy();
     this.composerSession = null;
+    this.taskCalendarSurface?.unmount();
+    this.taskCalendarSurface = null;
+    if (this.sidebarScrollSaveTimer !== null) window.clearTimeout(this.sidebarScrollSaveTimer);
+    this.sidebarScrollSaveTimer = null;
+    this.unifiedSidebar = null;
+    this.unifiedMain = null;
     this.transientComposerDraft = undefined;
     this.timelineEl = null;
     this.timelineRenderToken += 1;
@@ -196,6 +213,11 @@ export class MemosPlusView extends ItemView {
 
   /** Applies a directory route after the shared workbench switches back here. */
   async applyWorkbenchDirectoryOptions(options: WorkbenchDirectoryOptions = {}): Promise<void> {
+    this.workbenchSection = "directory";
+    this.workbenchTaskRoute = "";
+    this.workbenchLearningFilter = "";
+    this.taskCalendarSurface?.unmount();
+    this.taskCalendarSurface = null;
     const organizer = options.organizer ?? "";
     this.mode = "all";
     this.year = "";
@@ -205,6 +227,28 @@ export class MemosPlusView extends ItemView {
     this.query = options.query?.trim() ?? "";
     this.visibleCount = this.pageSize();
     await this.reload();
+  }
+
+  /** Opens the established calendar/task surface inside this view's content area. */
+  async openTaskWorkbench(options: TaskCalendarOpenOptions = {}): Promise<void> {
+    const today = todayTaskCalendarDate();
+    this.workbenchSection = options.learningFilter ? "learning" : options.showProjects ? "projects" : "tasks";
+    this.workbenchLearningFilter = options.learningFilter ?? "";
+    this.workbenchTaskRoute = options.learningFilter
+      ? ""
+      : options.createdOnDate === today ? "today-new"
+        : options.navigation === "overdue" ? "overdue"
+          : options.navigation === "completed" ? "completed"
+            : "pending";
+    await this.render();
+    if (!this.taskCalendarSurface) return;
+    if (options.showProjects) this.taskCalendarSurface.openProjects();
+    if (Object.keys(options).length === 0) this.taskCalendarSurface.openDefault();
+    else this.taskCalendarSurface.applyOpenOptions(options);
+  }
+
+  openTaskEventComposer(): void {
+    this.taskCalendarSurface?.openEventComposer();
   }
 
   async render(): Promise<void> {
@@ -225,11 +269,17 @@ export class MemosPlusView extends ItemView {
         this.composerSession?.destroy();
         this.composerSession = null;
         this.timelineEl = null;
+        this.taskCalendarSurface?.unmount();
+        this.taskCalendarSurface = null;
         container.empty();
         container.addClass("memos-plus-view");
 
-        const shell = container.createDiv({ cls: this.shouldRenderMobileLightHome() ? "memos-plus-mobile-light-shell" : "memos-plus-shell" });
-        if (this.shouldRenderMobileLightHome()) {
+        this.unifiedSidebar = null;
+        this.unifiedMain = null;
+
+        const showMobileHome = this.workbenchSection === "directory" && this.shouldRenderMobileLightHome();
+        const shell = container.createDiv({ cls: showMobileHome ? "memos-plus-mobile-light-shell" : "memos-plus-shell memos-plus-unified-shell" });
+        if (showMobileHome) {
           await this.renderMobileLightHome(shell, transientComposerDraft);
           return;
         }
@@ -237,10 +287,31 @@ export class MemosPlusView extends ItemView {
         const activeLayout = this.layoutForSurface(activeSurface);
         const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, activeSurface);
         const surfaceModules = surfaceLayoutModules.modules;
-        if (this.shouldRenderDisplaySidebar(surfaceModules)) {
-          this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules));
+        const sidebar = shell.createDiv({ cls: "memos-plus-sidebar memos-plus-unified-sidebar" });
+        const main = shell.createDiv({ cls: "memos-plus-main memos-plus-unified-content" });
+        this.unifiedSidebar = sidebar;
+        this.unifiedMain = main;
+        this.installUnifiedSidebarState(shell, sidebar);
+        // The configurable modules may all be hidden, but the workbench
+        // navigation itself is structural and must remain the one sidebar.
+        const sidebarOptions = this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules);
+        if (!this.shouldRenderDisplaySidebar(surfaceModules)) {
+          sidebarOptions.showAllNotes = false;
+          sidebarOptions.showStats = false;
+          sidebarOptions.showHeatmap = false;
+          sidebarOptions.showOrganizer = false;
+          sidebarOptions.showCustomDirectory = false;
         }
-        await this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft);
+        this.renderSidebar(shell, sidebarOptions, sidebar);
+        if (this.workbenchSection === "directory") {
+          await this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft, main);
+        } else {
+          this.taskCalendarSurface = new TaskCalendarSurface(this.plugin, main, {
+            onSidebarChanged: () => this.refreshUnifiedSidebar()
+          });
+          this.taskCalendarSurface.mount();
+          this.refreshUnifiedSidebar();
+        }
         this.renderMobileFab(shell);
       });
     } finally {
@@ -249,7 +320,103 @@ export class MemosPlusView extends ItemView {
     }
   }
 
-  private renderSidebar(shell: Element, options: SidebarRenderOptions = {}): void {
+  /** Installs the one sidebar's saved width, collapsed state and scroll state. */
+  private installUnifiedSidebarState(shell: HTMLElement, sidebar: HTMLElement): void {
+    const state = this.plugin.settings.taskCalendar;
+    const collapsed = !Platform.isMobile && state.sidebarCollapsed;
+    shell.toggleClass("is-unified-sidebar-collapsed", collapsed);
+    shell.style.setProperty("--memos-plus-unified-sidebar-width", `${state.navigationWidth}px`);
+
+    sidebar.addEventListener("scroll", () => {
+      if (this.sidebarScrollSaveTimer !== null) window.clearTimeout(this.sidebarScrollSaveTimer);
+      this.sidebarScrollSaveTimer = window.setTimeout(() => {
+        this.sidebarScrollSaveTimer = null;
+        this.plugin.settings.taskCalendar.sidebarScrollTop = Math.max(0, Math.round(sidebar.scrollTop));
+        void this.plugin.persistSettings();
+      }, 160);
+    });
+    window.requestAnimationFrame(() => {
+      if (sidebar.isConnected) sidebar.scrollTop = this.plugin.settings.taskCalendar.sidebarScrollTop;
+    });
+
+    const resize = shell.createDiv({
+      cls: "memos-plus-unified-sidebar-resizer",
+      attr: {
+        role: "separator",
+        tabindex: "0",
+        "aria-orientation": "vertical",
+        "aria-label": t(this.plugin.settings.language, "taskCalendar.resizeNavigation")
+      }
+    });
+    const apply = (value: number): number => {
+      const width = Math.max(200, Math.min(320, Math.round(value)));
+      shell.style.setProperty("--memos-plus-unified-sidebar-width", `${width}px`);
+      return width;
+    };
+    const persistWidth = (width: number): void => {
+      this.plugin.settings.taskCalendar.navigationWidth = width;
+      void this.plugin.persistSettings();
+    };
+    resize.addEventListener("pointerdown", (event) => {
+      if (Platform.isMobile || shell.hasClass("is-unified-sidebar-collapsed")) return;
+      event.preventDefault();
+      resize.addClass("is-active");
+      const startX = event.clientX;
+      const startWidth = state.navigationWidth;
+      let width = startWidth;
+      const win = shell.ownerDocument.defaultView;
+      if (!win) return;
+      const move = (moveEvent: PointerEvent): void => { width = apply(startWidth + moveEvent.clientX - startX); };
+      const end = (): void => {
+        resize.removeClass("is-active");
+        win.removeEventListener("pointermove", move);
+        win.removeEventListener("pointerup", end);
+        persistWidth(width);
+      };
+      win.addEventListener("pointermove", move);
+      win.addEventListener("pointerup", end, { once: true });
+    });
+    resize.addEventListener("keydown", (event) => {
+      if (Platform.isMobile || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+      event.preventDefault();
+      persistWidth(apply(state.navigationWidth + (event.key === "ArrowRight" ? 12 : -12)));
+    });
+  }
+
+  /** Rerenders only the permanent navigation column; never recreates content. */
+  private refreshUnifiedSidebar(): void {
+    const sidebar = this.unifiedSidebar;
+    if (!sidebar?.isConnected) return;
+    const top = sidebar.scrollTop;
+    const surface = Platform.isMobile ? "mobile" : "home";
+    const layout = this.layoutForSurface(surface);
+    const orderedModules = resolveLayoutSurfaceModules(layout, surface).orderedModules;
+    this.renderSidebar(sidebar.parentElement ?? sidebar, this.sidebarOptionsForDisplayModules(orderedModules), sidebar);
+    sidebar.scrollTop = top;
+  }
+
+  private renderUnifiedSidebarControl(sidebar: HTMLElement): void {
+    const collapsed = !Platform.isMobile && this.plugin.settings.taskCalendar.sidebarCollapsed;
+    const control = sidebar.createDiv({ cls: "memos-plus-unified-sidebar-control" });
+    const button = control.createEl("button", {
+      cls: "memos-plus-icon-button",
+      attr: {
+        type: "button",
+        title: t(this.plugin.settings.language, "taskCalendar.collapse"),
+        "aria-label": t(this.plugin.settings.language, "taskCalendar.collapse"),
+        "aria-expanded": String(!collapsed)
+      }
+    });
+    setIcon(button, collapsed ? "panel-left-open" : "panel-left-close");
+    button.addEventListener("click", () => {
+      if (Platform.isMobile) return;
+      this.plugin.settings.taskCalendar.sidebarCollapsed = !this.plugin.settings.taskCalendar.sidebarCollapsed;
+      this.plugin.settings.taskCalendar.sidebarExpandedManually = !this.plugin.settings.taskCalendar.sidebarCollapsed;
+      void this.plugin.persistSettings().then(() => this.render());
+    });
+  }
+
+  private renderSidebar(shell: Element, options: SidebarRenderOptions = {}, existingSidebar?: HTMLElement): HTMLElement {
     logMemosPlusDiagnostic("sidebar:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
     const renderOptions = {
       showAllNotes: options.showAllNotes ?? true,
@@ -261,7 +428,9 @@ export class MemosPlusView extends ItemView {
     };
     const lang = this.plugin.settings.language;
     const today = todayString();
-    const sidebar = shell.createDiv({ cls: "memos-plus-sidebar" });
+    const sidebar = existingSidebar ?? shell.createDiv({ cls: "memos-plus-sidebar" });
+    sidebar.empty();
+    this.renderUnifiedSidebarControl(sidebar);
     this.renderWorkbenchNavigation(sidebar);
     const moduleOrder =
       options.moduleOrder && options.moduleOrder.length > 0 ? orderedModulesInGroup(options.moduleOrder, DEFAULT_SIDEBAR_MODULE_ORDER) : [...DEFAULT_SIDEBAR_MODULE_ORDER];
@@ -326,20 +495,26 @@ export class MemosPlusView extends ItemView {
         this.renderCustomDirectory(sidebar);
       }
     }
+    if (this.workbenchSection !== "directory") {
+      this.taskCalendarSurface?.renderSidebarExtras(sidebar);
+    }
     logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
+    return sidebar;
   }
 
   private async renderMain(
     shell: Element,
     activeSurface: DisplaySurface,
     layout: ViewLayoutSettings,
-    initialComposerContent?: string
+    initialComposerContent?: string,
+    existingMain?: HTMLElement
   ): Promise<void> {
     logMemosPlusDiagnostic("main:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
     try {
       const { modules } = resolveLayoutSurfaceModules(layout, activeSurface);
       const lang = this.plugin.settings.language;
-      const main = shell.createDiv({ cls: "memos-plus-main" });
+      const main = existingMain ?? shell.createDiv({ cls: "memos-plus-main" });
+      main.empty();
       const header = main.createDiv({ cls: "memos-plus-main-header" });
       const titleWrap = header.createDiv();
       titleWrap.createDiv({ cls: "memos-plus-title", text: t(lang, "app.name") });
@@ -570,22 +745,31 @@ export class MemosPlusView extends ItemView {
     const today = todayTaskCalendarDate();
     renderSharedWorkbenchNavigation(container, {
       language: this.plugin.settings.language,
-      activeSection: "directory",
+      activeSection: this.workbenchSection,
+      activeTaskRoute: this.workbenchTaskRoute,
+      activeLearningFilter: this.workbenchLearningFilter,
+      projectsExpanded: this.taskCalendarSurface?.isProjectsExpanded(),
       counts: workbenchNavigationCounts(this.plugin.taskIndex.getItems(), this.plugin.learningCards.cards(), today),
       onDirectory: () => void this.applyWorkbenchDirectoryOptions(),
-      onTask: (route) => void this.plugin.openTaskCalendar(workbenchTaskRouteOptions(route, today), this.leaf),
-      onLearning: (filter) => void this.plugin.openTaskCalendar({
+      onTask: (route) => void this.openTaskWorkbench(workbenchTaskRouteOptions(route, today)),
+      onLearning: (filter) => void this.openTaskWorkbench({
         navigation: "today",
         selectedDate: today,
         viewMode: "day",
         learningFilter: filter
-      }, this.leaf),
-      onProjects: () => void this.plugin.openTaskCalendar({
-        navigation: "all",
-        selectedDate: today,
-        viewMode: "day",
-        showProjects: true
-      }, this.leaf)
+      }),
+      onProjects: () => {
+        if (this.workbenchSection === "projects" && this.taskCalendarSurface) {
+          this.taskCalendarSurface.openProjects();
+          return;
+        }
+        void this.openTaskWorkbench({
+          navigation: "all",
+          selectedDate: today,
+          viewMode: "day",
+          showProjects: true
+        });
+      }
     });
   }
 
@@ -1936,9 +2120,8 @@ export class MemosPlusView extends ItemView {
       void this.plugin.openTaskCalendar({ focusQuickTask: true }, this.leaf);
     });
     addAction("calendar-plus", t(lang, "taskCalendar.quickAction.event"), () => {
-      void this.plugin.activateTaskCalendarView(this.leaf).then((leaf) => {
-        const view = leaf?.view;
-        if (view instanceof TaskCalendarView) view.openEventComposer();
+      void this.openTaskWorkbench({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" }).then(() => {
+        this.openTaskEventComposer();
       });
     });
     addAction("message-square-plus", t(lang, "taskCalendar.quickAction.memo"), () => this.openQuickCaptureFromMobileFab());

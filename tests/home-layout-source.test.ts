@@ -14,8 +14,13 @@ describe("desktop home layout source integration", () => {
     expect(renderBlock).toContain("const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, activeSurface)");
     expect(renderBlock).toContain("const surfaceModules = surfaceLayoutModules.modules");
     expect(renderBlock).toContain("this.shouldRenderDisplaySidebar(surfaceModules)");
-    expect(renderBlock).toContain("this.renderSidebar(shell, this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules))");
-    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft)");
+    expect(renderBlock).toContain('"memos-plus-shell memos-plus-unified-shell"');
+    expect(renderBlock).toContain('"memos-plus-sidebar memos-plus-unified-sidebar"');
+    expect(renderBlock).toContain('"memos-plus-main memos-plus-unified-content"');
+    expect(renderBlock).toContain("const sidebarOptions = this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules)");
+    expect(renderBlock).toContain("this.renderSidebar(shell, sidebarOptions, sidebar)");
+    expect(renderBlock).toContain("this.renderMain(shell, activeSurface, activeLayout, transientComposerDraft, main)");
+    expect(renderBlock).toContain("new TaskCalendarSurface(this.plugin, main");
   });
 
   it("skips hidden desktop home modules before rendering or binding events", () => {

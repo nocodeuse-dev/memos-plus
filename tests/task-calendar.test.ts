@@ -322,36 +322,38 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(mainSource).toContain("await this.syncAppleNow(false)");
   });
 
-  it("renders the workspace immediately even when its content element is not connected yet", () => {
-    const openMethod = viewSource.slice(viewSource.indexOf("async onOpen"), viewSource.indexOf("async onClose"));
+  it("mounts the task surface immediately without an ItemView lifecycle of its own", () => {
+    const mountMethod = viewSource.slice(viewSource.indexOf("mount(): void"), viewSource.indexOf("unmount(): void"));
     const renderMethod = viewSource.slice(viewSource.indexOf("private render(): void"), viewSource.indexOf("private renderContent(): void"));
     expect(viewSource).not.toContain("private opened");
-    expect(openMethod.indexOf("this.viewActive = true")).toBeLessThan(openMethod.indexOf("this.render()"));
-    expect(openMethod.indexOf("this.render()")).toBeLessThan(openMethod.indexOf("this.loadTaskProjects()"));
+    expect(mountMethod.indexOf("this.viewActive = true")).toBeLessThan(mountMethod.indexOf("this.render()"));
+    expect(mountMethod.indexOf("this.render()")).toBeLessThan(mountMethod.indexOf("this.loadTaskProjects()"));
     expect(renderMethod).toContain("if (!this.viewActive) return");
-    expect(renderMethod).not.toContain("this.contentEl.isConnected");
+    expect(renderMethod).not.toContain("this.host.isConnected");
     expect(renderMethod).toContain("this.renderContent()");
     expect(renderMethod).toContain("Failed to render Schedule and Tasks");
   });
 
-  it("does not override Obsidian View.open when applying unified task navigation", () => {
+  it("uses the shared Memos Plus view when applying task navigation", () => {
     expect(viewSource).not.toMatch(/\n\s*open\(options:\s*TaskCalendarOpenOptions/);
     expect(viewSource).toContain("applyOpenOptions(options: TaskCalendarOpenOptions = {})");
-    expect(mainSource).toContain("leaf.view.applyOpenOptions(options)");
+    expect(mainSource).toContain("return this.activateView(preferredLeaf)");
+    expect(mainSource).toContain("leaf.view.openTaskWorkbench(options ?? {})");
   });
 
-  it("uses one shared navigation and swaps the current workspace leaf between directory, tasks and learning", () => {
+  it("uses one shared sidebar and swaps only its content area between directory, tasks and learning", () => {
     expect(workbenchNavigationSource).toContain("renderWorkbenchNavigation");
     expect(workbenchNavigationSource).toContain("workbenchTaskRouteOptions");
     expect(homeViewSource).toContain("renderSharedWorkbenchNavigation");
-    expect(viewSource).toContain("renderWorkbenchNavigation(navigation");
-    expect(homeViewSource).toContain("this.plugin.openTaskCalendar(workbenchTaskRouteOptions(route, today), this.leaf)");
-    expect(viewSource).toContain("this.plugin.openWorkbenchDirectory({}, this.leaf)");
+    expect(homeViewSource).toContain("new TaskCalendarSurface(this.plugin, main");
+    expect(homeViewSource).toContain("renderSidebarExtras(sidebar)");
+    expect(homeViewSource).toContain("this.openTaskWorkbench(workbenchTaskRouteOptions(route, today))");
+    expect(homeViewSource).toContain("this.applyWorkbenchDirectoryOptions()");
     expect(mainSource).toContain("async openWorkbenchDirectory(options: WorkbenchDirectoryOptions = {}, preferredLeaf?: WorkspaceLeaf)");
     expect(mainSource).toContain("preferredLeaf ?? this.app.workspace.getLeaf(false)");
     expect(mainSource).toContain("preferredLeaf ? null : this.app.workspace.getLeavesOfType(MEMOS_PLUS_VIEW_TYPE)[0]");
-    expect(mainSource).toContain("preferredLeaf ? null : this.app.workspace.getLeavesOfType(MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE)[0]");
-    expect(viewSource).not.toContain("renderLearningNavigation(");
+    expect(mainSource).not.toContain("getLeavesOfType(MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE)[0]");
+    expect(viewSource).not.toContain("memos-plus-task-calendar-navigation" );
   });
 
   it("renders parsed task time and Apple sync status and listens for task-index changes", () => {
@@ -410,16 +412,15 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-settings");
   });
 
-  it("keeps desktop panes readable and collapses navigation before squeezing task text", () => {
-    expect(stylesSource).toContain("--memos-plus-task-calendar-nav-width, 232px");
+  it("keeps desktop panes readable with one saved sidebar before the agenda and task panes", () => {
+    expect(stylesSource).toContain("--memos-plus-unified-sidebar-width, 232px");
     expect(stylesSource).toContain("--memos-plus-task-calendar-task-width, 420px");
     expect(stylesSource).toContain("@container memos-plus-task-calendar (max-width: 1080px)");
-    expect(stylesSource).toContain(":not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout");
-    expect(stylesSource).toContain(".memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse)");
-    expect(viewSource).toContain("responsiveSidebarCollapsed");
-    expect(viewSource).toContain("toggleTaskCalendarSidebar(state, responsiveSidebarCollapsed, false)");
+    expect(stylesSource).toContain(".memos-plus-unified-shell.is-unified-sidebar-collapsed");
+    expect(homeViewSource).toContain("sidebarScrollTop");
+    expect(homeViewSource).toContain("memos-plus-unified-sidebar-resizer");
     expect(stylesSource).toContain("justify-self: stretch");
-    expect(stylesSource).not.toContain(".memos-plus-task-calendar-resizer.is-left { display: none; }");
+    expect(stylesSource).toContain(".memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout");
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-body { display: block;");
     expect(stylesSource).toContain("-webkit-line-clamp: 2");
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-source");
@@ -435,7 +436,7 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(editorUiSource).toContain("taskCalendarPostponeDate(kind)");
     expect(viewSource).toContain("renderTaskCalendarTaskEditor(container");
     expect(viewSource).toContain("new Menu()");
-    expect(viewSource).toContain("navigationWidth");
+    expect(homeViewSource).toContain("navigationWidth");
     expect(viewSource).toContain("taskPaneWidth");
   });
 
@@ -473,7 +474,7 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("showMobileQuickActions");
     expect(viewSource).toContain("memos-plus-mobile-quick-actions");
     expect(viewSource).toContain("this.plugin.openTaskCalendar({ focusQuickTask: true }, this.leaf)");
-    expect(viewSource).toContain("view.openEventComposer()");
+    expect(viewSource).toContain("this.openTaskEventComposer()");
     expect(viewSource).toContain("openQuickCaptureFromMobileFab");
   });
 

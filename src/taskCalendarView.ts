@@ -11,7 +11,6 @@ import {
   taskCalendarDateRange,
   taskCalendarCompletedOnDate,
   taskCalendarTasks,
-  toggleTaskCalendarSidebar,
   taskDate,
   todayTaskCalendarDate,
   type TaskCalendarNavigation,
@@ -48,12 +47,6 @@ import {
   type LearningCard,
   type LearningCardFilter
 } from "./learning/learningCards";
-import {
-  renderWorkbenchNavigation,
-  workbenchNavigationCounts,
-  workbenchTaskRouteOptions,
-  type WorkbenchTaskRoute
-} from "./workbenchNavigation";
 
 export const MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE = "memos-plus-task-calendar-view";
 
@@ -66,7 +59,18 @@ const LEARNING_NAVIGATION: ReadonlyArray<{ id: LearningCardFilter; icon: string;
   { id: "all", icon: "library", labelKey: "taskCalendar.learning.all" }
 ];
 
-export class TaskCalendarView extends ItemView {
+export interface TaskCalendarSurfaceCallbacks {
+  /** Refreshes the one shared sidebar after calendar/project state changes. */
+  onSidebarChanged: () => void;
+}
+
+/**
+ * The task, calendar and learning content area of the unified workbench.
+ * It deliberately has no ItemView lifecycle or left navigation of its own:
+ * `MemosPlusView` owns the only workbench shell and injects this surface into
+ * its right-side content area.
+ */
+export class TaskCalendarSurface {
   private readonly agenda = new AppleCalendarAgendaService();
   private events: AppleCalendarAgendaEvent[] = [];
   private agendaError = "";
@@ -92,32 +96,26 @@ export class TaskCalendarView extends ItemView {
   private completedTasksDate = "";
   private taskCreatedOnDate = "";
 
-  constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
-    super(leaf);
-  }
+  constructor(
+    private readonly plugin: MemosPlusPlugin,
+    private readonly host: HTMLElement,
+    private readonly callbacks: TaskCalendarSurfaceCallbacks
+  ) {}
 
-  getViewType(): string {
-    return MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE;
-  }
-
-  getDisplayText(): string {
-    return t(this.plugin.settings.language, "app.name");
-  }
-
-  getIcon(): string {
-    return "calendar-days";
-  }
-
-  async onOpen(): Promise<void> {
+  mount(): void {
+    if (this.viewActive) return;
     this.viewActive = true;
-    this.plugin.settings.taskCalendar.selectedDate = todayTaskCalendarDate();
-    this.contentEl.addClass("memos-plus-task-calendar-view");
+    if (!this.plugin.settings.taskCalendar.selectedDate) {
+      this.plugin.settings.taskCalendar.selectedDate = todayTaskCalendarDate();
+    }
+    this.host.addClass("memos-plus-task-calendar-view");
     this.unsubscribeTasks = this.plugin.taskIndex.onChange(() => this.handleTaskIndexChange());
     this.render();
     void this.loadTaskProjects();
   }
 
-  async onClose(): Promise<void> {
+  unmount(): void {
+    if (!this.viewActive) return;
     this.viewActive = false;
     this.unsubscribeTasks?.();
     this.unsubscribeTasks = null;
@@ -125,11 +123,34 @@ export class TaskCalendarView extends ItemView {
     this.renderTimer = null;
     this.renderVersion += 1;
     this.releaseTaskEditSession();
-    this.contentEl.empty();
+    this.host.empty();
   }
 
   focusQuickTaskInput(): void {
-    this.contentEl.querySelector<HTMLInputElement>(".memos-plus-task-calendar-quick-input")?.focus();
+    this.host.querySelector<HTMLInputElement>(".memos-plus-task-calendar-quick-input")?.focus();
+  }
+
+  /**
+   * Renders the calendar-specific controls inside the workbench's one shared
+   * sidebar.  The surface owns their data and events, while `MemosPlusView`
+   * owns the sidebar element, its width and its scroll position.
+   */
+  renderSidebarExtras(container: HTMLElement): void {
+    if (!this.viewActive) return;
+    const selectedDate = this.plugin.settings.taskCalendar.selectedDate || todayTaskCalendarDate();
+    this.renderMiniCalendar(container, selectedDate);
+    this.renderProjectNavigation(container);
+    this.renderCalendarFilters(container);
+  }
+
+  isProjectsExpanded(): boolean {
+    return this.projectNavExpanded;
+  }
+
+  openProjects(): void {
+    this.projectNavExpanded = !this.projectNavExpanded;
+    this.callbacks.onSidebarChanged();
+    this.renderForced();
   }
 
   openToday(): void {
@@ -245,14 +266,14 @@ export class TaskCalendarView extends ItemView {
 
   private renderWithOptions(force: boolean): void {
     if (!this.viewActive) return;
-    if (!force && this.selectedTaskKey && this.contentEl.querySelector(".memos-plus-task-calendar-task-details")) return;
+    if (!force && this.selectedTaskKey && this.host.querySelector(".memos-plus-task-calendar-task-details")) return;
     try {
       this.renderContent();
     } catch (error) {
       console.error("[Memos Plus] Failed to render Schedule and Tasks", error);
-      this.contentEl.empty();
-      this.contentEl.addClass("memos-plus-task-calendar", Platform.isMobile ? "is-mobile" : "is-desktop");
-      this.contentEl.createDiv({ cls: "memos-plus-task-calendar-agenda-message", text: t(this.plugin.settings.language, "taskCalendar.unavailable") });
+      this.host.empty();
+      this.host.addClass("memos-plus-task-calendar", "is-unified-content", Platform.isMobile ? "is-mobile" : "is-desktop");
+      this.host.createDiv({ cls: "memos-plus-task-calendar-agenda-message", text: t(this.plugin.settings.language, "taskCalendar.unavailable") });
     }
   }
 
@@ -262,18 +283,11 @@ export class TaskCalendarView extends ItemView {
     const selectedDate = state.selectedDate || todayTaskCalendarDate();
     const items = this.plugin.taskIndex.getItems();
     const range = taskCalendarDateRange(selectedDate, state.viewMode);
-    const root = this.contentEl;
+    const root = this.host;
     root.empty();
-    root.addClass("memos-plus-task-calendar", Platform.isMobile ? "is-mobile" : "is-desktop");
-    const responsiveSidebarCollapsed = !Platform.isMobile
-      && !state.sidebarCollapsed
-      && !state.sidebarExpandedManually
-      && root.clientWidth <= 1080;
+    root.addClass("memos-plus-task-calendar", "is-unified-content", Platform.isMobile ? "is-mobile" : "is-desktop");
     root.setAttr("data-mobile-tab", state.mobileTab);
-    root.toggleClass("is-sidebar-collapsed", !Platform.isMobile && state.sidebarCollapsed);
-    root.toggleClass("is-sidebar-force-expanded", !Platform.isMobile && state.sidebarExpandedManually && !state.sidebarCollapsed);
     root.toggleClass("is-tasks-hidden", !Platform.isMobile && state.tasksPaneHidden);
-    root.style.setProperty("--memos-plus-task-calendar-nav-width", `${state.navigationWidth}px`);
     root.style.setProperty("--memos-plus-task-calendar-task-width", `${state.taskPaneWidth}px`);
 
     const header = root.createDiv({ cls: "memos-plus-task-calendar-header" });
@@ -311,69 +325,7 @@ export class TaskCalendarView extends ItemView {
     if (state.learningFilter) this.renderLearningSummary(root);
     else if (state.navigation === "today") this.renderTodaySummary(root, items, selectedDate);
 
-    if (Platform.isMobile) {
-      const tabs = root.createDiv({ cls: "memos-plus-task-calendar-mobile-tabs", attr: { role: "tablist" } });
-      const directory = tabs.createEl("button", {
-        text: t(lang, "workbench.directory"),
-        attr: { type: "button", role: "tab", "aria-selected": "false" }
-      });
-      directory.addEventListener("click", () => void this.plugin.openWorkbenchDirectory({}, this.leaf));
-      for (const [id, label] of [["today", "taskCalendar.mobile.today"], ["tasks", "taskCalendar.mobile.tasks"], ["calendar", "taskCalendar.mobile.calendar"], ["learning", "taskCalendar.learning"]] as const) {
-        const tab = tabs.createEl("button", { cls: state.mobileTab === id ? "is-active" : "", text: t(lang, label), attr: { type: "button", role: "tab", "aria-selected": String(state.mobileTab === id) } });
-        tab.addEventListener("click", () => void this.updateState(
-          id === "learning"
-            ? { mobileTab: id, learningFilter: state.learningFilter || "today" }
-            : { mobileTab: id, learningFilter: "" }
-        ));
-      }
-    }
-
     const layout = root.createDiv({ cls: "memos-plus-task-calendar-layout" });
-    const navigation = layout.createDiv({ cls: "memos-plus-task-calendar-navigation" });
-    const sidebarLooksCollapsed = !Platform.isMobile && (state.sidebarCollapsed || responsiveSidebarCollapsed);
-    const collapse = this.iconButton(navigation, sidebarLooksCollapsed ? "panel-left-open" : "panel-left-close", t(lang, "taskCalendar.collapse"), () => {
-      if (Platform.isMobile) return;
-      void this.updateState(toggleTaskCalendarSidebar(state, responsiveSidebarCollapsed, false));
-    });
-    collapse.addClass("memos-plus-task-calendar-collapse");
-    this.renderMiniCalendar(navigation, selectedDate);
-    renderWorkbenchNavigation(navigation, {
-      language: lang,
-      activeSection: this.workbenchActiveSection(),
-      activeTaskRoute: this.workbenchActiveTaskRoute(),
-      activeLearningFilter: state.learningFilter,
-      projectsExpanded: this.projectNavExpanded,
-      counts: workbenchNavigationCounts(items, this.plugin.learningCards.cards(), todayTaskCalendarDate()),
-      onDirectory: () => void this.plugin.openWorkbenchDirectory({}, this.leaf),
-      onTask: (route) => this.openWorkbenchTaskRoute(route),
-      onLearning: (filter) => this.openLearning(filter),
-      onProjects: () => {
-        this.taskCreatedOnDate = "";
-        this.projectNavExpanded = !this.projectNavExpanded;
-        this.selectedTaskKey = "";
-        this.resetTaskFilters();
-        void this.updateState({ navigation: "all", learningFilter: "", tasksPaneHidden: false });
-      }
-    });
-    // The shared workbench navigation owns the Projects trigger.  Only create
-    // its list container when expanded so an empty project section never
-    // consumes sidebar height between the unified navigation and calendars.
-    if (this.projectNavExpanded) {
-      const projectSection = navigation.createDiv({ cls: "memos-plus-task-calendar-project-section" });
-      this.renderProjectNavigation(projectSection, false);
-    }
-    const calendarSection = navigation.createDiv({ cls: "memos-plus-task-calendar-calendar-section" });
-    const calendarNav = calendarSection.createEl("button", { cls: "memos-plus-task-calendar-nav memos-plus-task-calendar-calendar-nav", attr: { type: "button" } });
-    setIcon(calendarNav, "calendar-days");
-    calendarNav.createSpan({ text: t(lang, "taskCalendar.calendars") });
-    calendarNav.addEventListener("click", () => {
-      if (Platform.isMobile) void this.updateState({ mobileTab: "calendar" });
-      else this.contentEl.querySelector<HTMLElement>(".memos-plus-task-calendar-agenda")?.focus();
-    });
-    this.renderCalendarFilters(calendarSection);
-
-    this.renderResizeHandle(layout, "left", state.navigationWidth);
-
     const agenda = layout.createDiv({ cls: "memos-plus-task-calendar-agenda" });
     agenda.tabIndex = -1;
     const agendaTasks = this.taskProject
@@ -394,7 +346,7 @@ export class TaskCalendarView extends ItemView {
             ? t(lang, "taskCalendar.completedToday")
             : this.taskCreatedOnDate
               ? t(lang, "workbench.task.todayNew")
-              : this.workbenchActiveTaskRoute() === "pending"
+              : state.navigation === "all"
                 ? t(lang, "workbench.task.pending")
                 : t(lang, `taskCalendar.nav.${state.navigation}`),
           this.taskProject?.label
@@ -546,22 +498,7 @@ export class TaskCalendarView extends ItemView {
     });
   }
 
-  private renderProjectNavigation(container: HTMLElement, renderToggle = true): void {
-    if (renderToggle) {
-      const lang = this.plugin.settings.language;
-      const project = container.createEl("button", {
-        cls: `memos-plus-task-calendar-nav${this.taskProject ? " is-active" : ""}`,
-        attr: { type: "button", "aria-expanded": String(this.projectNavExpanded) }
-      });
-      setIcon(project, "folder-kanban");
-      project.createSpan({ text: t(lang, "taskCalendar.projects") });
-      const chevron = project.createSpan({ cls: "memos-plus-task-calendar-nav-chevron" });
-      setIcon(chevron, this.projectNavExpanded ? "chevron-down" : "chevron-right");
-      project.addEventListener("click", () => {
-        this.projectNavExpanded = !this.projectNavExpanded;
-        this.renderForced();
-      });
-    }
+  private renderProjectNavigation(container: HTMLElement): void {
     if (!this.projectNavExpanded) return;
     const list = container.createDiv({ cls: "memos-plus-task-calendar-project-nav-list" });
     for (const candidate of this.taskProjects) {
@@ -587,7 +524,7 @@ export class TaskCalendarView extends ItemView {
     const maximum = side === "left" ? 320 : 560;
     const apply = (value: number): number => {
       const width = Math.max(minimum, Math.min(maximum, Math.round(value)));
-      const root = this.contentEl.querySelector<HTMLElement>(".memos-plus-task-calendar");
+      const root = this.host.querySelector<HTMLElement>(".memos-plus-task-calendar");
       root?.style.setProperty(side === "left" ? "--memos-plus-task-calendar-nav-width" : "--memos-plus-task-calendar-task-width", `${width}px`);
       return width;
     };
@@ -597,7 +534,7 @@ export class TaskCalendarView extends ItemView {
       handle.addClass("is-active");
       const startX = event.clientX;
       let nextWidth = currentWidth;
-      const win = this.contentEl.ownerDocument.defaultView;
+      const win = this.host.ownerDocument.defaultView;
       if (!win) return;
       const move = (moveEvent: PointerEvent): void => {
         nextWidth = apply(currentWidth + (moveEvent.clientX - startX) * (side === "left" ? 1 : -1));
@@ -1064,7 +1001,7 @@ export class TaskCalendarView extends ItemView {
     element.addEventListener("dragend", () => {
       this.draggingTask = null;
       element.removeClass("is-dragging");
-      this.contentEl.querySelectorAll(".is-task-drop-target").forEach((target) => target.removeClass("is-task-drop-target"));
+      this.host.querySelectorAll(".is-task-drop-target").forEach((target) => target.removeClass("is-task-drop-target"));
     });
   }
 
@@ -1148,10 +1085,11 @@ export class TaskCalendarView extends ItemView {
   }
 
   private handleTaskIndexChange(): void {
+    this.callbacks.onSidebarChanged();
     if (this.taskEditSession && this.selectedTaskKey) {
       const indexed = this.plugin.taskIndex.getItems().find((item) => taskCalendarTaskKey(item) === this.selectedTaskKey);
       if (indexed) this.taskEditSession.reconcile(indexed);
-      if (this.contentEl.querySelector(".memos-plus-task-calendar-task-details")) return;
+      if (this.host.querySelector(".memos-plus-task-calendar-task-details")) return;
     }
     this.scheduleRender();
   }
@@ -1195,6 +1133,7 @@ export class TaskCalendarView extends ItemView {
     } finally {
       if (version === this.renderVersion && this.viewActive) {
         this.agendaLoading = false;
+        this.callbacks.onSidebarChanged();
         this.render();
       }
     }
@@ -1219,7 +1158,8 @@ export class TaskCalendarView extends ItemView {
         filePath: project.file.path,
         tag: `${this.plugin.settings.projectTag}/${project.name}`
       }));
-      if (!this.contentEl.querySelector(".memos-plus-task-calendar-quick-input:focus, .memos-plus-task-calendar-task-controls :focus")) {
+      this.callbacks.onSidebarChanged();
+      if (!this.host.querySelector(".memos-plus-task-calendar-quick-input:focus, .memos-plus-task-calendar-task-controls :focus")) {
         this.scheduleRender();
       }
     } catch (error) {
@@ -1238,66 +1178,6 @@ export class TaskCalendarView extends ItemView {
   private agendaKey(startDate: string, endDate: string, calendarNames: string[]): string {
     const settings = this.plugin.settings;
     return `${startDate}:${endDate}:${calendarNames.join("\u0001")}:${settings.taskCalendar.showAllDayEvents}`;
-  }
-
-  private workbenchActiveSection(): "tasks" | "learning" | "projects" {
-    if (this.plugin.settings.taskCalendar.learningFilter) return "learning";
-    if (this.projectNavExpanded || this.taskProject) return "projects";
-    return "tasks";
-  }
-
-  private workbenchActiveTaskRoute(): WorkbenchTaskRoute | "" {
-    if (this.plugin.settings.taskCalendar.learningFilter) return "";
-    if (this.taskCreatedOnDate) return "today-new";
-    switch (this.plugin.settings.taskCalendar.navigation) {
-      case "all": return "pending";
-      case "overdue": return "overdue";
-      case "completed": return "completed";
-      default: return "";
-    }
-  }
-
-  private openWorkbenchTaskRoute(route: WorkbenchTaskRoute): void {
-    this.completedTasksDate = "";
-    this.selectedTaskKey = "";
-    this.projectNavExpanded = false;
-    this.resetTaskFilters();
-    this.applyOpenOptions(workbenchTaskRouteOptions(route));
-  }
-
-  private openNavigation(navigation: TaskCalendarNavigation): void {
-    this.resetTaskFilters();
-    this.taskCreatedOnDate = "";
-    if (navigation === "today") {
-      void this.updateState({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day", learningFilter: "" });
-      return;
-    }
-    if (navigation === "tomorrow") {
-      void this.updateState({ navigation, selectedDate: shiftDate(todayTaskCalendarDate(), "day", 1), viewMode: "day", learningFilter: "" });
-      return;
-    }
-    if (navigation === "week") {
-      void this.updateState({ navigation, selectedDate: todayTaskCalendarDate(), viewMode: "week", learningFilter: "" });
-      return;
-    }
-    if (navigation === "upcoming") {
-      void this.updateState({ navigation, selectedDate: todayTaskCalendarDate(), viewMode: "week", learningFilter: "" });
-      return;
-    }
-    void this.updateState({ navigation, learningFilter: "" });
-  }
-
-  private openLearning(filter: LearningCardFilter): void {
-    this.completedTasksDate = "";
-    this.selectedTaskKey = "";
-    this.taskCreatedOnDate = "";
-    this.projectNavExpanded = false;
-    this.resetTaskFilters();
-    void this.updateState({
-      learningFilter: filter,
-      tasksPaneHidden: false,
-      mobileTab: Platform.isMobile ? "learning" : this.plugin.settings.taskCalendar.mobileTab
-    });
   }
 
   private openCompletedToday(selectedDate: string): void {
@@ -1324,6 +1204,7 @@ export class TaskCalendarView extends ItemView {
     if ("navigation" in change || "selectedDate" in change || "viewMode" in change) this.completedTasksDate = "";
     Object.assign(this.plugin.settings.taskCalendar, change);
     await this.plugin.persistSettings();
+    this.callbacks.onSidebarChanged();
     this.renderForced();
   }
 
@@ -1332,6 +1213,37 @@ export class TaskCalendarView extends ItemView {
     setIcon(button, icon);
     button.addEventListener("click", onClick);
     return button;
+  }
+}
+
+/**
+ * Compatibility view for layouts saved by releases that still used a separate
+ * task-calendar ItemView.  Opening such a leaf immediately routes it into the
+ * unified Memos Plus workbench; new navigation never creates this view.
+ */
+export class TaskCalendarView extends ItemView {
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: MemosPlusPlugin) {
+    super(leaf);
+  }
+
+  getViewType(): string {
+    return MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE;
+  }
+
+  getDisplayText(): string {
+    return t(this.plugin.settings.language, "taskCalendar.title");
+  }
+
+  getIcon(): string {
+    return "calendar-days";
+  }
+
+  async onOpen(): Promise<void> {
+    await this.plugin.openTaskCalendar(undefined, this.leaf);
+  }
+
+  async onClose(): Promise<void> {
+    this.contentEl.empty();
   }
 }
 

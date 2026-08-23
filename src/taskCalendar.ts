@@ -48,6 +48,8 @@ export interface TaskCalendarSettings {
   sidebarExpandedManually: boolean;
   tasksPaneHidden: boolean;
   navigationWidth: number;
+  /** Scroll position of the one shared workbench sidebar. */
+  sidebarScrollTop: number;
   taskPaneWidth: number;
   agendaCacheMinutes: number;
   agendaCalendarNames: string[];
@@ -70,6 +72,7 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   sidebarExpandedManually: false,
   tasksPaneHidden: false,
   navigationWidth: 232,
+  sidebarScrollTop: 0,
   taskPaneWidth: 420,
   agendaCacheMinutes: 5,
   agendaCalendarNames: [],
@@ -111,6 +114,7 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     sidebarExpandedManually: typeof raw.sidebarExpandedManually === "boolean" ? raw.sidebarExpandedManually : false,
     tasksPaneHidden: typeof raw.tasksPaneHidden === "boolean" ? raw.tasksPaneHidden : false,
     navigationWidth: clampInteger(navigationWidth, 200, 320, DEFAULT_TASK_CALENDAR_SETTINGS.navigationWidth),
+    sidebarScrollTop: clampInteger(raw.sidebarScrollTop, 0, 2_000_000, DEFAULT_TASK_CALENDAR_SETTINGS.sidebarScrollTop),
     taskPaneWidth: clampInteger(taskPaneWidth, 340, 560, DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth),
     agendaCacheMinutes: clampInteger(raw.agendaCacheMinutes, 1, 30, DEFAULT_TASK_CALENDAR_SETTINGS.agendaCacheMinutes),
     agendaCalendarNames: normalizeCalendarNames(raw.agendaCalendarNames),

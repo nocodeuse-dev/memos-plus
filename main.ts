@@ -218,8 +218,11 @@ export default class MemosPlusPlugin extends Plugin {
       id: "quick-add-calendar-event",
       name: t(this.settings.language, "command.quickAddCalendarEvent"),
       callback: () => this.runAsyncOperation("open calendar event composer", async () => {
-        const leaf = await this.activateTaskCalendarView();
-        if (leaf?.view instanceof TaskCalendarView) leaf.view.openEventComposer();
+        const leaf = await this.activateView();
+        if (leaf?.view instanceof MemosPlusView) {
+          await leaf.view.openTaskWorkbench({ navigation: "today", selectedDate: todayTaskCalendarDate(), viewMode: "day" });
+          leaf.view.openTaskEventComposer();
+        }
       })
     });
 
@@ -343,25 +346,16 @@ export default class MemosPlusPlugin extends Plugin {
   }
 
   async activateTaskCalendarView(preferredLeaf?: WorkspaceLeaf): Promise<WorkspaceLeaf | null> {
-    const existing = preferredLeaf?.view.getViewType() === MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE
-      ? preferredLeaf
-      // See activateView: explicit in-workbench navigation owns its leaf.
-      : preferredLeaf ? null : this.app.workspace.getLeavesOfType(MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE)[0];
-    if (existing) {
-      await this.app.workspace.revealLeaf(existing);
-      return existing;
-    }
-    const leaf = preferredLeaf ?? this.app.workspace.getLeaf(false);
-    await leaf.setViewState({ type: MEMOS_PLUS_TASK_CALENDAR_VIEW_TYPE, active: true });
-    await this.app.workspace.revealLeaf(leaf);
-    return leaf;
+    // Kept as a source-compatible API for external callers.  New workbench
+    // navigation always activates the one Memos Plus shell instead of creating
+    // a second sidebar-bearing ItemView.
+    return this.activateView(preferredLeaf);
   }
 
   async openTaskCalendar(options?: TaskCalendarOpenOptions, preferredLeaf?: WorkspaceLeaf): Promise<void> {
-    const leaf = await this.activateTaskCalendarView(preferredLeaf);
-    if (!(leaf?.view instanceof TaskCalendarView)) return;
-    if (options) leaf.view.applyOpenOptions(options);
-    else leaf.view.openDefault();
+    const leaf = await this.activateView(preferredLeaf);
+    if (!(leaf?.view instanceof MemosPlusView)) return;
+    await leaf.view.openTaskWorkbench(options ?? {});
   }
 
   async openTaskCalendarFromOrganizer(filterId: OrganizerFilterId, preferredLeaf?: WorkspaceLeaf): Promise<void> {
