@@ -25,6 +25,8 @@ describe("unified workbench sidebar", () => {
     expect(styles).toContain(".memos-plus-workbench-context-tree");
     expect(styles).toContain(".memos-plus-unified-content { width: 100%; max-width: 100%; }");
     expect(styles).toContain("width: 100%;\n  max-width: none;\n  align-self: stretch;");
+    expect(styles).toContain("grid-template-columns: minmax(260px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 420px));");
+    expect(styles).not.toContain("clamp(340px, 38%");
   });
 
   it("keeps the old task-calendar view only as a migration route", () => {
