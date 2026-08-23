@@ -427,6 +427,7 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(homeViewSource).toContain("memos-plus-unified-sidebar-resizer");
     expect(stylesSource).toContain("justify-self: stretch");
     expect(stylesSource).toContain(".memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout");
+    expect(stylesSource).toContain(".memos-plus-task-calendar.is-desktop:not(.is-unified-content):not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout");
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-body { display: block;");
     expect(stylesSource).toContain("-webkit-line-clamp: 2");
     expect(stylesSource).toContain(".memos-plus-task-calendar-task-source");
@@ -444,6 +445,8 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("new Menu()");
     expect(homeViewSource).toContain("navigationWidth");
     expect(viewSource).toContain("taskPaneWidth");
+    expect(viewSource).toContain("this.host.style.setProperty(side === \"left\" ? \"--memos-plus-task-calendar-nav-width\" : \"--memos-plus-task-calendar-task-width\"");
+    expect(viewSource).not.toContain('this.host.querySelector<HTMLElement>(".memos-plus-task-calendar")');
   });
 
   it("keeps inline field feedback independent from Markdown indexing and Apple sync", () => {

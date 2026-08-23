@@ -545,8 +545,10 @@ export class TaskCalendarSurface {
     const maximum = side === "left" ? 320 : 560;
     const apply = (value: number): number => {
       const width = Math.max(minimum, Math.min(maximum, Math.round(value)));
-      const root = this.host.querySelector<HTMLElement>(".memos-plus-task-calendar");
-      root?.style.setProperty(side === "left" ? "--memos-plus-task-calendar-nav-width" : "--memos-plus-task-calendar-task-width", `${width}px`);
+      // In the unified workbench `host` itself is the calendar root. Querying
+      // descendants misses it, so pointer movement previously persisted only
+      // on release and gave no visual resize feedback.
+      this.host.style.setProperty(side === "left" ? "--memos-plus-task-calendar-nav-width" : "--memos-plus-task-calendar-task-width", `${width}px`);
       return width;
     };
     handle.addEventListener("pointerdown", (event) => {
