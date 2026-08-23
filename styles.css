@@ -689,6 +689,7 @@
   grid-template-columns: var(--memos-plus-unified-sidebar-width, 232px) 5px minmax(0, 1fr);
 }
 .memos-plus-unified-sidebar { min-width: 0; }
+.memos-plus-unified-content { width: 100%; max-width: 100%; }
 .memos-plus-unified-sidebar-control { display: flex; justify-content: flex-end; min-height: 28px; margin: -3px -2px 4px; }
 .memos-plus-unified-sidebar-resizer { position: relative; z-index: 5; min-width: 5px; cursor: col-resize; touch-action: none; }
 .memos-plus-unified-sidebar-resizer::after { position: absolute; top: 0; bottom: 0; left: 2px; width: 1px; background: var(--background-modifier-border); content: ""; }
@@ -711,9 +712,19 @@
 /* One lightweight navigation component is shared by the memo directory and
    the schedule/tasks surface.  It deliberately relies on theme variables and
    spacing rather than a second card-heavy sidebar. */
-.memos-plus-workbench-navigation { display: flex; flex: 0 1 auto; flex-direction: column; gap: 3px; margin: 0 0 10px; padding: 0 0 9px; border-bottom: 1px solid var(--background-modifier-border); }
-.memos-plus-workbench-nav-section { display: flex; flex-direction: column; gap: 2px; padding-top: 7px; }
-.memos-plus-workbench-nav-heading { padding: 0 8px 3px; color: var(--text-muted); font-size: var(--font-ui-smaller); font-weight: var(--font-semibold); }
+.memos-plus-workbench-navigation,
+.memos-plus-workbench-context-tree { display: flex; flex: 0 1 auto; flex-direction: column; gap: 3px; margin: 0 0 10px; padding: 0 0 9px; border-bottom: 1px solid var(--background-modifier-border); }
+.memos-plus-workbench-nav-section,
+.memos-plus-workbench-tree-node { display: flex; flex-direction: column; gap: 2px; padding-top: 7px; }
+.memos-plus-workbench-nav-heading,
+.memos-plus-workbench-tree-label { display: flex; align-items: center; gap: 7px; min-height: 24px; padding: 0 8px 3px; color: var(--text-muted); font-size: var(--font-ui-smaller); font-weight: var(--font-semibold); }
+.memos-plus-workbench-tree-icon { display: inline-flex; width: 16px; height: 16px; flex: 0 0 16px; align-items: center; justify-content: center; }
+.memos-plus-workbench-nav-tree-children,
+.memos-plus-workbench-tree-children { position: relative; display: flex; flex-direction: column; gap: 2px; margin-left: 8px; padding-left: 10px; border-left: 1px solid var(--background-modifier-border); }
+.memos-plus-workbench-nav-tree-children .memos-plus-workbench-nav-item { min-height: 28px; padding-top: 4px; padding-bottom: 4px; }
+.memos-plus-workbench-calendar-content { gap: 0; }
+.memos-plus-workbench-calendar-content .memos-plus-task-calendar-mini-calendar { border-bottom: 0; }
+.memos-plus-workbench-calendar-content .memos-plus-task-calendar-calendar-filters { max-height: 250px; flex: 0 1 auto; }
 .memos-plus-workbench-nav-item { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; min-height: 29px; border: 0; border-radius: 5px; padding: 5px 8px; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; font-size: var(--font-ui-small); text-align: left; }
 .memos-plus-workbench-nav-item:hover,
 .memos-plus-workbench-nav-item:focus-visible { background: var(--background-modifier-hover); color: var(--text-normal); outline: 0; }
@@ -3969,7 +3980,10 @@ button.memos-plus-unified-task-preview:focus-visible {
   container-name: memos-plus-task-calendar;
 }
 .memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout {
-  grid-template-columns: minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 420px));
+  width: 100%;
+  max-width: none;
+  align-self: stretch;
+  grid-template-columns: minmax(260px, 1fr) 5px clamp(340px, 38%, var(--memos-plus-task-calendar-task-width, 420px));
 }
 .memos-plus-task-calendar.is-unified-content.is-tasks-hidden .memos-plus-task-calendar-layout {
   grid-template-columns: minmax(0, 1fr) 0 44px;
@@ -4293,14 +4307,14 @@ button.memos-plus-unified-task-preview:focus-visible {
 
 @container memos-plus-task-calendar (max-width: 1080px) {
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout { grid-template-columns: 44px 0 minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 420px)); }
-  .memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout { grid-template-columns: minmax(280px, 1fr) 5px minmax(340px, var(--memos-plus-task-calendar-task-width, 420px)); }
+  .memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout { grid-template-columns: minmax(240px, 1fr) 5px clamp(340px, 42%, var(--memos-plus-task-calendar-task-width, 420px)); }
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-resizer.is-left { visibility: hidden; pointer-events: none; }
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-navigation > :not(.memos-plus-task-calendar-collapse) { display: none; }
 }
 
 @container memos-plus-task-calendar (max-width: 760px) {
   .memos-plus-task-calendar.is-desktop:not(.is-tasks-hidden):not(.is-sidebar-force-expanded) .memos-plus-task-calendar-layout { grid-template-columns: 40px 0 minmax(220px, 1fr) 5px minmax(320px, var(--memos-plus-task-calendar-task-width, 360px)); }
-  .memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout { grid-template-columns: minmax(220px, 1fr) 5px minmax(320px, var(--memos-plus-task-calendar-task-width, 360px)); }
+  .memos-plus-task-calendar.is-unified-content .memos-plus-task-calendar-layout { grid-template-columns: minmax(220px, 1fr) 5px clamp(320px, 44%, var(--memos-plus-task-calendar-task-width, 360px)); }
   .memos-plus-task-calendar-today-summary { padding-right: 10px; padding-left: 10px; }
   .memos-plus-task-calendar-summary-card { padding-right: 7px; padding-left: 7px; }
 }

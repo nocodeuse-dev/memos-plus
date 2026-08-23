@@ -95,21 +95,21 @@ export function workbenchTaskRouteOptions(route: WorkbenchTaskRoute, today = tod
 }
 
 export function renderWorkbenchNavigation(container: HTMLElement, options: WorkbenchNavigationOptions): void {
-  const root = container.createDiv({ cls: "memos-plus-workbench-navigation", attr: { "aria-label": t(options.language, "workbench.navigation") } });
+  const root = container.createDiv({ cls: "memos-plus-workbench-navigation", attr: { role: "tree", "aria-label": t(options.language, "workbench.navigation") } });
   const directory = root.createEl("button", {
     cls: `memos-plus-workbench-nav-item${options.activeSection === "directory" ? " is-active" : ""}`,
-    attr: { type: "button", "data-workbench-section": "directory" }
+    attr: { type: "button", role: "treeitem", "aria-level": "1", "data-workbench-section": "directory" }
   });
   setIcon(directory, "folder-tree");
   directory.createSpan({ text: t(options.language, "workbench.directory") });
   directory.addEventListener("click", options.onDirectory);
 
-  const taskSection = createSection(root, t(options.language, "workbench.tasks"));
+  const taskSection = createSection(root, t(options.language, "workbench.tasks"), "list-todo");
   for (const route of TASK_ROUTES) {
     const active = options.activeSection === "tasks" && options.activeTaskRoute === route.id;
     const button = taskSection.createEl("button", {
       cls: `memos-plus-workbench-nav-item${active ? " is-active" : ""}`,
-      attr: { type: "button", "data-workbench-task-route": route.id }
+      attr: { type: "button", role: "treeitem", "aria-level": "2", "data-workbench-task-route": route.id }
     });
     setIcon(button, route.icon);
     button.createSpan({ text: t(options.language, route.labelKey) });
@@ -117,12 +117,12 @@ export function renderWorkbenchNavigation(container: HTMLElement, options: Workb
     button.addEventListener("click", () => options.onTask(route.id));
   }
 
-  const learningSection = createSection(root, t(options.language, "taskCalendar.learning"));
+  const learningSection = createSection(root, t(options.language, "taskCalendar.learning"), "brain");
   for (const route of LEARNING_ROUTES) {
     const active = options.activeSection === "learning" && options.activeLearningFilter === route.id;
     const button = learningSection.createEl("button", {
       cls: `memos-plus-workbench-nav-item${active ? " is-active" : ""}`,
-      attr: { type: "button", "data-workbench-learning-filter": route.id }
+      attr: { type: "button", role: "treeitem", "aria-level": "2", "data-workbench-learning-filter": route.id }
     });
     setIcon(button, route.icon);
     button.createSpan({ text: t(options.language, route.labelKey) });
@@ -132,7 +132,7 @@ export function renderWorkbenchNavigation(container: HTMLElement, options: Workb
 
   const projects = root.createEl("button", {
     cls: `memos-plus-workbench-nav-item${options.activeSection === "projects" ? " is-active" : ""}`,
-    attr: { type: "button", "aria-expanded": String(Boolean(options.projectsExpanded)), "data-workbench-section": "projects" }
+    attr: { type: "button", role: "treeitem", "aria-level": "1", "aria-expanded": String(Boolean(options.projectsExpanded)), "data-workbench-section": "projects" }
   });
   setIcon(projects, "folder-kanban");
   projects.createSpan({ text: t(options.language, "taskCalendar.projects") });
@@ -141,8 +141,13 @@ export function renderWorkbenchNavigation(container: HTMLElement, options: Workb
   projects.addEventListener("click", options.onProjects);
 }
 
-function createSection(container: HTMLElement, label: string): HTMLElement {
+function createSection(container: HTMLElement, label: string, icon: string): HTMLElement {
   const section = container.createDiv({ cls: "memos-plus-workbench-nav-section" });
-  section.createDiv({ cls: "memos-plus-workbench-nav-heading", text: label });
-  return section;
+  const heading = section.createDiv({
+    cls: "memos-plus-workbench-nav-heading",
+    attr: { role: "treeitem", "aria-level": "1", "aria-expanded": "true" }
+  });
+  setIcon(heading.createSpan({ cls: "memos-plus-workbench-tree-icon", attr: { "aria-hidden": "true" } }), icon);
+  heading.createSpan({ text: label });
+  return section.createDiv({ cls: "memos-plus-workbench-nav-tree-children", attr: { role: "group" } });
 }

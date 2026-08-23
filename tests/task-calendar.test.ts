@@ -65,6 +65,7 @@ describe("Schedule and tasks state", () => {
       sidebarExpandedManually: false,
       navigationWidth: 232,
       taskPaneWidth: 420,
+      showSidebarCalendar: true,
       showAllDayEvents: true,
       showHomeEntry: true,
       showMobileQuickActions: true,
@@ -91,6 +92,11 @@ describe("Schedule and tasks state", () => {
   it("remembers only supported quick task panel tabs", () => {
     expect(normalizeTaskCalendarSettings({ quickPanelTab: "important" }).quickPanelTab).toBe("important");
     expect(normalizeTaskCalendarSettings({ quickPanelTab: "unknown" }).quickPanelTab).toBe("today");
+  });
+
+  it("keeps the shared sidebar calendar visible by default while honoring an explicit preference", () => {
+    expect(normalizeTaskCalendarSettings({}).showSidebarCalendar).toBe(true);
+    expect(normalizeTaskCalendarSettings({ showSidebarCalendar: false }).showSidebarCalendar).toBe(false);
   });
 
   it("migrates legacy date shortcuts and bounds remembered desktop pane widths", () => {

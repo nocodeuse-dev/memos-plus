@@ -19,6 +19,14 @@ describe("unified workbench sidebar", () => {
     expect(taskSurface).not.toContain('createDiv({ cls: "memos-plus-task-calendar-navigation"');
   });
 
+  it("keeps calendar controls at the top of the workbench tree and lets the task layout use the full content width", () => {
+    expect(homeView.indexOf("this.renderWorkbenchNavigation(sidebar);")).toBeLessThan(homeView.indexOf("this.taskCalendarSurface?.renderSidebarExtras(sidebar)"));
+    expect(taskSurface).toContain("showSidebarCalendar");
+    expect(styles).toContain(".memos-plus-workbench-context-tree");
+    expect(styles).toContain(".memos-plus-unified-content { width: 100%; max-width: 100%; }");
+    expect(styles).toContain("width: 100%;\n  max-width: none;\n  align-self: stretch;");
+  });
+
   it("keeps the old task-calendar view only as a migration route", () => {
     expect(taskSurface).toContain("export class TaskCalendarView extends ItemView");
     expect(taskSurface).toContain("await this.plugin.openTaskCalendar(undefined, this.leaf)");

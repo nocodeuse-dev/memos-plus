@@ -4244,6 +4244,16 @@ export class MemosPlusSettingTab extends PluginSettingTab {
         });
       });
     new Setting(container)
+      .setName(t(lang, "settings.taskCalendarSidebarCalendar"))
+      .setDesc(t(lang, "settings.taskCalendarSidebarCalendarDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(state.showSidebarCalendar).onChange(async (value) => {
+          this.plugin.settings.taskCalendar.showSidebarCalendar = value;
+          await this.plugin.persistSettings();
+          await this.plugin.refreshViews("task-calendar-sidebar-calendar");
+        });
+      });
+    new Setting(container)
       .setName(t(lang, "settings.taskCalendarAllDay"))
       .addToggle((toggle) => {
         toggle.setValue(state.showAllDayEvents).onChange(async (value) => {

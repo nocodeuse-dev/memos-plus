@@ -138,9 +138,30 @@ export class TaskCalendarSurface {
   renderSidebarExtras(container: HTMLElement): void {
     if (!this.viewActive) return;
     const selectedDate = this.plugin.settings.taskCalendar.selectedDate || todayTaskCalendarDate();
-    this.renderMiniCalendar(container, selectedDate);
-    this.renderProjectNavigation(container);
-    this.renderCalendarFilters(container);
+    const tree = container.createDiv({ cls: "memos-plus-workbench-context-tree", attr: { role: "tree" } });
+    if (this.plugin.settings.taskCalendar.showSidebarCalendar) {
+      const calendarNode = tree.createDiv({ cls: "memos-plus-workbench-tree-node" });
+      const calendarLabel = calendarNode.createDiv({
+        cls: "memos-plus-workbench-tree-label",
+        attr: { role: "treeitem", "aria-level": "1", "aria-expanded": "true" }
+      });
+      setIcon(calendarLabel.createSpan({ cls: "memos-plus-workbench-tree-icon", attr: { "aria-hidden": "true" } }), "calendar-days");
+      calendarLabel.createSpan({ text: t(this.plugin.settings.language, "taskCalendar.calendars") });
+      const calendarContent = calendarNode.createDiv({ cls: "memos-plus-workbench-tree-children memos-plus-workbench-calendar-content", attr: { role: "group" } });
+      this.renderMiniCalendar(calendarContent, selectedDate);
+      this.renderCalendarFilters(calendarContent);
+    }
+    if (this.projectNavExpanded) {
+      const projectNode = tree.createDiv({ cls: "memos-plus-workbench-tree-node" });
+      const projectLabel = projectNode.createDiv({
+        cls: "memos-plus-workbench-tree-label",
+        attr: { role: "treeitem", "aria-level": "1", "aria-expanded": "true" }
+      });
+      setIcon(projectLabel.createSpan({ cls: "memos-plus-workbench-tree-icon", attr: { "aria-hidden": "true" } }), "folder-kanban");
+      projectLabel.createSpan({ text: t(this.plugin.settings.language, "taskCalendar.projects") });
+      const projectContent = projectNode.createDiv({ cls: "memos-plus-workbench-tree-children", attr: { role: "group" } });
+      this.renderProjectNavigation(projectContent);
+    }
   }
 
   isProjectsExpanded(): boolean {

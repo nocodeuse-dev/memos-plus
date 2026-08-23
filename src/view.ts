@@ -436,6 +436,12 @@ export class MemosPlusView extends ItemView {
     sidebar.empty();
     this.renderUnifiedSidebarControl(sidebar);
     this.renderWorkbenchNavigation(sidebar);
+    // Calendar/project controls belong to the workbench tree, before the
+    // optional legacy directory modules. Rendering them at the end made the
+    // calendar effectively disappear below a long directory list.
+    if (this.workbenchSection !== "directory") {
+      this.taskCalendarSurface?.renderSidebarExtras(sidebar);
+    }
     const moduleOrder =
       options.moduleOrder && options.moduleOrder.length > 0 ? orderedModulesInGroup(options.moduleOrder, DEFAULT_SIDEBAR_MODULE_ORDER) : [...DEFAULT_SIDEBAR_MODULE_ORDER];
     const rendered = new Set<string>();
@@ -498,9 +504,6 @@ export class MemosPlusView extends ItemView {
         rendered.add("customDirectory");
         this.renderCustomDirectory(sidebar);
       }
-    }
-    if (this.workbenchSection !== "directory") {
-      this.taskCalendarSurface?.renderSidebarExtras(sidebar);
     }
     logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
     return sidebar;

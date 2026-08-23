@@ -53,6 +53,8 @@ export interface TaskCalendarSettings {
   taskPaneWidth: number;
   agendaCacheMinutes: number;
   agendaCalendarNames: string[];
+  /** Shows the compact calendar and its filters in the shared workbench sidebar. */
+  showSidebarCalendar: boolean;
   showAllDayEvents: boolean;
   showHomeEntry: boolean;
   showMobileQuickActions: boolean;
@@ -76,6 +78,7 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   taskPaneWidth: 420,
   agendaCacheMinutes: 5,
   agendaCalendarNames: [],
+  showSidebarCalendar: true,
   showAllDayEvents: true,
   showHomeEntry: true,
   showMobileQuickActions: true,
@@ -118,6 +121,7 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     taskPaneWidth: clampInteger(taskPaneWidth, 340, 560, DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth),
     agendaCacheMinutes: clampInteger(raw.agendaCacheMinutes, 1, 30, DEFAULT_TASK_CALENDAR_SETTINGS.agendaCacheMinutes),
     agendaCalendarNames: normalizeCalendarNames(raw.agendaCalendarNames),
+    showSidebarCalendar: typeof raw.showSidebarCalendar === "boolean" ? raw.showSidebarCalendar : DEFAULT_TASK_CALENDAR_SETTINGS.showSidebarCalendar,
     showAllDayEvents: typeof raw.showAllDayEvents === "boolean" ? raw.showAllDayEvents : DEFAULT_TASK_CALENDAR_SETTINGS.showAllDayEvents,
     showHomeEntry: typeof raw.showHomeEntry === "boolean" ? raw.showHomeEntry : DEFAULT_TASK_CALENDAR_SETTINGS.showHomeEntry,
     showMobileQuickActions: typeof raw.showMobileQuickActions === "boolean" ? raw.showMobileQuickActions : DEFAULT_TASK_CALENDAR_SETTINGS.showMobileQuickActions,
