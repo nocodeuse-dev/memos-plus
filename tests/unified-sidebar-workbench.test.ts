@@ -47,6 +47,8 @@ describe("unified workbench sidebar", () => {
     expect(homeView).toContain("sidebarScrollTop");
     expect(homeView).toContain("currentUnifiedSidebarScrollTop");
     expect(homeView).toContain("acceptsScrollPersistence");
+    expect(homeView).toContain("receivedUserScrollIntent");
+    expect(homeView).toContain('scrollContent.addEventListener("wheel", markUserScrollIntent');
     expect(homeView).toContain("const savedTop = this.plugin.settings.taskCalendar.sidebarScrollTop");
     expect(homeView).toContain("navigationWidth");
     expect(homeView).toContain("is-unified-sidebar-collapsed");

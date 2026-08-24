@@ -442,11 +442,26 @@ export class MemosPlusView extends ItemView {
     this.unifiedSidebarScrollContent = scrollContent;
     const savedTop = this.plugin.settings.taskCalendar.sidebarScrollTop;
     let acceptsScrollPersistence = false;
+    let receivedUserScrollIntent = false;
+    const markUserScrollIntent = () => {
+      receivedUserScrollIntent = true;
+    };
+    // A freshly attached scroll container can emit zero-position scroll events
+    // while its content is being laid out. Persist only after an actual user
+    // scroll gesture, otherwise those layout events overwrite the saved view.
+    scrollContent.addEventListener("wheel", markUserScrollIntent, { passive: true });
+    scrollContent.addEventListener("touchmove", markUserScrollIntent, { passive: true });
+    scrollContent.addEventListener("pointerdown", markUserScrollIntent, { passive: true });
+    scrollContent.addEventListener("keydown", (event) => {
+      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)) {
+        markUserScrollIntent();
+      }
+    });
     scrollContent.addEventListener("scroll", () => {
       // Browsers can emit an initial zero-position scroll while the element is
       // attached.  Do not overwrite the saved user position before its
       // restoration has actually completed.
-      if (!acceptsScrollPersistence) return;
+      if (!acceptsScrollPersistence || !receivedUserScrollIntent) return;
       if (this.sidebarScrollSaveTimer !== null) window.clearTimeout(this.sidebarScrollSaveTimer);
       this.sidebarScrollSaveTimer = window.setTimeout(() => {
         this.sidebarScrollSaveTimer = null;
