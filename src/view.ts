@@ -440,7 +440,13 @@ export class MemosPlusView extends ItemView {
 
   private bindUnifiedSidebarScrollContent(scrollContent: HTMLElement): void {
     this.unifiedSidebarScrollContent = scrollContent;
+    const savedTop = this.plugin.settings.taskCalendar.sidebarScrollTop;
+    let acceptsScrollPersistence = false;
     scrollContent.addEventListener("scroll", () => {
+      // Browsers can emit an initial zero-position scroll while the element is
+      // attached.  Do not overwrite the saved user position before its
+      // restoration has actually completed.
+      if (!acceptsScrollPersistence) return;
       if (this.sidebarScrollSaveTimer !== null) window.clearTimeout(this.sidebarScrollSaveTimer);
       this.sidebarScrollSaveTimer = window.setTimeout(() => {
         this.sidebarScrollSaveTimer = null;
@@ -448,7 +454,13 @@ export class MemosPlusView extends ItemView {
         void this.plugin.persistSettings();
       }, 160);
     });
-    this.restoreUnifiedSidebarScrollTop(this.plugin.settings.taskCalendar.sidebarScrollTop);
+    window.requestAnimationFrame(() => {
+      if (!scrollContent.isConnected) return;
+      scrollContent.scrollTop = savedTop;
+      window.requestAnimationFrame(() => {
+        acceptsScrollPersistence = scrollContent.isConnected;
+      });
+    });
   }
 
   private renderUnifiedSidebarControl(sidebar: HTMLElement): void {
