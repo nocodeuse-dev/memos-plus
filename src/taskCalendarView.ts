@@ -17,6 +17,7 @@ import {
   type TaskCalendarOpenOptions,
   type TaskCalendarProjectFilter,
   type TaskCalendarSettings,
+  type TaskCalendarTaskCategory,
   type TaskCalendarViewMode
 } from "./taskCalendar";
 import {
@@ -95,6 +96,7 @@ export class TaskCalendarSurface {
   private quickTaskDraft = "";
   private completedTasksDate = "";
   private taskCreatedOnDate = "";
+  private taskCategory: TaskCalendarTaskCategory | undefined;
 
   constructor(
     private readonly plugin: MemosPlusPlugin,
@@ -212,6 +214,7 @@ export class TaskCalendarSurface {
     this.taskPriority = options.priority ?? "all";
     this.taskProject = options.project ?? null;
     this.taskCreatedOnDate = options.createdOnDate ?? "";
+    this.taskCategory = options.category;
     if (options.project || options.showProjects) this.projectNavExpanded = true;
     this.visibleTaskCount = Platform.isMobile ? 40 : 80;
     const change: Partial<TaskCalendarSettings> = {};
@@ -378,6 +381,8 @@ export class TaskCalendarSurface {
             ? t(lang, "taskCalendar.completedToday")
             : this.taskCreatedOnDate
               ? t(lang, "workbench.task.todayNew")
+              : this.taskCategory
+                ? t(lang, taskCategoryLabelKey(this.taskCategory))
               : state.navigation === "all"
                 ? t(lang, "workbench.task.pending")
                 : t(lang, `taskCalendar.nav.${state.navigation}`),
@@ -429,7 +434,7 @@ export class TaskCalendarSurface {
             }
           });
         });
-        this.renderTaskControls(taskPane, items, state.navigation, selectedDate, showingCompletedToday ? selectedDate : "", this.taskCreatedOnDate);
+        this.renderTaskControls(taskPane, items, state.navigation, selectedDate, showingCompletedToday ? selectedDate : "", this.taskCreatedOnDate, this.taskCategory);
       }
     }
     const calendarNames = state.agendaCalendarNames;
@@ -834,7 +839,8 @@ export class TaskCalendarSurface {
     navigation: TaskCalendarNavigation,
     selectedDate: string,
     completedOnDate = "",
-    createdOnDate = ""
+    createdOnDate = "",
+    category?: TaskCalendarTaskCategory
   ): void {
     const lang = this.plugin.settings.language;
     const controls = container.createDiv({ cls: "memos-plus-task-calendar-task-controls" });
@@ -888,7 +894,8 @@ export class TaskCalendarSurface {
         priority: this.taskPriority,
         project: this.taskProject,
         completedOnDate,
-        createdOnDate
+        createdOnDate,
+        category
       });
       results.createDiv({
         cls: "memos-plus-task-calendar-task-summary",
@@ -1375,6 +1382,26 @@ function taskListDateLabel(date: string, lang: "zh" | "en"): string {
   if (date === today) return lang === "zh" ? "今天" : "Today";
   if (date === shiftDate(today, "day", 1)) return lang === "zh" ? "明天" : "Tomorrow";
   return date;
+}
+
+function taskCategoryLabelKey(category: TaskCalendarTaskCategory): Parameters<typeof t>[1] {
+  const keys: Record<TaskCalendarTaskCategory, Parameters<typeof t>[1]> = {
+    "today-todo": "workbench.task.todayTodo",
+    "today-completed": "workbench.task.todayCompleted",
+    "in-progress": "workbench.task.inProgress",
+    waiting: "workbench.task.waiting",
+    deferred: "workbench.task.deferred",
+    tomorrow: "workbench.task.tomorrow",
+    "this-week": "workbench.task.thisWeek",
+    "next-week": "workbench.task.nextWeek",
+    "no-date": "workbench.task.noDate",
+    overdue: "taskCalendar.nav.overdue",
+    "high-priority": "workbench.task.highPriority",
+    stale: "workbench.task.stale",
+    completed: "taskCalendar.nav.completed",
+    cancelled: "workbench.task.cancelled"
+  };
+  return keys[category];
 }
 
 function taskCompletedLabel(task: Pick<TaskIndexItem, "completedAt" | "doneDate">, lang: "zh" | "en"): string {

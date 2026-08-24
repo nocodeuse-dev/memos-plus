@@ -80,9 +80,32 @@ describe("unified workbench navigation", () => {
     ]);
   });
 
-  it("shows only the active primary section's second-level routes", () => {
+  it("maps grouped task routes to the existing TaskIndex filters without a second data source", () => {
+    const today = "2026-08-21";
+    const tasks = [
+      task({ title: "今天", dueDate: today }),
+      task({ title: "进行中", line: "- [ ] 进行中 #进行中" }),
+      task({ title: "等待", line: "- [ ] 等待 #等待中" }),
+      task({ title: "延期", line: "- [ ] 延期 #已延期" }),
+      task({ title: "取消", completed: true, line: "- [-] 取消" }),
+      task({ title: "高优先级", priority: "high" })
+    ];
+    expect(taskCalendarTasks(tasks, "all", today, workbenchTaskRouteOptions("today-todo", today)).map((item) => item.title)).toEqual(["今天"]);
+    expect(taskCalendarTasks(tasks, "all", today, workbenchTaskRouteOptions("in-progress", today)).map((item) => item.title)).toEqual(["进行中"]);
+    expect(taskCalendarTasks(tasks, "all", today, workbenchTaskRouteOptions("waiting", today)).map((item) => item.title)).toEqual(["等待"]);
+    expect(taskCalendarTasks(tasks, "all", today, workbenchTaskRouteOptions("deferred", today)).map((item) => item.title)).toEqual(["延期"]);
+    expect(taskCalendarTasks(tasks, "completed", today, workbenchTaskRouteOptions("cancelled", today)).map((item) => item.title)).toEqual(["取消"]);
+    expect(taskCalendarTasks(tasks, "all", today, workbenchTaskRouteOptions("high-priority", today)).map((item) => item.title)).toEqual(["高优先级"]);
+  });
+
+  it("shows the expanded task tree only when the task primary section is active", () => {
     expect(workbenchSecondaryRouteIds("directory")).toEqual([]);
-    expect(workbenchSecondaryRouteIds("tasks")).toEqual(["pending", "today-new", "overdue", "completed"]);
+    expect(workbenchSecondaryRouteIds("tasks")).toEqual([
+      "today-todo", "today-new", "today-completed",
+      "pending", "in-progress", "waiting", "deferred",
+      "tomorrow", "this-week", "next-week", "no-date",
+      "overdue", "high-priority", "stale", "completed", "cancelled"
+    ]);
     expect(workbenchSecondaryRouteIds("learning")).toEqual(["today", "due", "learning", "strengthen", "mastered"]);
     expect(workbenchSecondaryRouteIds("projects")).toEqual([]);
   });

@@ -5,6 +5,22 @@ import type { LearningCardFilter } from "./learning/learningCards";
 
 export type TaskCalendarViewMode = "day" | "week";
 export type TaskCalendarNavigation = "today" | "upcoming" | "tomorrow" | "week" | "inbox" | "overdue" | "all" | "completed";
+/** Lightweight workbench-only task slices; they never create another task index. */
+export type TaskCalendarTaskCategory =
+  | "today-todo"
+  | "today-completed"
+  | "in-progress"
+  | "waiting"
+  | "deferred"
+  | "tomorrow"
+  | "this-week"
+  | "next-week"
+  | "no-date"
+  | "overdue"
+  | "high-priority"
+  | "stale"
+  | "completed"
+  | "cancelled";
 export type TaskCalendarMobileTab = "today" | "tasks" | "calendar" | "learning";
 export type TaskCalendarQuickPanelTab = "today" | "next-seven" | "important" | "overdue";
 
@@ -25,6 +41,8 @@ export interface TaskCalendarTaskFilters {
    * another TaskIndex or a second task data source.
    */
   createdOnDate?: string;
+  /** Additional local slice used by the unified workbench task tree. */
+  category?: TaskCalendarTaskCategory;
 }
 
 export interface TaskCalendarOpenOptions extends TaskCalendarTaskFilters {
@@ -50,6 +68,8 @@ export interface TaskCalendarSettings {
   navigationWidth: number;
   /** Scroll position of the one shared workbench sidebar. */
   sidebarScrollTop: number;
+  /** Low-frequency task groups start collapsed in the shared workbench tree. */
+  taskNavigationCollapsedGroups: string[];
   taskPaneWidth: number;
   agendaCacheMinutes: number;
   agendaCalendarNames: string[];
@@ -77,6 +97,7 @@ export const DEFAULT_TASK_CALENDAR_SETTINGS: TaskCalendarSettings = {
   tasksPaneHidden: false,
   navigationWidth: 232,
   sidebarScrollTop: 0,
+  taskNavigationCollapsedGroups: ["time", "exceptions", "archive"],
   taskPaneWidth: 420,
   agendaCacheMinutes: 5,
   agendaCalendarNames: [],
@@ -121,6 +142,7 @@ export function normalizeTaskCalendarSettings(value: unknown): TaskCalendarSetti
     tasksPaneHidden: typeof raw.tasksPaneHidden === "boolean" ? raw.tasksPaneHidden : false,
     navigationWidth: clampInteger(navigationWidth, 200, 320, DEFAULT_TASK_CALENDAR_SETTINGS.navigationWidth),
     sidebarScrollTop: clampInteger(raw.sidebarScrollTop, 0, 2_000_000, DEFAULT_TASK_CALENDAR_SETTINGS.sidebarScrollTop),
+    taskNavigationCollapsedGroups: normalizeTaskNavigationCollapsedGroups(raw.taskNavigationCollapsedGroups),
     taskPaneWidth: clampInteger(taskPaneWidth, 340, 560, DEFAULT_TASK_CALENDAR_SETTINGS.taskPaneWidth),
     agendaCacheMinutes: clampInteger(raw.agendaCacheMinutes, 1, 30, DEFAULT_TASK_CALENDAR_SETTINGS.agendaCacheMinutes),
     agendaCalendarNames: normalizeCalendarNames(raw.agendaCalendarNames),
@@ -140,6 +162,12 @@ function normalizeLearningFilter(value: unknown): LearningCardFilter | "" {
 
 function normalizeQuickPanelTab(value: unknown): TaskCalendarQuickPanelTab {
   return value === "next-seven" || value === "important" || value === "overdue" ? value : "today";
+}
+
+function normalizeTaskNavigationCollapsedGroups(value: unknown): string[] {
+  const allowed = new Set(["today", "active", "time", "exceptions", "archive"]);
+  if (!Array.isArray(value)) return [...DEFAULT_TASK_CALENDAR_SETTINGS.taskNavigationCollapsedGroups];
+  return Array.from(new Set(value.filter((group): group is string => typeof group === "string" && allowed.has(group))));
 }
 
 export interface TaskCalendarSidebarState {
@@ -239,7 +267,10 @@ export function taskCalendarTasks(
   let filtered: TaskIndexItem[];
   const completedOnDate = normalizeDate(filters.completedOnDate ?? "");
   const createdOnDate = normalizeDate(filters.createdOnDate ?? "");
-  if (createdOnDate) {
+  const category = filters.category;
+  if (category) {
+    filtered = taskCalendarCategoryTasks(items, category, date);
+  } else if (createdOnDate) {
     // Created date is available for Tasks-compatible rows.  Older Markdown
     // tasks do not get guessed into this view merely from a file mtime.
     filtered = items.filter((item) => item.createdDate === createdOnDate);
@@ -291,13 +322,45 @@ export function taskCalendarTasks(
     );
   }
   return [...filtered].sort((left, right) => {
-    if ((navigation === "completed" || completedOnDate) && left.completed && right.completed) {
+    if ((navigation === "completed" || completedOnDate || category === "today-completed" || category === "completed" || category === "cancelled") && left.completed && right.completed) {
       const completionOrder = taskCompletionSortValue(right) - taskCompletionSortValue(left);
       if (completionOrder) return completionOrder;
     }
     if (navigation === "upcoming") return taskDate(left).localeCompare(taskDate(right)) || left.text.localeCompare(right.text);
     return taskSortKey(left, date) - taskSortKey(right, date) || left.text.localeCompare(right.text);
   });
+}
+
+export function taskCalendarCategoryTasks(items: TaskIndexItem[], category: TaskCalendarTaskCategory, date: string): TaskIndexItem[] {
+  const open = (item: TaskIndexItem): boolean => !item.completed && !taskCalendarTaskCancelled(item);
+  const dated = (item: TaskIndexItem): string => taskDate(item);
+  switch (category) {
+    case "today-todo": return items.filter((item) => open(item) && dated(item) === date);
+    case "today-completed": return items.filter((item) => !taskCalendarTaskCancelled(item) && taskCalendarCompletedOnDate(item, date));
+    case "in-progress": return items.filter((item) => open(item) && taskCalendarTaskHasStatus(item, ["进行中", "in-progress", "inprogress", "doing"]));
+    case "waiting": return items.filter((item) => open(item) && taskCalendarTaskHasStatus(item, ["等待", "等待中", "waiting", "blocked"]));
+    case "deferred": return items.filter((item) => open(item) && taskCalendarTaskHasStatus(item, ["延期", "已延期", "deferred", "postponed"]));
+    case "tomorrow": return items.filter((item) => open(item) && dated(item) === formatDate(addDays(parseDate(date), 1)));
+    case "this-week": {
+      const start = formatDate(startOfWeek(parseDate(date)));
+      const end = formatDate(addDays(startOfWeek(parseDate(date)), 6));
+      return items.filter((item) => open(item) && dated(item) >= start && dated(item) <= end);
+    }
+    case "next-week": {
+      const start = formatDate(addDays(startOfWeek(parseDate(date)), 7));
+      const end = formatDate(addDays(startOfWeek(parseDate(date)), 13));
+      return items.filter((item) => open(item) && dated(item) >= start && dated(item) <= end);
+    }
+    case "no-date": return items.filter((item) => open(item) && !dated(item));
+    case "overdue": return items.filter((item) => open(item) && Boolean(item.dueDate && item.dueDate < date));
+    case "high-priority": return items.filter((item) => open(item) && (item.priority === "highest" || item.priority === "high"));
+    case "stale": {
+      const threshold = formatDate(addDays(parseDate(date), -30));
+      return items.filter((item) => open(item) && Boolean(item.createdDate) && item.createdDate < threshold);
+    }
+    case "completed": return items.filter((item) => item.completed && !taskCalendarTaskCancelled(item));
+    case "cancelled": return items.filter(taskCalendarTaskCancelled);
+  }
 }
 
 export function taskCalendarOpenOptionsForOrganizer(filterId: OrganizerFilterId): TaskCalendarOpenOptions | null {
@@ -344,6 +407,14 @@ export function taskCalendarCompletedOnDate(
   if (item.completedAt) return item.completedAt.slice(0, 10) === date;
   if (item.doneDate) return item.doneDate === date;
   return taskDate(item) === date;
+}
+
+export function taskCalendarTaskCancelled(item: Pick<TaskIndexItem, "line">): boolean {
+  return /^\s*(?:[-*+]|\d+[.)])\s+\[-\]\s+/u.test(item.line) || taskCalendarTaskHasStatus(item, ["取消", "已取消", "cancelled", "canceled"]);
+}
+
+function taskCalendarTaskHasStatus(item: Pick<TaskIndexItem, "line">, values: readonly string[]): boolean {
+  return values.some((value) => taskLineHasTag(item.line, value));
 }
 
 function taskCompletionSortValue(item: Pick<TaskIndexItem, "completedAt" | "doneDate">): number {

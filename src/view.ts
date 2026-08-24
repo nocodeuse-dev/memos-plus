@@ -55,9 +55,11 @@ import { TaskCalendarSurface } from "./taskCalendarView";
 import {
   renderWorkbenchNavigation as renderSharedWorkbenchNavigation,
   workbenchNavigationCounts,
+  workbenchTaskRouteForOptions,
   workbenchTaskRouteOptions,
   type WorkbenchDirectoryOptions,
   type WorkbenchSection,
+  type WorkbenchTaskGroup,
   type WorkbenchTaskRoute
 } from "./workbenchNavigation";
 import type { LearningCardFilter } from "./learning/learningCards";
@@ -245,12 +247,7 @@ export class MemosPlusView extends ItemView {
     const today = todayTaskCalendarDate();
     this.workbenchSection = options.learningFilter ? "learning" : options.showProjects ? "projects" : "tasks";
     this.workbenchLearningFilter = options.learningFilter ?? "";
-    this.workbenchTaskRoute = options.learningFilter
-      ? ""
-      : options.createdOnDate === today ? "today-new"
-        : options.navigation === "overdue" ? "overdue"
-          : options.navigation === "completed" ? "completed"
-            : "pending";
+    this.workbenchTaskRoute = options.learningFilter ? "" : workbenchTaskRouteForOptions(options, today);
     await this.renderWithOptions({ preserveUnifiedShell: true });
     if (!this.taskCalendarSurface) return;
     if (options.showProjects) this.taskCalendarSurface.openProjects();
@@ -869,10 +866,12 @@ export class MemosPlusView extends ItemView {
       activeTaskRoute: this.workbenchTaskRoute,
       activeLearningFilter: this.workbenchLearningFilter,
       projectsExpanded: this.taskCalendarSurface?.isProjectsExpanded(),
+      collapsedTaskGroups: this.plugin.settings.taskCalendar.taskNavigationCollapsedGroups as WorkbenchTaskGroup[],
       counts: workbenchNavigationCounts(this.plugin.taskIndex.getItems(), this.plugin.learningCards.cards(), today),
       onDirectory: () => void this.applyWorkbenchDirectoryOptions(),
       onTasks: () => void this.openTaskWorkbench(workbenchTaskRouteOptions("pending", today)),
       onTask: (route) => void this.openTaskWorkbench(workbenchTaskRouteOptions(route, today)),
+      onToggleTaskGroup: (group) => this.toggleWorkbenchTaskGroup(group),
       onLearningHome: () => void this.openTaskWorkbench({
         navigation: "today",
         selectedDate: today,
@@ -895,6 +894,14 @@ export class MemosPlusView extends ItemView {
         });
       }
     });
+  }
+
+  private toggleWorkbenchTaskGroup(group: WorkbenchTaskGroup): void {
+    const groups = new Set(this.plugin.settings.taskCalendar.taskNavigationCollapsedGroups);
+    if (groups.has(group)) groups.delete(group);
+    else groups.add(group);
+    this.plugin.settings.taskCalendar.taskNavigationCollapsedGroups = [...groups];
+    void this.plugin.persistSettings().then(() => this.refreshUnifiedSidebar());
   }
 
   private showFullWorkbench(): void {
