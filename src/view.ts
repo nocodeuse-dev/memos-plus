@@ -287,7 +287,9 @@ export class MemosPlusView extends ItemView {
           const activeLayout = this.layoutForSurface(reusableSurface);
           const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, reusableSurface);
           const sidebarOptions = this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules);
+          const sidebarScrollTop = this.unifiedSidebar.scrollTop;
           this.renderSidebar(reusableShell, sidebarOptions, this.unifiedSidebar);
+          this.unifiedSidebar.scrollTop = sidebarScrollTop;
           if (this.workbenchSection === "directory") {
             await this.renderMain(reusableShell, reusableSurface, activeLayout, transientComposerDraft, this.unifiedMain);
           } else {

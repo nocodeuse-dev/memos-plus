@@ -45,6 +45,7 @@ describe("unified workbench sidebar", () => {
     expect(DEFAULT_TASK_CALENDAR_SETTINGS.sidebarScrollTop).toBe(0);
     expect(normalizeTaskCalendarSettings({ sidebarScrollTop: 123.8 }).sidebarScrollTop).toBe(124);
     expect(homeView).toContain("sidebarScrollTop");
+    expect(homeView).toContain("const sidebarScrollTop = this.unifiedSidebar.scrollTop;");
     expect(homeView).toContain("navigationWidth");
     expect(homeView).toContain("is-unified-sidebar-collapsed");
     expect(styles).toContain(".memos-plus-unified-sidebar-resizer");
