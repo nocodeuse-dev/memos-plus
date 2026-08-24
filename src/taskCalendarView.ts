@@ -135,12 +135,14 @@ export class TaskCalendarSurface {
    * sidebar.  The surface owns their data and events, while `MemosPlusView`
    * owns the sidebar element, its width and its scroll position.
    */
-  renderSidebarExtras(container: HTMLElement): void {
+  renderSidebarExtras(container: HTMLElement, options: { calendar?: boolean; projects?: boolean } = {}): void {
     if (!this.viewActive) return;
-    if (!this.plugin.settings.taskCalendar.showSidebarCalendar && !this.projectNavExpanded) return;
+    const showCalendar = options.calendar ?? true;
+    const showProjects = options.projects ?? this.projectNavExpanded;
+    if ((!showCalendar || !this.plugin.settings.taskCalendar.showSidebarCalendar) && (!showProjects || !this.projectNavExpanded)) return;
     const selectedDate = this.plugin.settings.taskCalendar.selectedDate || todayTaskCalendarDate();
     const tree = container.createDiv({ cls: "memos-plus-workbench-context-tree", attr: { role: "tree" } });
-    if (this.plugin.settings.taskCalendar.showSidebarCalendar) {
+    if (showCalendar && this.plugin.settings.taskCalendar.showSidebarCalendar) {
       const calendarNode = tree.createDiv({ cls: "memos-plus-workbench-tree-node" });
       const calendarLabel = calendarNode.createDiv({
         cls: "memos-plus-workbench-tree-label",
@@ -154,7 +156,7 @@ export class TaskCalendarSurface {
         this.renderCalendarFilters(calendarContent);
       }
     }
-    if (this.projectNavExpanded) {
+    if (showProjects && this.projectNavExpanded) {
       const projectNode = tree.createDiv({ cls: "memos-plus-workbench-tree-node" });
       const projectLabel = projectNode.createDiv({
         cls: "memos-plus-workbench-tree-label",

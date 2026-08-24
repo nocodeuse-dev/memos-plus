@@ -13,17 +13,18 @@ describe("unified workbench sidebar", () => {
     expect(homeView).toContain('"memos-plus-sidebar memos-plus-unified-sidebar"');
     expect(homeView).toContain('"memos-plus-main memos-plus-unified-content"');
     expect(homeView).toContain("new TaskCalendarSurface(this.plugin, main");
-    expect(homeView).toContain("this.taskCalendarSurface?.renderSidebarExtras(sidebar)");
+    expect(homeView).toContain("this.taskCalendarSurface?.renderSidebarExtras(sidebar, { calendar: true })");
     expect(taskSurface).toContain("export class TaskCalendarSurface");
-    expect(taskSurface).toContain("renderSidebarExtras(container: HTMLElement)");
+    expect(taskSurface).toContain("renderSidebarExtras(container: HTMLElement, options:");
     expect(taskSurface).not.toContain('createDiv({ cls: "memos-plus-task-calendar-navigation"');
   });
 
-  it("keeps calendar controls at the top of the workbench tree and lets the task layout use the full content width", () => {
-    expect(homeView.indexOf("this.renderWorkbenchNavigation(sidebar);")).toBeLessThan(homeView.indexOf("this.taskCalendarSurface?.renderSidebarExtras(sidebar)"));
+  it("keeps only the active workbench section below the primary tree and lets the task layout use the full content width", () => {
+    expect(homeView.indexOf("this.renderWorkbenchNavigation(sidebar);")).toBeLessThan(homeView.indexOf("this.workbenchSection === \"tasks\""));
     expect(taskSurface).toContain("showSidebarCalendar");
     expect(taskSurface).toContain("showSidebarCalendarList");
-    expect(taskSurface).toContain("if (!this.plugin.settings.taskCalendar.showSidebarCalendar && !this.projectNavExpanded) return;");
+    expect(taskSurface).toContain("const showCalendar = options.calendar ?? true;");
+    expect(taskSurface).toContain("const showProjects = options.projects ?? this.projectNavExpanded;");
     expect(styles).toContain(".memos-plus-workbench-context-tree");
     expect(styles).toContain(".memos-plus-unified-content { width: 100%; max-width: 100%; }");
     expect(styles).toContain("width: 100%;\n  max-width: none;\n  align-self: stretch;");

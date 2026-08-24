@@ -6,6 +6,7 @@ import { createLearningCard } from "../src/learning/learningCards";
 import { taskCalendarTasks } from "../src/taskCalendar";
 import {
   workbenchNavigationCounts,
+  workbenchSecondaryRouteIds,
   workbenchTaskRouteOptions
 } from "../src/workbenchNavigation";
 import type { TaskIndexItem } from "../src/taskIndex";
@@ -77,5 +78,12 @@ describe("unified workbench navigation", () => {
       "今天新建未完成",
       "今天新建已完成"
     ]);
+  });
+
+  it("shows only the active primary section's second-level routes", () => {
+    expect(workbenchSecondaryRouteIds("directory")).toEqual([]);
+    expect(workbenchSecondaryRouteIds("tasks")).toEqual(["pending", "today-new", "overdue", "completed"]);
+    expect(workbenchSecondaryRouteIds("learning")).toEqual(["today", "due", "learning", "strengthen", "mastered"]);
+    expect(workbenchSecondaryRouteIds("projects")).toEqual([]);
   });
 });

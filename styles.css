@@ -714,6 +714,10 @@
    spacing rather than a second card-heavy sidebar. */
 .memos-plus-workbench-navigation,
 .memos-plus-workbench-context-tree { display: flex; flex: 0 1 auto; flex-direction: column; gap: 3px; margin: 0 0 10px; padding: 0 0 9px; border-bottom: 1px solid var(--background-modifier-border); }
+.memos-plus-workbench-primary-navigation { display: flex; flex-direction: column; gap: 2px; }
+.memos-plus-workbench-primary-item { font-weight: var(--font-medium); }
+.memos-plus-workbench-directory-subnavigation { display: flex; flex: 0 1 auto; flex-direction: column; gap: 7px; }
+.memos-plus-workbench-sidebar-summary { display: flex; flex-direction: column; gap: 9px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--background-modifier-border); }
 .memos-plus-workbench-nav-section,
 .memos-plus-workbench-tree-node { display: flex; flex-direction: column; gap: 2px; padding-top: 7px; }
 .memos-plus-workbench-nav-heading,

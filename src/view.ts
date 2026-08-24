@@ -141,6 +141,7 @@ export class MemosPlusView extends ItemView {
   private workbenchTaskRoute: WorkbenchTaskRoute | "" = "";
   private workbenchLearningFilter: LearningCardFilter | "" = "";
   private taskCalendarSurface: TaskCalendarSurface | null = null;
+  private unifiedShell: HTMLElement | null = null;
   private unifiedSidebar: HTMLElement | null = null;
   private unifiedMain: HTMLElement | null = null;
   private sidebarScrollSaveTimer: number | null = null;
@@ -185,6 +186,7 @@ export class MemosPlusView extends ItemView {
     this.taskCalendarSurface = null;
     if (this.sidebarScrollSaveTimer !== null) window.clearTimeout(this.sidebarScrollSaveTimer);
     this.sidebarScrollSaveTimer = null;
+    this.unifiedShell = null;
     this.unifiedSidebar = null;
     this.unifiedMain = null;
     this.transientComposerDraft = undefined;
@@ -193,7 +195,7 @@ export class MemosPlusView extends ItemView {
     this.clearDerivedViewCaches();
   }
 
-  async reload(options: { preserveScroll?: boolean } = {}): Promise<void> {
+  async reload(options: { preserveScroll?: boolean; preserveUnifiedShell?: boolean } = {}): Promise<void> {
     logMemosPlusDiagnostic("view:refresh", {
       type: MEMOS_PLUS_VIEW_TYPE,
       preserveScroll: Boolean(options.preserveScroll)
@@ -207,7 +209,7 @@ export class MemosPlusView extends ItemView {
       this.memoDataRevision += 1;
       this.clearDerivedViewCaches();
     }
-    await this.render();
+    await this.renderWithOptions({ preserveUnifiedShell: options.preserveUnifiedShell });
     this.restoreMainScrollPosition(scrollPosition);
   }
 
@@ -226,7 +228,7 @@ export class MemosPlusView extends ItemView {
     this.activeOrganizerSectionId = organizer;
     this.query = options.query?.trim() ?? "";
     this.visibleCount = this.pageSize();
-    await this.reload();
+    await this.reload({ preserveUnifiedShell: true });
   }
 
   /** Opens the established calendar/task surface inside this view's content area. */
@@ -240,7 +242,7 @@ export class MemosPlusView extends ItemView {
         : options.navigation === "overdue" ? "overdue"
           : options.navigation === "completed" ? "completed"
             : "pending";
-    await this.render();
+    await this.renderWithOptions({ preserveUnifiedShell: true });
     if (!this.taskCalendarSurface) return;
     if (options.showProjects) this.taskCalendarSurface.openProjects();
     if (Object.keys(options).length === 0) this.taskCalendarSurface.openDefault();
@@ -252,6 +254,11 @@ export class MemosPlusView extends ItemView {
   }
 
   async render(): Promise<void> {
+    await this.renderWithOptions();
+  }
+
+  /** Switches a primary workbench route without recreating its shared sidebar. */
+  private async renderWithOptions(options: { preserveUnifiedShell?: boolean } = {}): Promise<void> {
     logMemosPlusDiagnostic("view:render", { type: MEMOS_PLUS_VIEW_TYPE });
     logMemosPlusDiagnostic("view:render-start", { type: MEMOS_PLUS_VIEW_TYPE });
     setMemosPlusDiagnosticState({ isRendering: true });
@@ -271,9 +278,31 @@ export class MemosPlusView extends ItemView {
         this.timelineEl = null;
         this.taskCalendarSurface?.unmount();
         this.taskCalendarSurface = null;
+        const reusableShell = options.preserveUnifiedShell && !Platform.isMobile && this.unifiedShell?.isConnected && this.unifiedSidebar?.isConnected && this.unifiedMain?.isConnected
+          ? this.unifiedShell
+          : null;
+        if (reusableShell && this.unifiedSidebar && this.unifiedMain) {
+          this.unifiedMain.empty();
+          const reusableSurface: DisplaySurface = "home";
+          const activeLayout = this.layoutForSurface(reusableSurface);
+          const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, reusableSurface);
+          const sidebarOptions = this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules);
+          this.renderSidebar(reusableShell, sidebarOptions, this.unifiedSidebar);
+          if (this.workbenchSection === "directory") {
+            await this.renderMain(reusableShell, reusableSurface, activeLayout, transientComposerDraft, this.unifiedMain);
+          } else {
+            this.taskCalendarSurface = new TaskCalendarSurface(this.plugin, this.unifiedMain, {
+              onSidebarChanged: () => this.refreshUnifiedSidebar()
+            });
+            this.taskCalendarSurface.mount();
+            this.refreshUnifiedSidebar();
+          }
+          return;
+        }
         container.empty();
         container.addClass("memos-plus-view");
 
+        this.unifiedShell = null;
         this.unifiedSidebar = null;
         this.unifiedMain = null;
 
@@ -289,6 +318,7 @@ export class MemosPlusView extends ItemView {
         const surfaceModules = surfaceLayoutModules.modules;
         const sidebar = shell.createDiv({ cls: "memos-plus-sidebar memos-plus-unified-sidebar" });
         const main = shell.createDiv({ cls: "memos-plus-main memos-plus-unified-content" });
+        this.unifiedShell = shell;
         this.unifiedSidebar = sidebar;
         this.unifiedMain = main;
         this.installUnifiedSidebarState(shell, sidebar);
@@ -436,19 +466,28 @@ export class MemosPlusView extends ItemView {
     sidebar.empty();
     this.renderUnifiedSidebarControl(sidebar);
     this.renderWorkbenchNavigation(sidebar);
-    // Calendar/project controls belong to the workbench tree, before the
-    // optional legacy directory modules. Rendering them at the end made the
-    // calendar effectively disappear below a long directory list.
-    if (this.workbenchSection !== "directory") {
-      this.taskCalendarSurface?.renderSidebarExtras(sidebar);
+    if (this.workbenchSection === "tasks") {
+      this.taskCalendarSurface?.renderSidebarExtras(sidebar, { calendar: true });
+      logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
+      return sidebar;
     }
+    if (this.workbenchSection === "projects") {
+      this.taskCalendarSurface?.renderSidebarExtras(sidebar, { projects: true });
+      logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
+      return sidebar;
+    }
+    if (this.workbenchSection === "learning") {
+      logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
+      return sidebar;
+    }
+    const directoryChildren = sidebar.createDiv({ cls: "memos-plus-workbench-directory-subnavigation", attr: { role: "group" } });
     const moduleOrder =
       options.moduleOrder && options.moduleOrder.length > 0 ? orderedModulesInGroup(options.moduleOrder, DEFAULT_SIDEBAR_MODULE_ORDER) : [...DEFAULT_SIDEBAR_MODULE_ORDER];
     const rendered = new Set<string>();
 
-    const renderStats = () => {
+    const renderStats = (container: HTMLElement) => {
       const stats = this.profiler().measureSync("calculate stats time", () => this.memoStats(today));
-      const statGrid = sidebar.createDiv({ cls: "memos-plus-stat-grid" });
+      const statGrid = container.createDiv({ cls: "memos-plus-stat-grid" });
       this.renderStat(statGrid, stats.total, t(lang, "meta.memos"));
       this.renderStat(statGrid, stats.tags, t(lang, "meta.tags"));
       this.renderStat(statGrid, stats.activeDays, t(lang, "meta.activeDays"));
@@ -457,7 +496,7 @@ export class MemosPlusView extends ItemView {
     };
 
     const renderAllNotes = () => {
-      const allSection = sidebar.createDiv({ cls: "memos-plus-sidebar-section memos-plus-sidebar-all-section" });
+      const allSection = directoryChildren.createDiv({ cls: "memos-plus-sidebar-section memos-plus-sidebar-all-section" });
       const allRow = allSection.createDiv({ cls: "memos-plus-side-search-row memos-plus-side-all-row" });
       this.renderSidebarItem(allRow, {
         label: t(lang, "views.all"),
@@ -474,12 +513,10 @@ export class MemosPlusView extends ItemView {
     for (const moduleId of moduleOrder) {
       if (moduleId === "statsCards" && renderOptions.showStats && !rendered.has("statsCards")) {
         rendered.add("statsCards");
-        renderStats();
         continue;
       }
       if (moduleId === "heatmap" && renderOptions.showHeatmap && !rendered.has("heatmap")) {
         rendered.add("heatmap");
-        this.renderHeatmap(sidebar);
         continue;
       }
       if (moduleId === "allNotes" && renderOptions.showAllNotes && !rendered.has("allNotes")) {
@@ -489,7 +526,7 @@ export class MemosPlusView extends ItemView {
       }
       if (moduleId === "organizeDirectory" && renderOptions.showOrganizer && !rendered.has("organizeDirectory")) {
         rendered.add("organizeDirectory");
-        this.renderOrganizerDirectory(sidebar, { showSections: true, showTasks: false });
+        this.renderOrganizerDirectory(directoryChildren, { showSections: true, showTasks: false });
         continue;
       }
       // Task routes now live in the shared workbench navigation above.  The
@@ -502,9 +539,13 @@ export class MemosPlusView extends ItemView {
         !rendered.has("customDirectory")
       ) {
         rendered.add("customDirectory");
-        this.renderCustomDirectory(sidebar);
+        this.renderCustomDirectory(directoryChildren);
       }
     }
+    const directorySummary = sidebar.createDiv({ cls: "memos-plus-workbench-sidebar-summary", attr: { role: "group" } });
+    if (renderOptions.showHeatmap && moduleOrder.includes("heatmap")) this.renderHeatmap(directorySummary);
+    if (renderOptions.showStats && moduleOrder.includes("statsCards")) renderStats(directorySummary);
+    if (directorySummary.childElementCount === 0) directorySummary.remove();
     logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
     return sidebar;
   }
@@ -758,7 +799,14 @@ export class MemosPlusView extends ItemView {
       projectsExpanded: this.taskCalendarSurface?.isProjectsExpanded(),
       counts: workbenchNavigationCounts(this.plugin.taskIndex.getItems(), this.plugin.learningCards.cards(), today),
       onDirectory: () => void this.applyWorkbenchDirectoryOptions(),
+      onTasks: () => void this.openTaskWorkbench(workbenchTaskRouteOptions("pending", today)),
       onTask: (route) => void this.openTaskWorkbench(workbenchTaskRouteOptions(route, today)),
+      onLearningHome: () => void this.openTaskWorkbench({
+        navigation: "today",
+        selectedDate: today,
+        viewMode: "day",
+        learningFilter: "today"
+      }),
       onLearning: (filter) => void this.openTaskWorkbench({
         navigation: "today",
         selectedDate: today,
@@ -766,10 +814,7 @@ export class MemosPlusView extends ItemView {
         learningFilter: filter
       }),
       onProjects: () => {
-        if (this.workbenchSection === "projects" && this.taskCalendarSurface) {
-          this.taskCalendarSurface.openProjects();
-          return;
-        }
+        if (this.workbenchSection === "projects") return;
         void this.openTaskWorkbench({
           navigation: "all",
           selectedDate: today,

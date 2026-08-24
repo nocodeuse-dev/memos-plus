@@ -7,8 +7,8 @@ const settingsSource = readFileSync("src/settings.ts", "utf8");
 describe("organizer panel source integration", () => {
   it("moves organizer entries into the sidebar instead of rendering a main panel", () => {
     const allSectionIndex = viewSource.indexOf("memos-plus-sidebar-all-section");
-    const organizerDirectoryIndex = viewSource.indexOf("this.renderOrganizerDirectory(sidebar, {");
-    const customDirectoryIndex = viewSource.indexOf("this.renderCustomDirectory(sidebar);");
+    const organizerDirectoryIndex = viewSource.indexOf("this.renderOrganizerDirectory(directoryChildren, {");
+    const customDirectoryIndex = viewSource.indexOf("this.renderCustomDirectory(directoryChildren);");
 
     expect(viewSource).not.toContain("this.renderOrganizerPanel(main);");
     expect(viewSource).not.toContain("private renderOrganizerPanel");

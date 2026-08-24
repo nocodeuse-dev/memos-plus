@@ -38,7 +38,9 @@ export interface WorkbenchNavigationOptions {
   projectsExpanded?: boolean;
   counts: WorkbenchNavigationCounts;
   onDirectory: () => void;
+  onTasks: () => void;
   onTask: (route: WorkbenchTaskRoute) => void;
+  onLearningHome: () => void;
   onLearning: (filter: LearningCardFilter) => void;
   onProjects: () => void;
 }
@@ -94,18 +96,53 @@ export function workbenchTaskRouteOptions(route: WorkbenchTaskRoute, today = tod
   }
 }
 
+/**
+ * Keeps the tree's second level deliberately exclusive: the active primary
+ * section owns the only visible child routes.  Directory and project children
+ * are rendered by their established services, because they need the live
+ * saved-search and project data owned by those services.
+ */
+export function workbenchSecondaryRouteIds(section: WorkbenchSection): readonly string[] {
+  if (section === "tasks") return TASK_ROUTES.map((route) => route.id);
+  if (section === "learning") return LEARNING_ROUTES.map((route) => route.id);
+  return [];
+}
+
 export function renderWorkbenchNavigation(container: HTMLElement, options: WorkbenchNavigationOptions): void {
   const root = container.createDiv({ cls: "memos-plus-workbench-navigation", attr: { role: "tree", "aria-label": t(options.language, "workbench.navigation") } });
-  const directory = root.createEl("button", {
-    cls: `memos-plus-workbench-nav-item${options.activeSection === "directory" ? " is-active" : ""}`,
-    attr: { type: "button", role: "treeitem", "aria-level": "1", "data-workbench-section": "directory" }
+  const primary = root.createDiv({ cls: "memos-plus-workbench-primary-navigation", attr: { role: "group" } });
+  createPrimaryItem(primary, {
+    active: options.activeSection === "directory",
+    icon: "folder-tree",
+    label: t(options.language, "workbench.directory"),
+    section: "directory",
+    onClick: options.onDirectory
   });
-  setIcon(directory, "folder-tree");
-  directory.createSpan({ text: t(options.language, "workbench.directory") });
-  directory.addEventListener("click", options.onDirectory);
+  createPrimaryItem(primary, {
+    active: options.activeSection === "tasks",
+    icon: "list-todo",
+    label: t(options.language, "workbench.tasks"),
+    section: "tasks",
+    onClick: options.onTasks
+  });
+  createPrimaryItem(primary, {
+    active: options.activeSection === "learning",
+    icon: "brain",
+    label: t(options.language, "taskCalendar.learning"),
+    section: "learning",
+    onClick: options.onLearningHome
+  });
+  createPrimaryItem(primary, {
+    active: options.activeSection === "projects",
+    icon: "folder-kanban",
+    label: t(options.language, "taskCalendar.projects"),
+    section: "projects",
+    onClick: options.onProjects
+  });
 
-  const taskSection = createSection(root, t(options.language, "workbench.tasks"), "list-todo");
-  for (const route of TASK_ROUTES) {
+  if (options.activeSection === "tasks") {
+    const taskSection = createSection(root, t(options.language, "workbench.tasks"), "list-todo");
+    for (const route of TASK_ROUTES) {
     const active = options.activeSection === "tasks" && options.activeTaskRoute === route.id;
     const button = taskSection.createEl("button", {
       cls: `memos-plus-workbench-nav-item${active ? " is-active" : ""}`,
@@ -116,9 +153,11 @@ export function renderWorkbenchNavigation(container: HTMLElement, options: Workb
     button.createSpan({ cls: "memos-plus-workbench-nav-count", text: String(options.counts[route.countKey]) });
     button.addEventListener("click", () => options.onTask(route.id));
   }
+  }
 
-  const learningSection = createSection(root, t(options.language, "taskCalendar.learning"), "brain");
-  for (const route of LEARNING_ROUTES) {
+  if (options.activeSection === "learning") {
+    const learningSection = createSection(root, t(options.language, "taskCalendar.learning"), "brain");
+    for (const route of LEARNING_ROUTES) {
     const active = options.activeSection === "learning" && options.activeLearningFilter === route.id;
     const button = learningSection.createEl("button", {
       cls: `memos-plus-workbench-nav-item${active ? " is-active" : ""}`,
@@ -129,16 +168,20 @@ export function renderWorkbenchNavigation(container: HTMLElement, options: Workb
     button.createSpan({ cls: "memos-plus-workbench-nav-count", text: String(options.counts.learning[route.id]) });
     button.addEventListener("click", () => options.onLearning(route.id));
   }
+  }
+}
 
-  const projects = root.createEl("button", {
-    cls: `memos-plus-workbench-nav-item${options.activeSection === "projects" ? " is-active" : ""}`,
-    attr: { type: "button", role: "treeitem", "aria-level": "1", "aria-expanded": String(Boolean(options.projectsExpanded)), "data-workbench-section": "projects" }
+function createPrimaryItem(
+  container: HTMLElement,
+  options: { active: boolean; icon: string; label: string; section: WorkbenchSection; onClick: () => void }
+): void {
+  const button = container.createEl("button", {
+    cls: `memos-plus-workbench-nav-item memos-plus-workbench-primary-item${options.active ? " is-active" : ""}`,
+    attr: { type: "button", role: "treeitem", "aria-level": "1", "data-workbench-section": options.section }
   });
-  setIcon(projects, "folder-kanban");
-  projects.createSpan({ text: t(options.language, "taskCalendar.projects") });
-  const chevron = projects.createSpan({ cls: "memos-plus-workbench-nav-chevron", attr: { "aria-hidden": "true" } });
-  setIcon(chevron, options.projectsExpanded ? "chevron-down" : "chevron-right");
-  projects.addEventListener("click", options.onProjects);
+  setIcon(button, options.icon);
+  button.createSpan({ text: options.label });
+  button.addEventListener("click", options.onClick);
 }
 
 function createSection(container: HTMLElement, label: string, icon: string): HTMLElement {
