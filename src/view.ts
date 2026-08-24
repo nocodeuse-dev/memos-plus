@@ -43,7 +43,14 @@ import { computeMemoStats, type MemoStats } from "./stats";
 import { tagColorSlot } from "./tagColor";
 import { getTaskIndexOrganizerCounts, type TaskIndexStatus } from "./taskIndex";
 import { resolveTemplateAfterTransferAction } from "./templateManager";
-import { taskCalendarTasks, todayTaskCalendarDate, type TaskCalendarOpenOptions } from "./taskCalendar";
+import {
+  formatTaskCalendarMonth,
+  shiftTaskCalendarMonth,
+  taskCalendarMonthDays,
+  taskCalendarTasks,
+  todayTaskCalendarDate,
+  type TaskCalendarOpenOptions
+} from "./taskCalendar";
 import { TaskCalendarSurface } from "./taskCalendarView";
 import {
   renderWorkbenchNavigation as renderSharedWorkbenchNavigation,
@@ -143,6 +150,7 @@ export class MemosPlusView extends ItemView {
   private taskCalendarSurface: TaskCalendarSurface | null = null;
   private unifiedShell: HTMLElement | null = null;
   private unifiedSidebar: HTMLElement | null = null;
+  private unifiedSidebarScrollContent: HTMLElement | null = null;
   private unifiedMain: HTMLElement | null = null;
   private sidebarScrollSaveTimer: number | null = null;
 
@@ -188,6 +196,7 @@ export class MemosPlusView extends ItemView {
     this.sidebarScrollSaveTimer = null;
     this.unifiedShell = null;
     this.unifiedSidebar = null;
+    this.unifiedSidebarScrollContent = null;
     this.unifiedMain = null;
     this.transientComposerDraft = undefined;
     this.timelineEl = null;
@@ -287,9 +296,9 @@ export class MemosPlusView extends ItemView {
           const activeLayout = this.layoutForSurface(reusableSurface);
           const surfaceLayoutModules = resolveLayoutSurfaceModules(activeLayout, reusableSurface);
           const sidebarOptions = this.sidebarOptionsForDisplayModules(surfaceLayoutModules.orderedModules);
-          const sidebarScrollTop = this.unifiedSidebar.scrollTop;
+          const sidebarScrollTop = this.currentUnifiedSidebarScrollTop();
           this.renderSidebar(reusableShell, sidebarOptions, this.unifiedSidebar);
-          this.unifiedSidebar.scrollTop = sidebarScrollTop;
+          this.restoreUnifiedSidebarScrollTop(sidebarScrollTop);
           if (this.workbenchSection === "directory") {
             await this.renderMain(reusableShell, reusableSurface, activeLayout, transientComposerDraft, this.unifiedMain);
           } else {
@@ -306,6 +315,7 @@ export class MemosPlusView extends ItemView {
 
         this.unifiedShell = null;
         this.unifiedSidebar = null;
+        this.unifiedSidebarScrollContent = null;
         this.unifiedMain = null;
 
         const showMobileHome = this.workbenchSection === "directory" && this.shouldRenderMobileLightHome();
@@ -359,18 +369,6 @@ export class MemosPlusView extends ItemView {
     shell.toggleClass("is-unified-sidebar-collapsed", collapsed);
     shell.style.setProperty("--memos-plus-unified-sidebar-width", `${state.navigationWidth}px`);
 
-    sidebar.addEventListener("scroll", () => {
-      if (this.sidebarScrollSaveTimer !== null) window.clearTimeout(this.sidebarScrollSaveTimer);
-      this.sidebarScrollSaveTimer = window.setTimeout(() => {
-        this.sidebarScrollSaveTimer = null;
-        this.plugin.settings.taskCalendar.sidebarScrollTop = Math.max(0, Math.round(sidebar.scrollTop));
-        void this.plugin.persistSettings();
-      }, 160);
-    });
-    window.requestAnimationFrame(() => {
-      if (sidebar.isConnected) sidebar.scrollTop = this.plugin.settings.taskCalendar.sidebarScrollTop;
-    });
-
     const resize = shell.createDiv({
       cls: "memos-plus-unified-sidebar-resizer",
       attr: {
@@ -423,12 +421,37 @@ export class MemosPlusView extends ItemView {
   private refreshUnifiedSidebar(): void {
     const sidebar = this.unifiedSidebar;
     if (!sidebar?.isConnected) return;
-    const top = sidebar.scrollTop;
+    const top = this.currentUnifiedSidebarScrollTop();
     const surface = Platform.isMobile ? "mobile" : "home";
     const layout = this.layoutForSurface(surface);
     const orderedModules = resolveLayoutSurfaceModules(layout, surface).orderedModules;
     this.renderSidebar(sidebar.parentElement ?? sidebar, this.sidebarOptionsForDisplayModules(orderedModules), sidebar);
-    sidebar.scrollTop = top;
+    this.restoreUnifiedSidebarScrollTop(top);
+  }
+
+  private currentUnifiedSidebarScrollTop(): number {
+    return this.unifiedSidebarScrollContent?.isConnected
+      ? this.unifiedSidebarScrollContent.scrollTop
+      : 0;
+  }
+
+  private restoreUnifiedSidebarScrollTop(top: number): void {
+    window.requestAnimationFrame(() => {
+      if (this.unifiedSidebarScrollContent?.isConnected) this.unifiedSidebarScrollContent.scrollTop = top;
+    });
+  }
+
+  private bindUnifiedSidebarScrollContent(scrollContent: HTMLElement): void {
+    this.unifiedSidebarScrollContent = scrollContent;
+    scrollContent.addEventListener("scroll", () => {
+      if (this.sidebarScrollSaveTimer !== null) window.clearTimeout(this.sidebarScrollSaveTimer);
+      this.sidebarScrollSaveTimer = window.setTimeout(() => {
+        this.sidebarScrollSaveTimer = null;
+        this.plugin.settings.taskCalendar.sidebarScrollTop = Math.max(0, Math.round(scrollContent.scrollTop));
+        void this.plugin.persistSettings();
+      }, 160);
+    });
+    this.restoreUnifiedSidebarScrollTop(this.plugin.settings.taskCalendar.sidebarScrollTop);
   }
 
   private renderUnifiedSidebarControl(sidebar: HTMLElement): void {
@@ -466,15 +489,20 @@ export class MemosPlusView extends ItemView {
     const today = todayString();
     const sidebar = existingSidebar ?? shell.createDiv({ cls: "memos-plus-sidebar" });
     sidebar.empty();
-    this.renderUnifiedSidebarControl(sidebar);
-    this.renderWorkbenchNavigation(sidebar);
+    const fixedTop = sidebar.createDiv({ cls: "memos-plus-unified-sidebar-fixed-top" });
+    this.renderUnifiedSidebarControl(fixedTop);
+    this.renderFixedSidebarStatistics(fixedTop, today, lang);
+    this.renderFixedSidebarCalendar(fixedTop);
+    const scrollContent = sidebar.createDiv({ cls: "memos-plus-unified-sidebar-scroll-content" });
+    this.bindUnifiedSidebarScrollContent(scrollContent);
+    this.renderWorkbenchNavigation(scrollContent);
     if (this.workbenchSection === "tasks") {
-      this.taskCalendarSurface?.renderSidebarExtras(sidebar, { calendar: true });
+      this.taskCalendarSurface?.renderSidebarCalendarSources(fixedTop);
       logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
       return sidebar;
     }
     if (this.workbenchSection === "projects") {
-      this.taskCalendarSurface?.renderSidebarExtras(sidebar, { projects: true });
+      this.taskCalendarSurface?.renderSidebarExtras(scrollContent, { projects: true });
       logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
       return sidebar;
     }
@@ -482,20 +510,10 @@ export class MemosPlusView extends ItemView {
       logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
       return sidebar;
     }
-    const directoryChildren = sidebar.createDiv({ cls: "memos-plus-workbench-directory-subnavigation", attr: { role: "group" } });
+    const directoryChildren = scrollContent.createDiv({ cls: "memos-plus-workbench-directory-subnavigation", attr: { role: "group" } });
     const moduleOrder =
       options.moduleOrder && options.moduleOrder.length > 0 ? orderedModulesInGroup(options.moduleOrder, DEFAULT_SIDEBAR_MODULE_ORDER) : [...DEFAULT_SIDEBAR_MODULE_ORDER];
     const rendered = new Set<string>();
-
-    const renderStats = (container: HTMLElement) => {
-      const stats = this.profiler().measureSync("calculate stats time", () => this.memoStats(today));
-      const statGrid = container.createDiv({ cls: "memos-plus-stat-grid" });
-      this.renderStat(statGrid, stats.total, t(lang, "meta.memos"));
-      this.renderStat(statGrid, stats.tags, t(lang, "meta.tags"));
-      this.renderStat(statGrid, stats.activeDays, t(lang, "meta.activeDays"));
-      this.renderStat(statGrid, stats.today, t(lang, "meta.today"));
-      this.renderStat(statGrid, stats.openTasks, t(lang, "meta.openTasks"));
-    };
 
     const renderAllNotes = () => {
       const allSection = directoryChildren.createDiv({ cls: "memos-plus-sidebar-section memos-plus-sidebar-all-section" });
@@ -544,12 +562,64 @@ export class MemosPlusView extends ItemView {
         this.renderCustomDirectory(directoryChildren);
       }
     }
-    const directorySummary = sidebar.createDiv({ cls: "memos-plus-workbench-sidebar-summary", attr: { role: "group" } });
+    const directorySummary = scrollContent.createDiv({ cls: "memos-plus-workbench-sidebar-summary", attr: { role: "group" } });
     if (renderOptions.showHeatmap && moduleOrder.includes("heatmap")) this.renderHeatmap(directorySummary);
-    if (renderOptions.showStats && moduleOrder.includes("statsCards")) renderStats(directorySummary);
     if (directorySummary.childElementCount === 0) directorySummary.remove();
     logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
     return sidebar;
+  }
+
+  private renderFixedSidebarStatistics(container: HTMLElement, today: string, lang: Language): void {
+    const summary = container.createDiv({ cls: "memos-plus-unified-sidebar-statistics", attr: { role: "group", "aria-label": t(lang, "meta.memos") } });
+    const stats = this.profiler().measureSync("calculate stats time", () => this.memoStats(today));
+    const statGrid = summary.createDiv({ cls: "memos-plus-stat-grid" });
+    this.renderStat(statGrid, stats.total, t(lang, "meta.memos"));
+    this.renderStat(statGrid, stats.tags, t(lang, "meta.tags"));
+    this.renderStat(statGrid, stats.activeDays, t(lang, "meta.activeDays"));
+    this.renderStat(statGrid, stats.today, t(lang, "meta.today"));
+    this.renderStat(statGrid, stats.openTasks, t(lang, "meta.openTasks"));
+  }
+
+  private renderFixedSidebarCalendar(container: HTMLElement): void {
+    if (!this.plugin.settings.taskCalendar.showSidebarCalendar) return;
+    const lang = this.plugin.settings.language;
+    const selectedDate = this.plugin.settings.taskCalendar.selectedDate || todayTaskCalendarDate();
+    const calendar = container.createDiv({ cls: "memos-plus-unified-sidebar-calendar", attr: { role: "group", "aria-label": t(lang, "taskCalendar.calendars") } });
+    const header = calendar.createDiv({ cls: "memos-plus-task-calendar-mini-calendar-header" });
+    const persistCalendarDate = (date: string): void => {
+      Object.assign(this.plugin.settings.taskCalendar, { selectedDate: date, navigation: "today", viewMode: "day", learningFilter: "" });
+      void this.plugin.persistSettings().then(() => this.refreshUnifiedSidebar());
+    };
+    const selectDate = (date: string, openTaskWorkbench: boolean): void => {
+      if (this.workbenchSection === "tasks" && this.taskCalendarSurface) {
+        this.taskCalendarSurface.applyOpenOptions({ selectedDate: date, navigation: "today", viewMode: "day" });
+        return;
+      }
+      if (openTaskWorkbench) {
+        void this.openTaskWorkbench({ selectedDate: date, navigation: "today", viewMode: "day" });
+        return;
+      }
+      persistCalendarDate(date);
+    };
+    const createMonthButton = (icon: "chevron-left" | "chevron-right", labelKey: "taskCalendar.previousMonth" | "taskCalendar.nextMonth", offset: -1 | 1): void => {
+      const button = header.createEl("button", { cls: "memos-plus-icon-button", attr: { type: "button", title: t(lang, labelKey), "aria-label": t(lang, labelKey) } });
+      setIcon(button, icon);
+      button.addEventListener("click", () => selectDate(shiftTaskCalendarMonth(selectedDate, offset), false));
+    };
+    createMonthButton("chevron-left", "taskCalendar.previousMonth", -1);
+    header.createSpan({ text: formatTaskCalendarMonth(selectedDate, lang === "zh" ? "zh-CN" : "en-US") });
+    createMonthButton("chevron-right", "taskCalendar.nextMonth", 1);
+    const weekdays = calendar.createDiv({ cls: "memos-plus-task-calendar-mini-weekdays", attr: { "aria-hidden": "true" } });
+    for (const label of lang === "zh" ? ["一", "二", "三", "四", "五", "六", "日"] : ["M", "T", "W", "T", "F", "S", "S"]) weekdays.createSpan({ text: label });
+    const days = calendar.createDiv({ cls: "memos-plus-task-calendar-mini-days" });
+    for (const day of taskCalendarMonthDays(selectedDate)) {
+      const button = days.createEl("button", {
+        cls: `${day.inCurrentMonth ? "" : "is-outside"}${day.date === selectedDate ? " is-selected" : ""}${day.isToday ? " is-today" : ""}`,
+        text: String(day.day),
+        attr: { type: "button", "aria-label": day.date }
+      });
+      button.addEventListener("click", () => selectDate(day.date, true));
+    }
   }
 
   private async renderMain(

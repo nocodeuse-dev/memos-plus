@@ -688,9 +688,15 @@
 .memos-plus-unified-shell {
   grid-template-columns: var(--memos-plus-unified-sidebar-width, 232px) 5px minmax(0, 1fr);
 }
-.memos-plus-unified-sidebar { min-width: 0; }
+.memos-plus-unified-sidebar { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; padding: 0; }
 .memos-plus-unified-content { width: 100%; max-width: 100%; }
-.memos-plus-unified-sidebar-control { display: flex; justify-content: flex-end; min-height: 28px; margin: -3px -2px 4px; }
+.memos-plus-unified-sidebar-fixed-top { display: flex; min-height: 0; max-height: min(52%, 390px); flex: 0 1 auto; flex-direction: column; gap: 8px; padding: 11px 10px 9px; border-bottom: 1px solid var(--background-modifier-border); }
+.memos-plus-unified-sidebar-control { display: flex; justify-content: flex-end; min-height: 28px; margin: -3px -2px 0; }
+.memos-plus-unified-sidebar-statistics { flex: 0 0 auto; }
+.memos-plus-unified-sidebar-calendar { min-height: 0; flex: 0 1 auto; overflow: auto; }
+.memos-plus-unified-sidebar-calendar .memos-plus-task-calendar-mini-calendar { margin: 0; border-bottom: 0; }
+.memos-plus-unified-sidebar-calendar + .memos-plus-task-calendar-calendar-filters { min-height: 0; max-height: 180px; overflow: auto; }
+.memos-plus-unified-sidebar-scroll-content { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; overflow: auto; padding: 10px 10px 14px; }
 .memos-plus-unified-sidebar-resizer { position: relative; z-index: 5; min-width: 5px; cursor: col-resize; touch-action: none; }
 .memos-plus-unified-sidebar-resizer::after { position: absolute; top: 0; bottom: 0; left: 2px; width: 1px; background: var(--background-modifier-border); content: ""; }
 .memos-plus-unified-sidebar-resizer:hover::after,
@@ -698,16 +704,19 @@
 .memos-plus-unified-sidebar-resizer.is-active::after { width: 2px; background: var(--interactive-accent); }
 .memos-plus-unified-shell.is-unified-sidebar-collapsed { grid-template-columns: 44px 0 minmax(0, 1fr); }
 .memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar { overflow: hidden; padding-right: 5px; padding-left: 5px; }
-.memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar > :not(.memos-plus-unified-sidebar-control) { display: none; }
+.memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar-fixed-top { padding-right: 0; padding-left: 0; border-bottom: 0; }
+.memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar-fixed-top > :not(.memos-plus-unified-sidebar-control),
+.memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar-scroll-content { display: none; }
 .memos-plus-unified-shell.is-unified-sidebar-collapsed .memos-plus-unified-sidebar-resizer { visibility: hidden; pointer-events: none; }
 
 .memos-plus-sidebar {
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 14px 10px;
   border-right: 1px solid var(--memos-plus-border);
   background: var(--memos-plus-sidebar);
 }
+.memos-plus-sidebar.memos-plus-unified-sidebar { padding: 0; }
 
 /* One lightweight navigation component is shared by the memo directory and
    the schedule/tasks surface.  It deliberately relies on theme variables and

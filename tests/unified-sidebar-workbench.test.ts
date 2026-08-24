@@ -13,7 +13,7 @@ describe("unified workbench sidebar", () => {
     expect(homeView).toContain('"memos-plus-sidebar memos-plus-unified-sidebar"');
     expect(homeView).toContain('"memos-plus-main memos-plus-unified-content"');
     expect(homeView).toContain("new TaskCalendarSurface(this.plugin, main");
-    expect(homeView).toContain("this.taskCalendarSurface?.renderSidebarExtras(sidebar, { calendar: true })");
+    expect(homeView).toContain("this.taskCalendarSurface?.renderSidebarCalendarSources(fixedTop)");
     expect(taskSurface).toContain("export class TaskCalendarSurface");
     expect(taskSurface).toContain("renderSidebarExtras(container: HTMLElement, options:");
     expect(taskSurface).not.toContain('createDiv({ cls: "memos-plus-task-calendar-navigation"');
@@ -45,11 +45,21 @@ describe("unified workbench sidebar", () => {
     expect(DEFAULT_TASK_CALENDAR_SETTINGS.sidebarScrollTop).toBe(0);
     expect(normalizeTaskCalendarSettings({ sidebarScrollTop: 123.8 }).sidebarScrollTop).toBe(124);
     expect(homeView).toContain("sidebarScrollTop");
-    expect(homeView).toContain("const sidebarScrollTop = this.unifiedSidebar.scrollTop;");
+    expect(homeView).toContain("currentUnifiedSidebarScrollTop");
     expect(homeView).toContain("navigationWidth");
     expect(homeView).toContain("is-unified-sidebar-collapsed");
     expect(styles).toContain(".memos-plus-unified-sidebar-resizer");
     expect(styles).toContain(".memos-plus-unified-shell.is-unified-sidebar-collapsed");
+  });
+
+  it("keeps statistics and the mini calendar in a fixed top section while only the lower content scrolls", () => {
+    expect(homeView).toContain('"memos-plus-unified-sidebar-fixed-top"');
+    expect(homeView).toContain('"memos-plus-unified-sidebar-scroll-content"');
+    expect(homeView).toContain("this.renderFixedSidebarStatistics(fixedTop");
+    expect(homeView).toContain("this.renderFixedSidebarCalendar(fixedTop)");
+    expect(styles).toContain(".memos-plus-unified-sidebar-fixed-top");
+    expect(styles).toContain(".memos-plus-unified-sidebar-scroll-content");
+    expect(styles).toContain(".memos-plus-unified-sidebar { display: flex;");
   });
 
   it("places the sidebar resize handle between the sidebar and content grid cells", () => {

@@ -169,6 +169,12 @@ export class TaskCalendarSurface {
     }
   }
 
+  /** Renders only the optional calendar-source checklist below the fixed mini calendar. */
+  renderSidebarCalendarSources(container: HTMLElement): void {
+    if (!this.viewActive || !this.plugin.settings.taskCalendar.showSidebarCalendarList) return;
+    this.renderCalendarFilters(container);
+  }
+
   isProjectsExpanded(): boolean {
     return this.projectNavExpanded;
   }

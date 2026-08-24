@@ -367,7 +367,7 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(workbenchNavigationSource).toContain("workbenchTaskRouteOptions");
     expect(homeViewSource).toContain("renderSharedWorkbenchNavigation");
     expect(homeViewSource).toContain("new TaskCalendarSurface(this.plugin, main");
-    expect(homeViewSource).toContain("renderSidebarExtras(sidebar, { calendar: true })");
+    expect(homeViewSource).toContain("renderSidebarCalendarSources(fixedTop)");
     expect(homeViewSource).toContain("this.openTaskWorkbench(workbenchTaskRouteOptions(route, today))");
     expect(homeViewSource).toContain("this.applyWorkbenchDirectoryOptions()");
     expect(mainSource).toContain("async openWorkbenchDirectory(options: WorkbenchDirectoryOptions = {}, preferredLeaf?: WorkspaceLeaf)");
