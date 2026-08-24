@@ -499,7 +499,7 @@ export class MemosPlusView extends ItemView {
       return sidebar;
     }
     if (this.workbenchSection === "projects") {
-      this.taskCalendarSurface?.renderSidebarExtras(scrollContent, { projects: true });
+      this.taskCalendarSurface?.renderSidebarProjects(scrollContent);
       logMemosPlusDiagnostic("sidebar:render-end", { type: MEMOS_PLUS_VIEW_TYPE });
       return sidebar;
     }

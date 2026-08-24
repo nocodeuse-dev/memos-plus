@@ -3,10 +3,7 @@ import type MemosPlusPlugin from "../main";
 import { AppleCalendarAgendaService, type AppleCalendarAgendaEvent } from "./appleCalendarAgenda";
 import { t } from "./i18n";
 import {
-  formatTaskCalendarMonth,
   formatTaskCalendarDate,
-  shiftTaskCalendarMonth,
-  taskCalendarMonthDays,
   taskCalendarDefaultAgendaNames,
   taskCalendarDateRange,
   taskCalendarCompletedOnDate,
@@ -132,43 +129,19 @@ export class TaskCalendarSurface {
     this.host.querySelector<HTMLInputElement>(".memos-plus-task-calendar-quick-input")?.focus();
   }
 
-  /**
-   * Renders the calendar-specific controls inside the workbench's one shared
-   * sidebar.  The surface owns their data and events, while `MemosPlusView`
-   * owns the sidebar element, its width and its scroll position.
-   */
-  renderSidebarExtras(container: HTMLElement, options: { calendar?: boolean; projects?: boolean } = {}): void {
-    if (!this.viewActive) return;
-    const showCalendar = options.calendar ?? true;
-    const showProjects = options.projects ?? this.projectNavExpanded;
-    if ((!showCalendar || !this.plugin.settings.taskCalendar.showSidebarCalendar) && (!showProjects || !this.projectNavExpanded)) return;
-    const selectedDate = this.plugin.settings.taskCalendar.selectedDate || todayTaskCalendarDate();
+  /** Projects are the only contextual module rendered in the sidebar scroll area. */
+  renderSidebarProjects(container: HTMLElement): void {
+    if (!this.viewActive || !this.projectNavExpanded) return;
     const tree = container.createDiv({ cls: "memos-plus-workbench-context-tree", attr: { role: "tree" } });
-    if (showCalendar && this.plugin.settings.taskCalendar.showSidebarCalendar) {
-      const calendarNode = tree.createDiv({ cls: "memos-plus-workbench-tree-node" });
-      const calendarLabel = calendarNode.createDiv({
-        cls: "memos-plus-workbench-tree-label",
-        attr: { role: "treeitem", "aria-level": "1", "aria-expanded": "true" }
-      });
-      setIcon(calendarLabel.createSpan({ cls: "memos-plus-workbench-tree-icon", attr: { "aria-hidden": "true" } }), "calendar-days");
-      calendarLabel.createSpan({ text: t(this.plugin.settings.language, "taskCalendar.calendars") });
-      const calendarContent = calendarNode.createDiv({ cls: "memos-plus-workbench-tree-children memos-plus-workbench-calendar-content", attr: { role: "group" } });
-      this.renderMiniCalendar(calendarContent, selectedDate);
-      if (this.plugin.settings.taskCalendar.showSidebarCalendarList) {
-        this.renderCalendarFilters(calendarContent);
-      }
-    }
-    if (showProjects && this.projectNavExpanded) {
-      const projectNode = tree.createDiv({ cls: "memos-plus-workbench-tree-node" });
-      const projectLabel = projectNode.createDiv({
-        cls: "memos-plus-workbench-tree-label",
-        attr: { role: "treeitem", "aria-level": "1", "aria-expanded": "true" }
-      });
-      setIcon(projectLabel.createSpan({ cls: "memos-plus-workbench-tree-icon", attr: { "aria-hidden": "true" } }), "folder-kanban");
-      projectLabel.createSpan({ text: t(this.plugin.settings.language, "taskCalendar.projects") });
-      const projectContent = projectNode.createDiv({ cls: "memos-plus-workbench-tree-children", attr: { role: "group" } });
-      this.renderProjectNavigation(projectContent);
-    }
+    const projectNode = tree.createDiv({ cls: "memos-plus-workbench-tree-node" });
+    const projectLabel = projectNode.createDiv({
+      cls: "memos-plus-workbench-tree-label",
+      attr: { role: "treeitem", "aria-level": "1", "aria-expanded": "true" }
+    });
+    setIcon(projectLabel.createSpan({ cls: "memos-plus-workbench-tree-icon", attr: { "aria-hidden": "true" } }), "folder-kanban");
+    projectLabel.createSpan({ text: t(this.plugin.settings.language, "taskCalendar.projects") });
+    const projectContent = projectNode.createDiv({ cls: "memos-plus-workbench-tree-children", attr: { role: "group" } });
+    this.renderProjectNavigation(projectContent);
   }
 
   /** Renders only the optional calendar-source checklist below the fixed mini calendar. */
@@ -594,30 +567,6 @@ export class TaskCalendarSurface {
       const next = apply(currentWidth + direction * 12 * (side === "left" ? 1 : -1));
       void this.updateState(side === "left" ? { navigationWidth: next } : { taskPaneWidth: next });
     });
-  }
-
-  private renderMiniCalendar(container: HTMLElement, selectedDate: string): void {
-    const lang = this.plugin.settings.language;
-    const mini = container.createDiv({ cls: "memos-plus-task-calendar-mini-calendar" });
-    const header = mini.createDiv({ cls: "memos-plus-task-calendar-mini-calendar-header" });
-    this.iconButton(header, "chevron-left", t(lang, "taskCalendar.previousMonth"), () => {
-      void this.updateState({ selectedDate: shiftTaskCalendarMonth(selectedDate, -1) });
-    });
-    header.createSpan({ text: formatTaskCalendarMonth(selectedDate, lang === "zh" ? "zh-CN" : "en-US") });
-    this.iconButton(header, "chevron-right", t(lang, "taskCalendar.nextMonth"), () => {
-      void this.updateState({ selectedDate: shiftTaskCalendarMonth(selectedDate, 1) });
-    });
-    const weekdays = mini.createDiv({ cls: "memos-plus-task-calendar-mini-weekdays", attr: { "aria-hidden": "true" } });
-    for (const label of lang === "zh" ? ["一", "二", "三", "四", "五", "六", "日"] : ["M", "T", "W", "T", "F", "S", "S"]) weekdays.createSpan({ text: label });
-    const days = mini.createDiv({ cls: "memos-plus-task-calendar-mini-days" });
-    for (const day of taskCalendarMonthDays(selectedDate)) {
-      const button = days.createEl("button", {
-        cls: `${day.inCurrentMonth ? "" : "is-outside"}${day.date === selectedDate ? " is-selected" : ""}${day.isToday ? " is-today" : ""}`,
-        text: String(day.day),
-        attr: { type: "button", "aria-label": day.date }
-      });
-      button.addEventListener("click", () => void this.updateState({ selectedDate: day.date, navigation: "today", viewMode: "day", learningFilter: "" }));
-    }
   }
 
   private renderCalendarFilters(container: HTMLElement): void {

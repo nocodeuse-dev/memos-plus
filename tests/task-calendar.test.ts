@@ -335,7 +335,8 @@ describe("Schedule and tasks integration boundaries", () => {
     expect(viewSource).toContain("taskCalendarDefaultAgendaNames");
     expect(viewSource).toContain("result.calendars");
     expect(viewSource).toContain("taskCalendarGridPlacement");
-    expect(viewSource).toContain("renderMiniCalendar");
+    expect(viewSource).not.toContain("renderMiniCalendar");
+    expect(homeViewSource).toContain("renderFixedSidebarCalendar(fixedTop)");
     expect(viewSource).toContain("calendarEventLocalDate(event.start)");
     expect(viewSource).toContain("createTaskCalendarInboxTask(eventTaskText(selectedEvent), calendarEventLocalDate(selectedEvent.start))");
     expect(viewSource).toContain("refreshScheduleAndTasks");

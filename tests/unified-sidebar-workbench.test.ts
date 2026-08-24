@@ -15,16 +15,16 @@ describe("unified workbench sidebar", () => {
     expect(homeView).toContain("new TaskCalendarSurface(this.plugin, main");
     expect(homeView).toContain("this.taskCalendarSurface?.renderSidebarCalendarSources(fixedTop)");
     expect(taskSurface).toContain("export class TaskCalendarSurface");
-    expect(taskSurface).toContain("renderSidebarExtras(container: HTMLElement, options:");
+    expect(taskSurface).toContain("renderSidebarProjects(container: HTMLElement)");
+    expect(taskSurface).not.toContain("renderMiniCalendar(");
     expect(taskSurface).not.toContain('createDiv({ cls: "memos-plus-task-calendar-navigation"');
   });
 
   it("keeps only the active workbench section below the primary tree and lets the task layout use the full content width", () => {
-    expect(homeView.indexOf("this.renderWorkbenchNavigation(sidebar);")).toBeLessThan(homeView.indexOf("this.workbenchSection === \"tasks\""));
-    expect(taskSurface).toContain("showSidebarCalendar");
+    expect(homeView.indexOf("this.renderWorkbenchNavigation(scrollContent);")).toBeLessThan(homeView.indexOf("this.workbenchSection === \"tasks\""));
     expect(taskSurface).toContain("showSidebarCalendarList");
-    expect(taskSurface).toContain("const showCalendar = options.calendar ?? true;");
-    expect(taskSurface).toContain("const showProjects = options.projects ?? this.projectNavExpanded;");
+    expect(taskSurface).toContain("renderSidebarProjects(container: HTMLElement)");
+    expect(taskSurface).not.toContain("options.calendar");
     expect(styles).toContain(".memos-plus-workbench-context-tree");
     expect(styles).toContain(".memos-plus-unified-content { width: 100%; max-width: 100%; }");
     expect(styles).toContain("width: 100%;\n  max-width: none;\n  align-self: stretch;");
@@ -57,6 +57,7 @@ describe("unified workbench sidebar", () => {
     expect(homeView).toContain('"memos-plus-unified-sidebar-scroll-content"');
     expect(homeView).toContain("this.renderFixedSidebarStatistics(fixedTop");
     expect(homeView).toContain("this.renderFixedSidebarCalendar(fixedTop)");
+    expect(homeView).toContain("this.taskCalendarSurface?.renderSidebarProjects(scrollContent)");
     expect(styles).toContain(".memos-plus-unified-sidebar-fixed-top");
     expect(styles).toContain(".memos-plus-unified-sidebar-scroll-content");
     expect(styles).toContain(".memos-plus-unified-sidebar { display: flex;");
