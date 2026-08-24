@@ -143,4 +143,13 @@ describe("unified task composer integration", () => {
     expect(composerSource).toContain("details.open = true");
     expect(stylesSource).toContain("button.memos-plus-unified-task-preview");
   });
+
+  it("updates a single recognition-result node in place and gives task fields a primary editing surface", () => {
+    expect(composerSource).toContain('":scope > .memos-plus-unified-task-summary"');
+    expect(composerSource).toContain("container.replaceChildren(summary)");
+    expect(composerSource).toContain("metadata.empty()");
+    expect(stylesSource).toContain(".memos-plus-unified-task-summary");
+    expect(stylesSource).toContain(".memos-plus-unified-task-details[open] > summary");
+    expect(stylesSource).toContain(".memos-plus-unified-task-fields .memos-plus-task-target-fields");
+  });
 });

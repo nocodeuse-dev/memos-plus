@@ -108,10 +108,25 @@ export function createUnifiedTaskComposer(container: HTMLElement, options: Unifi
 }
 
 export function renderUnifiedTaskSummary(container: HTMLElement, parsed: ParsedNaturalLanguageTask, language: Language): void {
-  container.empty();
-  container.createDiv({ cls: "memos-plus-unified-task-preview-label", text: t(language, "taskCalendar.quickTaskPreview") });
-  container.createDiv({ cls: "memos-plus-unified-task-preview-title", text: parsed.title });
-  const metadata = container.createDiv({ cls: "memos-plus-unified-task-preview-meta" });
+  // Keep one persistent summary node. Repeated input events update its content
+  // in place, so a delayed render can never leave a second recognition result.
+  let summary = container.querySelector<HTMLElement>(":scope > .memos-plus-unified-task-summary");
+  if (!summary) {
+    container.empty();
+    summary = container.createDiv({ cls: "memos-plus-unified-task-summary" });
+    summary.createDiv({ cls: "memos-plus-unified-task-preview-label" });
+    summary.createDiv({ cls: "memos-plus-unified-task-preview-title" });
+    summary.createDiv({ cls: "memos-plus-unified-task-preview-meta" });
+  }
+  // Remove any stale sibling left by a previous host render before updating.
+  if (container.childElementCount !== 1 || container.firstElementChild !== summary) {
+    container.replaceChildren(summary);
+  }
+  summary.querySelector<HTMLElement>(".memos-plus-unified-task-preview-label")?.setText(t(language, "taskCalendar.quickTaskPreview"));
+  summary.querySelector<HTMLElement>(".memos-plus-unified-task-preview-title")?.setText(parsed.title);
+  const metadata = summary.querySelector<HTMLElement>(".memos-plus-unified-task-preview-meta");
+  if (!metadata) return;
+  metadata.empty();
   if (!parsed.matched) metadata.createSpan({ text: t(language, "taskCalendar.quickTaskUnparsed") });
   if (parsed.requiresDateConfirmation) metadata.createSpan({ text: `📅 ${parsed.dateExpression} · ${t(language, "taskCalendar.quickTaskUnparsed")}` });
   else if (parsed.date) metadata.createSpan({ text: `📅 ${summaryDate(parsed.date, language)}` });

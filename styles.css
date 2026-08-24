@@ -3407,7 +3407,7 @@
 
 .memos-plus-unified-task-composer {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .memos-plus-unified-task-content {
@@ -3418,11 +3418,16 @@
 
 .memos-plus-unified-task-preview,
 .memos-plus-project-as-task-preview {
+  display: block;
+  border-left: 2px solid var(--interactive-accent);
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--interactive-accent) 6%, transparent);
+}
+
+.memos-plus-unified-task-summary {
   display: grid;
   gap: 5px;
-  border-left: 2px solid var(--interactive-accent);
-  padding: 7px 9px;
-  background: color-mix(in srgb, var(--interactive-accent) 6%, transparent);
+  min-width: 0;
 }
 
 .memos-plus-project-as-task-preview:empty {
@@ -3474,22 +3479,70 @@ button.memos-plus-unified-task-preview:focus-visible {
 }
 
 .memos-plus-unified-task-details {
-  border-top: 1px solid var(--background-modifier-border);
-  border-bottom: 1px solid var(--background-modifier-border);
-  padding: 8px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  overflow: clip;
 }
 
 .memos-plus-unified-task-details > summary {
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  color: var(--text-normal);
   cursor: pointer;
   font-size: var(--font-ui-small);
-  font-weight: var(--font-medium);
+  font-weight: var(--font-semibold);
+  background: var(--background-secondary-alt);
+}
+
+.memos-plus-unified-task-details[open] > summary {
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.memos-plus-unified-task-details > summary::marker {
+  color: var(--text-accent);
+}
+
+.memos-plus-unified-task-fields {
+  padding: 12px;
+}
+
+.memos-plus-unified-task-fields .memos-plus-task-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin-top: 0;
+}
+
+.memos-plus-unified-task-fields .memos-plus-task-option-field {
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 5px;
+}
+
+.memos-plus-unified-task-fields .memos-plus-task-option-field label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.memos-plus-unified-task-fields .memos-plus-task-target-fields {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  padding: 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
 }
 
 .memos-plus-unified-task-destination {
   display: grid;
   gap: 6px;
-  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
 }
 
 .memos-plus-unified-task-destination-label {
@@ -3500,8 +3553,8 @@ button.memos-plus-unified-task-preview:focus-visible {
 
 .memos-plus-unified-task-destination-row {
   width: 100%;
+  padding: 4px 0 10px;
   border-bottom: 1px solid var(--background-modifier-border);
-  padding: 8px 0 10px;
 }
 
 .memos-plus-unified-task-destination-value {
@@ -3553,6 +3606,15 @@ button.memos-plus-unified-task-preview:focus-visible {
 
   .memos-plus-unified-task-destination-actions > button {
     min-height: 40px;
+  }
+
+  .memos-plus-unified-task-fields {
+    padding: 10px;
+  }
+
+  .memos-plus-unified-task-fields .memos-plus-task-options,
+  .memos-plus-unified-task-fields .memos-plus-task-target-fields {
+    grid-template-columns: 1fr;
   }
 }
 
